@@ -73,7 +73,7 @@ const sampleContent = `<h1>Titre Principal</h1>
 <h3>Citation</h3>
 <blockquote>Ceci est une citation inspirante.</blockquote>
 <h3>Lien</h3>
-<p><a href="#" class="text-primary hover:underline">Visitez Microsoft Copilot</a></p>
+<p><a href="#" class="text-accent hover:underline">Visitez Microsoft Copilot</a></p>
 <h3>Bloc de code</h3>
 <pre><code class="language-python">def dire_bonjour():
   print("Bonjour, monde !")</code></pre>`;

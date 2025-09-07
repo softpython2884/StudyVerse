@@ -73,8 +73,6 @@ const icons: { [key: string]: LucideIcon } = {
   StickyNote,
 };
 
-const iconNames = Object.keys(icons);
-
 const predefinedColors = [
     "bg-red-200", "bg-yellow-200", "bg-green-200", "bg-blue-200", 
     "bg-indigo-200", "bg-purple-200", "bg-pink-200", "bg-gray-200"
@@ -104,7 +102,6 @@ export function DashboardPage({ children, user }: { children: React.ReactNode, u
   // --- Form State ---
   const [newItem, setNewItem] = React.useState({
       title: "",
-      icon: "FolderKanban",
       color: predefinedColors[0],
       tags: "",
       type: "note" as "course" | "note"
@@ -138,7 +135,7 @@ export function DashboardPage({ children, user }: { children: React.ReactNode, u
   const currentPage = getActivePage();
   
   const resetNewItem = () => {
-      setNewItem({ title: "", icon: "FolderKanban", color: predefinedColors[0], tags: "", type: "note"});
+      setNewItem({ title: "", color: predefinedColors[0], tags: "", type: "note"});
   }
 
   const handleCreateBinder = () => {
@@ -149,7 +146,7 @@ export function DashboardPage({ children, user }: { children: React.ReactNode, u
       const newBinder: Binder = {
           id: `binder-${Date.now()}`,
           title: newItem.title,
-          icon: newItem.icon,
+          icon: "FolderKanban",
           notebooks: []
       };
       setMockData(prev => [...prev, newBinder]);
@@ -166,7 +163,7 @@ export function DashboardPage({ children, user }: { children: React.ReactNode, u
       const newNotebook: Notebook = {
           id: `notebook-${Date.now()}`,
           title: newItem.title,
-          icon: newItem.icon,
+          icon: "BookOpen",
           color: newItem.color,
           tags: newItem.tags.split(",").map(t => t.trim()).filter(Boolean),
           pages: []
@@ -272,17 +269,6 @@ export function DashboardPage({ children, user }: { children: React.ReactNode, u
                                 <Label htmlFor="binder-title">Title</Label>
                                 <Input id="binder-title" value={newItem.title} onChange={e => setNewItem({...newItem, title: e.target.value})} placeholder="e.g., Fall Semester 2024" />
                             </div>
-                            <div>
-                                <Label>Icon</Label>
-                                <Select onValueChange={value => setNewItem({...newItem, icon: value})} defaultValue={newItem.icon}>
-                                    <SelectTrigger><SelectValue placeholder="Select an icon" /></SelectTrigger>
-                                    <SelectContent>
-                                        {iconNames.map(name => (
-                                            <SelectItem key={name} value={name}><Icon name={name} /> <span className="ml-2">{name}</span></SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
                         </div>
                         <DialogFooter>
                             <Button variant="outline" onClick={() => setIsBinderDialogOpen(false)}>Cancel</Button>
@@ -302,7 +288,7 @@ export function DashboardPage({ children, user }: { children: React.ReactNode, u
             <SidebarMenu>
               {filteredData.map((binder: Binder) => (
                 <Collapsible key={binder.id} className="w-full" defaultOpen>
-                    <div className="w-full group">
+                    <div className="w-full group relative">
                         <SidebarMenuItem>
                             <CollapsibleTrigger asChild>
                                 <SidebarMenuButton className="font-semibold" isActive={false}>
@@ -324,15 +310,15 @@ export function DashboardPage({ children, user }: { children: React.ReactNode, u
                     <div className="pl-4">
                       {binder.notebooks.map((notebook: Notebook) => (
                         <Collapsible key={notebook.id} className="w-full" defaultOpen>
-                            <div className="w-full group">
+                            <div className="w-full group relative">
                                 <SidebarMenuItem>
                                     <CollapsibleTrigger asChild>
                                         <SidebarMenuButton isActive={false}>
-                                            <div className="flex items-center gap-2">
-                                            <span className={cn("h-3 w-3 rounded-full", notebook.color)}></span>
-                                                <div className="flex flex-col items-start">
+                                            <div className="flex items-start gap-2">
+                                                <span className={cn("h-3 w-3 mt-1 rounded-full", notebook.color)}></span>
+                                                <div className="flex flex-col items-start w-full">
                                                     <span>{notebook.title}</span>
-                                                    <div className="flex gap-1 mt-1">
+                                                    <div className="flex flex-wrap gap-1 mt-1">
                                                         {notebook.tags.map(tag => <Badge key={tag} variant="secondary" className="h-4 text-[10px]">{tag}</Badge>)}
                                                     </div>
                                                 </div>
@@ -446,17 +432,6 @@ export function DashboardPage({ children, user }: { children: React.ReactNode, u
                     <div>
                         <Label htmlFor="notebook-title">Title</Label>
                         <Input id="notebook-title" value={newItem.title} onChange={e => setNewItem({...newItem, title: e.target.value})} placeholder="e.g., Advanced AI" />
-                    </div>
-                    <div>
-                        <Label>Icon</Label>
-                        <Select onValueChange={value => setNewItem({...newItem, icon: value})} defaultValue={newItem.icon}>
-                            <SelectTrigger><SelectValue placeholder="Select an icon" /></SelectTrigger>
-                            <SelectContent>
-                                {iconNames.map(name => (
-                                    <SelectItem key={name} value={name}><Icon name={name} /> <span className="ml-2">{name}</span></SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
                     </div>
                      <div>
                         <Label>Color</Label>
