@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
 import { BookOpenCheck } from "lucide-react"
+import { registerUser } from "@/lib/auth"
 
 const formSchema = z.object({
   name: z.string().min(2, {
@@ -45,13 +46,21 @@ export function RegisterForm() {
     },
   })
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    console.log(values)
-    toast({
-      title: "Registration Successful",
-      description: "Redirecting to your dashboard...",
-    })
-    router.push("/dashboard")
+  async function onSubmit(values: z.infer<typeof formSchema>) {
+    const result = await registerUser(values);
+    if (result.success) {
+      toast({
+        title: "Registration Successful",
+        description: "Redirecting to your dashboard...",
+      })
+      router.push("/dashboard")
+    } else {
+        toast({
+            title: "Registration Failed",
+            description: result.message,
+            variant: "destructive"
+        })
+    }
   }
 
   return (
@@ -106,7 +115,9 @@ export function RegisterForm() {
                     </FormItem>
                     )}
                 />
-                <Button type="submit" className="w-full">Create Account</Button>
+                <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
+                  {form.formState.isSubmitting ? 'Creating Account...' : 'Create Account'}
+                </Button>
                 </form>
             </Form>
             <div className="mt-4 text-center text-sm">

@@ -78,11 +78,9 @@ const sampleContent = `<h1>Titre Principal</h1>
 <pre><code class="language-python">def dire_bonjour():
   print("Bonjour, monde !")</code></pre>`;
 
-const sampleNote = `<h1>Notes de cours</h1><p>A neural network is a method in artificial intelligence that teaches computers to process data in a way that is inspired by the human brain. It is a type of machine learning process, called deep learning, that uses interconnected nodes or neurons in a layered structure that resembles the human brain. It creates an adaptive system that computers use to learn from their mistakes and improve continuously.</p>`;
-
 
 export function Editor({ page }: EditorProps) {
-  const [content, setContent] = React.useState("");
+  const [content, setContent] = React.useState(sampleContent);
   const editorRef = React.useRef<HTMLDivElement>(null);
   
   const [refinedNotes, setRefinedNotes] = React.useState("");
@@ -93,17 +91,6 @@ export function Editor({ page }: EditorProps) {
   const [isGenerating, setIsGenerating] = React.useState(false);
   
   const { toast } = useToast();
-
-  React.useEffect(() => {
-    // Both types now use the same rich content.
-    // We can differentiate initial content if needed.
-    if (page.type === 'note') {
-      setContent(sampleNote)
-    } else {
-      setContent(sampleContent);
-    }
-  }, [page]);
-
 
   const handleFormat = (command: string, value?: string) => {
     if (editorRef.current) {
@@ -181,118 +168,116 @@ export function Editor({ page }: EditorProps) {
   }
 
   return (
-    <div className="flex flex-col h-full bg-secondary/30">
-      <div className="flex-1 p-8 overflow-y-auto">
-        <Card className="w-full">
-            <CardHeader>
-                <div className="flex items-center justify-between p-2 mb-2 border rounded-md bg-secondary/50">
-                <div className="flex items-center gap-1 flex-wrap">
-                    <Button variant="ghost" size="icon" onClick={() => handleFormat("undo")}> <Undo className="h-4 w-4" /> </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleFormat("redo")}> <Redo className="h-4 w-4" /> </Button>
-                    <Button variant="ghost" size="icon" onClick={() => window.print()}> <Printer className="h-4 w-4" /> </Button>
-                    <Separator orientation="vertical" className="h-6 mx-1" />
-                    <Select defaultValue="p" onValueChange={(value) => handleFormat("formatBlock", `<${value}>`)}>
-                    <SelectTrigger className="w-32"> <SelectValue placeholder="Style" /> </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="p"><div className="flex items-center gap-2"><Pilcrow className="h-4 w-4" /> Paragraphe</div></SelectItem>
-                        <SelectItem value="h1"><div className="flex items-center gap-2"><Heading1 className="h-4 w-4" /> Titre 1</div></SelectItem>
-                        <SelectItem value="h2"><div className="flex items-center gap-2"><Heading2 className="h-4 w-4" /> Titre 2</div></SelectItem>
-                    </SelectContent>
-                    </Select>
-                    <Separator orientation="vertical" className="h-6 mx-1" />
-                    <Button variant="ghost" size="icon" onClick={() => handleFormat("bold")}> <Bold className="h-4 w-4" /> </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleFormat("italic")}> <Italic className="h-4 w-4" /> </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleFormat("underline")}> <Underline className="h-4 w-4" /> </Button>
-                    <Separator orientation="vertical" className="h-6 mx-1" />
-                    <Button variant="ghost" size="icon" onClick={() => handleFormat("insertUnorderedList")}> <List className="h-4 w-4" /> </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleFormat("insertOrderedList")}> <ListOrdered className="h-4 w-4" /> </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleFormat("formatBlock", "<blockquote>")}> <Quote className="h-4 w-4" /> </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleFormat("formatBlock", "<pre>")}> <Code className="h-4 w-4" /> </Button>
-                    <Separator orientation="vertical" className="h-6 mx-1" />
-                    <SpeechToText onTranscriptionComplete={(text) => {
-                      if(editorRef.current) {
-                        editorRef.current.focus();
-                        document.execCommand('insertHTML', false, ` ${text}`);
-                      }
-                    }} />
+    <div className="flex flex-col h-full bg-secondary/30 p-4 sm:p-6 lg:p-8">
+      <Card className="w-full flex-1 flex flex-col">
+          <CardHeader>
+              <div className="flex items-center justify-between p-2 mb-2 border rounded-md bg-secondary/50">
+              <div className="flex items-center gap-1 flex-wrap">
+                  <Button variant="ghost" size="icon" onClick={() => handleFormat("undo")}> <Undo className="h-4 w-4" /> </Button>
+                  <Button variant="ghost" size="icon" onClick={() => handleFormat("redo")}> <Redo className="h-4 w-4" /> </Button>
+                  <Button variant="ghost" size="icon" onClick={() => window.print()}> <Printer className="h-4 w-4" /> </Button>
+                  <Separator orientation="vertical" className="h-6 mx-1" />
+                  <Select defaultValue="p" onValueChange={(value) => handleFormat("formatBlock", `<${value}>`)}>
+                  <SelectTrigger className="w-32"> <SelectValue placeholder="Style" /> </SelectTrigger>
+                  <SelectContent>
+                      <SelectItem value="p"><div className="flex items-center gap-2"><Pilcrow className="h-4 w-4" /> Paragraphe</div></SelectItem>
+                      <SelectItem value="h1"><div className="flex items-center gap-2"><Heading1 className="h-4 w-4" /> Titre 1</div></SelectItem>
+                      <SelectItem value="h2"><div className="flex items-center gap-2"><Heading2 className="h-4 w-4" /> Titre 2</div></SelectItem>
+                  </SelectContent>
+                  </Select>
+                  <Separator orientation="vertical" className="h-6 mx-1" />
+                  <Button variant="ghost" size="icon" onClick={() => handleFormat("bold")}> <Bold className="h-4 w-4" /> </Button>
+                  <Button variant="ghost" size="icon" onClick={() => handleFormat("italic")}> <Italic className="h-4 w-4" /> </Button>
+                  <Button variant="ghost" size="icon" onClick={() => handleFormat("underline")}> <Underline className="h-4 w-4" /> </Button>
+                  <Separator orientation="vertical" className="h-6 mx-1" />
+                  <Button variant="ghost" size="icon" onClick={() => handleFormat("insertUnorderedList")}> <List className="h-4 w-4" /> </Button>
+                  <Button variant="ghost" size="icon" onClick={() => handleFormat("insertOrderedList")}> <ListOrdered className="h-4 w-4" /> </Button>
+                  <Button variant="ghost" size="icon" onClick={() => handleFormat("formatBlock", "<blockquote>")}> <Quote className="h-4 w-4" /> </Button>
+                  <Button variant="ghost" size="icon" onClick={() => handleFormat("formatBlock", "<pre>")}> <Code className="h-4 w-4" /> </Button>
+                  <Separator orientation="vertical" className="h-6 mx-1" />
+                  <SpeechToText onTranscriptionComplete={(text) => {
+                    if(editorRef.current) {
+                      editorRef.current.focus();
+                      document.execCommand('insertHTML', false, ` ${text}`);
+                    }
+                  }} />
 
-                    <Dialog>
-                        <DialogTrigger asChild>
-                            <Button variant="ghost" size="sm">
-                            <Bot className="mr-2 h-4 w-4" />
-                            Refine
-                            </Button>
-                        </DialogTrigger>
-                        <DialogContent className="sm:max-w-[625px]">
-                            <DialogHeader>
-                                <DialogTitle>Refined Note</DialogTitle>
-                                <DialogDescription>Your note, enhanced and structured by AI.</DialogDescription>
-                            </DialogHeader>
-                            <div className="max-h-[60vh] overflow-y-auto p-4 border rounded-md" onClick={handleRefineNotes}>
-                                {isRefining ? <p>Refining your notes...</p> : <pre className="whitespace-pre-wrap font-body">{refinedNotes}</pre>}
-                            </div>
-                            <DialogFooter><DialogClose asChild><Button type="button" variant="secondary">Close</Button></DialogClose></DialogFooter>
-                        </DialogContent>
-                    </Dialog>
+                  <Dialog>
+                      <DialogTrigger asChild>
+                          <Button variant="ghost" size="sm">
+                          <Bot className="mr-2 h-4 w-4" />
+                          Refine
+                          </Button>
+                      </DialogTrigger>
+                      <DialogContent className="sm:max-w-[625px]">
+                          <DialogHeader>
+                              <DialogTitle>Refined Note</DialogTitle>
+                              <DialogDescription>Your note, enhanced and structured by AI.</DialogDescription>
+                          </DialogHeader>
+                          <div className="max-h-[60vh] overflow-y-auto p-4 border rounded-md" onClick={handleRefineNotes}>
+                              {isRefining ? <p>Refining your notes...</p> : <pre className="whitespace-pre-wrap font-body">{refinedNotes}</pre>}
+                          </div>
+                          <DialogFooter><DialogClose asChild><Button type="button" variant="secondary">Close</Button></DialogClose></DialogFooter>
+                      </DialogContent>
+                  </Dialog>
 
-                    <Dialog>
-                        <DialogTrigger asChild>
-                            <Button variant="ghost" size="sm">
-                            <Network className="mr-2 h-4 w-4" />
-                            Generate Diagram
-                            </Button>
-                        </DialogTrigger>
-                        <DialogContent className="sm:max-w-[625px]">
-                            <DialogHeader>
-                                <DialogTitle>Generate Diagram</DialogTitle>
-                                <DialogDescription>Create a diagram from text using AI.</DialogDescription>
-                            </DialogHeader>
-                            <div className="grid gap-4 py-4">
-                                <div className="grid gap-2">
-                                    <Label htmlFor="diagram-text">Text</Label>
-                                    <Textarea id="diagram-text" value={diagramText} onChange={(e) => setDiagramText(e.target.value)} placeholder="Enter text to turn into a diagram..." />
-                                </div>
-                                <div className="grid gap-2">
-                                    <Label htmlFor="diagram-format">Format</Label>
-                                    <Select onValueChange={(value: "markdown" | "latex" | "txt") => setDiagramFormat(value)} defaultValue={diagramFormat}>
-                                    <SelectTrigger><SelectValue placeholder="Select a format" /></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="txt">TXT + ASCII</SelectItem>
-                                        <SelectItem value="markdown">Markdown</SelectItem>
-                                        <SelectItem value="latex">LaTeX</SelectItem>
-                                    </SelectContent>
-                                    </Select>
-                                </div>
-                                <Button onClick={handleGenerateDiagram} disabled={isGenerating}>{isGenerating ? "Generating..." : "Generate"}</Button>
-                                {generatedDiagram && (
-                                    <div className="max-h-[30vh] overflow-y-auto p-4 border rounded-md">
-                                    <Label>Generated Diagram</Label>
-                                    <pre className="whitespace-pre-wrap font-mono text-sm">{generatedDiagram}</pre>
-                                    </div>
-                                )}
-                            </div>
-                            <DialogFooter><DialogClose asChild><Button type="button" variant="secondary">Close</Button></DialogClose></DialogFooter>
-                        </DialogContent>
-                    </Dialog>
-                </div>
-                <Button variant="ghost" size="sm">
-                    <Share2 className="mr-2 h-4 w-4" />
-                    Share
-                </Button>
-                </div>
-            </CardHeader>
-            <CardContent>
-                <div
-                    ref={editorRef}
-                    contentEditable
-                    suppressContentEditableWarning
-                    className="prose dark:prose-invert max-w-none w-full bg-background p-12 rounded-lg shadow-inner focus:outline-none focus:ring-2 focus:ring-ring"
-                    onInput={handleContentChange}
-                    dangerouslySetInnerHTML={{ __html: content }}
-                />
-            </CardContent>
-          </Card>
-      </div>
+                  <Dialog>
+                      <DialogTrigger asChild>
+                          <Button variant="ghost" size="sm">
+                          <Network className="mr-2 h-4 w-4" />
+                          Generate Diagram
+                          </Button>
+                      </DialogTrigger>
+                      <DialogContent className="sm:max-w-[625px]">
+                          <DialogHeader>
+                              <DialogTitle>Generate Diagram</DialogTitle>
+                              <DialogDescription>Create a diagram from text using AI.</DialogDescription>
+                          </DialogHeader>
+                          <div className="grid gap-4 py-4">
+                              <div className="grid gap-2">
+                                  <Label htmlFor="diagram-text">Text</Label>
+                                  <Textarea id="diagram-text" value={diagramText} onChange={(e) => setDiagramText(e.target.value)} placeholder="Enter text to turn into a diagram..." />
+                              </div>
+                              <div className="grid gap-2">
+                                  <Label htmlFor="diagram-format">Format</Label>
+                                  <Select onValueChange={(value: "markdown" | "latex" | "txt") => setDiagramFormat(value)} defaultValue={diagramFormat}>
+                                  <SelectTrigger><SelectValue placeholder="Select a format" /></SelectTrigger>
+                                  <SelectContent>
+                                      <SelectItem value="txt">TXT + ASCII</SelectItem>
+                                      <SelectItem value="markdown">Markdown</SelectItem>
+                                      <SelectItem value="latex">LaTeX</SelectItem>
+                                  </SelectContent>
+                                  </Select>
+                              </div>
+                              <Button onClick={handleGenerateDiagram} disabled={isGenerating}>{isGenerating ? "Generating..." : "Generate"}</Button>
+                              {generatedDiagram && (
+                                  <div className="max-h-[30vh] overflow-y-auto p-4 border rounded-md">
+                                  <Label>Generated Diagram</Label>
+                                  <pre className="whitespace-pre-wrap font-mono text-sm">{generatedDiagram}</pre>
+                                  </div>
+                              )}
+                          </div>
+                          <DialogFooter><DialogClose asChild><Button type="button" variant="secondary">Close</Button></DialogClose></DialogFooter>
+                      </DialogContent>
+                  </Dialog>
+              </div>
+              <Button variant="ghost" size="sm">
+                  <Share2 className="mr-2 h-4 w-4" />
+                  Share
+              </Button>
+              </div>
+          </CardHeader>
+          <CardContent className="flex-1 overflow-y-auto">
+              <div
+                  ref={editorRef}
+                  contentEditable
+                  suppressContentEditableWarning
+                  className="prose dark:prose-invert max-w-none w-full h-full bg-background p-4 sm:p-6 md:p-8 lg:p-12 rounded-lg shadow-inner focus:outline-none focus:ring-2 focus:ring-ring"
+                  onInput={handleContentChange}
+                  dangerouslySetInnerHTML={{ __html: content }}
+              />
+          </CardContent>
+        </Card>
     </div>
   );
 }
