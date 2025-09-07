@@ -168,7 +168,7 @@ export function Editor({ page }: EditorProps) {
   };
   
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (event.altKey) {
+    if (event.ctrlKey && event.altKey) {
         let command: string | null = null;
         let blockCommand: string | null = null;
 
@@ -532,3 +532,5 @@ export function Editor({ page }: EditorProps) {
     </div>
   );
 }
+
+    
