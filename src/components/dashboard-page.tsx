@@ -42,8 +42,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { mockData } from "@/lib/mock-data";
 import type { Binder, Notebook, Page } from "@/lib/types";
-import { NoteEditor } from "@/components/note-editor";
 import { cn } from "@/lib/utils";
+import { DocumentEditor } from "@/components/document-editor";
 
 export function DashboardPage() {
   const [activePage, setActivePage] = React.useState<Page | null>(mockData[0].notebooks[0].pages[0]);
@@ -54,7 +54,7 @@ export function DashboardPage() {
 
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen bg-background">
+      <div className="flex min-h-screen bg-secondary/10">
         <Sidebar>
           <SidebarHeader>
             <div className="flex items-center gap-2">
@@ -76,29 +76,33 @@ export function DashboardPage() {
             <SidebarMenu>
               {mockData.map((binder: Binder) => (
                 <Collapsible key={binder.id} className="w-full" defaultOpen>
-                  <CollapsibleTrigger className="w-full">
-                    <SidebarMenuItem>
-                      <SidebarMenuButton className="font-semibold" isActive={false}>
-                        <binder.icon className="h-4 w-4" />
-                        <span>{binder.title}</span>
-                        <ChevronDown className="ml-auto h-4 w-4 transition-transform group-data-[state=open]:rotate-180" />
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
+                  <CollapsibleTrigger asChild>
+                    <div className="w-full">
+                        <SidebarMenuItem>
+                            <SidebarMenuButton className="font-semibold" isActive={false}>
+                                <binder.icon className="h-4 w-4" />
+                                <span>{binder.title}</span>
+                                <ChevronDown className="ml-auto h-4 w-4 transition-transform group-data-[state=open]:rotate-180" />
+                            </SidebarMenuButton>
+                        </SidebarMenuItem>
+                    </div>
                   </CollapsibleTrigger>
                   <CollapsibleContent>
                     <div className="pl-4">
                       {binder.notebooks.map((notebook: Notebook) => (
                         <Collapsible key={notebook.id} className="w-full" defaultOpen>
-                          <CollapsibleTrigger className="w-full">
-                            <SidebarMenuItem>
-                               <SidebarMenuButton isActive={false}>
-                                <div className="flex items-center gap-2">
-                                  <notebook.icon className="h-4 w-4" />
-                                  <span>{notebook.title}</span>
-                                </div>
-                                <ChevronDown className="ml-auto h-4 w-4 transition-transform group-data-[state=open]:rotate-180" />
-                               </SidebarMenuButton>
-                            </SidebarMenuItem>
+                          <CollapsibleTrigger asChild>
+                            <div className="w-full">
+                                <SidebarMenuItem>
+                                <SidebarMenuButton isActive={false}>
+                                    <div className="flex items-center gap-2">
+                                    <notebook.icon className="h-4 w-4" />
+                                    <span>{notebook.title}</span>
+                                    </div>
+                                    <ChevronDown className="ml-auto h-4 w-4 transition-transform group-data-[state=open]:rotate-180" />
+                                </SidebarMenuButton>
+                                </SidebarMenuItem>
+                            </div>
                           </CollapsibleTrigger>
                           <CollapsibleContent>
                             <div className="pl-6">
@@ -136,8 +140,8 @@ export function DashboardPage() {
           </SidebarFooter>
         </Sidebar>
 
-        <SidebarInset className="p-4 md:p-6 lg:p-8">
-            <header className="flex items-center justify-between mb-6">
+        <SidebarInset className="p-0">
+            <header className="flex items-center justify-between p-4 md:p-6 lg:p-8 border-b bg-background">
                 <div className="flex items-center gap-4">
                     <SidebarTrigger>
                         <PanelLeft />
@@ -168,8 +172,14 @@ export function DashboardPage() {
                 </DropdownMenu>
             </header>
           
-            <main>
-                <NoteEditor key={activePage?.id} page={activePage} />
+            <main className="flex-1 overflow-auto">
+                {activePage ? (
+                    <DocumentEditor key={activePage.id} page={activePage} />
+                ) : (
+                    <div className="flex items-center justify-center h-full">
+                        <p className="text-muted-foreground">Select a notebook and page to start your work.</p>
+                    </div>
+                )}
             </main>
         </SidebarInset>
       </div>

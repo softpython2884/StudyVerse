@@ -119,7 +119,7 @@ export function NoteEditor({ page }: NoteEditorProps) {
 
   if (!page) {
     return (
-      <Card className="h-[70vh] flex items-center justify-center">
+      <Card className="h-full flex items-center justify-center border-none shadow-none rounded-none">
         <CardContent>
           <p className="text-muted-foreground">Select a notebook and page to start your work.</p>
         </CardContent>
@@ -128,7 +128,7 @@ export function NoteEditor({ page }: NoteEditorProps) {
   }
 
   return (
-    <Card>
+    <Card className="h-full border-none shadow-none rounded-none">
       <CardHeader>
         <CardTitle className="font-headline">{page.title}</CardTitle>
         <CardDescription>
