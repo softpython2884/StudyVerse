@@ -57,7 +57,6 @@ interface EditorProps {
 }
 
 export function Editor({ page }: EditorProps) {
-  const [content, setContent] = React.useState(page.content || "");
   const [isSaving, setIsSaving] = React.useState(false);
   const editorRef = React.useRef<HTMLDivElement>(null);
   
@@ -71,8 +70,7 @@ export function Editor({ page }: EditorProps) {
   const { toast } = useToast();
 
   React.useEffect(() => {
-    setContent(page.content || "");
-    if (editorRef.current) {
+    if (editorRef.current && page.content !== editorRef.current.innerHTML) {
         editorRef.current.innerHTML = page.content || "";
     }
   }, [page]);
@@ -85,14 +83,10 @@ export function Editor({ page }: EditorProps) {
     }
   };
 
-  const handleContentChange = () => {
-    if (editorRef.current) {
-      setContent(editorRef.current.innerHTML);
-    }
-  };
-
   const handleSaveContent = async () => {
+    if (!editorRef.current) return;
     setIsSaving(true);
+    const content = editorRef.current.innerHTML;
     const result = await updatePageContent({ pageId: page.id, content });
      if (result.success) {
       toast({
@@ -283,8 +277,7 @@ export function Editor({ page }: EditorProps) {
                   contentEditable
                   suppressContentEditableWarning
                   className="prose dark:prose-invert max-w-none w-full h-full bg-background p-4 sm:p-6 md:p-8 lg:p-12 rounded-lg shadow-inner focus:outline-none focus:ring-2 focus:ring-ring"
-                  onInput={handleContentChange}
-                  dangerouslySetInnerHTML={{ __html: content }}
+                  dangerouslySetInnerHTML={{ __html: page.content || "" }}
                   style={{ direction: 'ltr' }}
               />
           </CardContent>
