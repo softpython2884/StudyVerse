@@ -46,8 +46,7 @@ import {
 import { mockData } from "@/lib/mock-data";
 import type { Binder, Notebook, Page } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { DocumentEditor } from "@/components/document-editor";
-import { NoteEditor } from "@/components/note-editor";
+import { Editor } from "@/components/editor";
 import { useParams, useRouter } from "next/navigation";
 
 const icons: { [key: string]: LucideIcon } = {
@@ -79,6 +78,7 @@ export function DashboardPage({ initialActivePage }: { initialActivePage: Page |
 
   const getActivePage = () => {
     const { binderId, notebookId, pageId } = params;
+    if (!binderId || !notebookId || !pageId) return null;
     const binder = mockData.find(b => b.id === binderId);
     if (!binder) return null;
     const notebook = binder.notebooks.find(n => n.id === notebookId);
@@ -212,11 +212,7 @@ export function DashboardPage({ initialActivePage }: { initialActivePage: Page |
           
             <main className="flex-1 overflow-auto">
                 {currentPage ? (
-                    currentPage.type === 'note' ? (
-                      <NoteEditor key={`${params.binderId}-${params.notebookId}-${params.pageId}`} page={currentPage} />
-                    ) : (
-                      <DocumentEditor key={`${params.binderId}-${params.notebookId}-${params.pageId}`} page={currentPage} />
-                    )
+                  <Editor key={`${params.binderId}-${params.notebookId}-${params.pageId}`} page={currentPage} />
                 ) : (
                     <div className="flex items-center justify-center h-full">
                         <p className="text-muted-foreground">Select a notebook and page to start your work.</p>
