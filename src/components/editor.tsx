@@ -96,15 +96,23 @@ export function Editor({ page }: EditorProps) {
   };
 
   const restoreSelection = () => {
-    if (savedSelection.current && editorRef.current) {
-      editorRef.current.focus();
-      const selection = window.getSelection();
-      if (selection) {
-        selection.removeAllRanges();
-        selection.addRange(savedSelection.current);
-      }
+    if (!savedSelection.current || !editorRef.current) return;
+    
+    // Check if the editor is focused, if not, focus it.
+    if (document.activeElement !== editorRef.current) {
+        editorRef.current.focus({ preventScroll: true });
     }
+
+    const selection = window.getSelection();
+    // A timeout is sometimes needed to allow the browser to settle down.
+    setTimeout(() => {
+        if (selection && savedSelection.current) {
+            selection.removeAllRanges();
+            selection.addRange(savedSelection.current);
+        }
+    }, 0);
   };
+
 
   const handleFormat = (command: string, value?: string) => {
     restoreSelection();
@@ -121,7 +129,8 @@ export function Editor({ page }: EditorProps) {
     if (selection && selection.rangeCount > 0) {
       let node = selection.getRangeAt(0).startContainer;
       
-      while (node && node.nodeType === Node.TEXT_NODE && node.parentNode) {
+      // Traverse up to find the element node if the start is a text node
+      if (node.nodeType === Node.TEXT_NODE && node.parentNode) {
         node = node.parentNode;
       }
       
@@ -130,14 +139,108 @@ export function Editor({ page }: EditorProps) {
          if (blockElement) {
              setCurrentBlockStyle(blockElement.tagName.toLowerCase());
          } else {
-             setCurrentBlockStyle('p');
+             // Fallback for elements inside other tags like <li>
+             const listParent = node.closest('li');
+             if (listParent) {
+                 setCurrentBlockStyle('p'); // Treat list items as paragraphs for simplicity
+             }
          }
       }
     }
   };
 
+  const handleMarkdown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== ' ') return;
+
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return;
+
+    const range = selection.getRangeAt(0);
+    const node = range.startContainer;
+    
+    // We only care about text nodes
+    if (node.nodeType !== Node.TEXT_NODE || !node.textContent) return;
+
+    const text = node.textContent;
+    const caretPos = range.startOffset;
+
+    // The text before the space
+    const textBeforeCaret = text.substring(0, caretPos);
+    
+    const patterns = [
+        { regex: /^(#{1,6})$/, command: "formatBlock" },
+        { regex: /^\>$/, command: "formatBlock", value: "blockquote" },
+        { regex: /^(\*|\-)$/, command: "insertUnorderedList" },
+        { regex: /^1\.$/, command: "insertOrderedList" },
+        { regex: /\*\*([^\*]+)\*\*$/, replacement: "<b>$1</b>" },
+        { regex: /__([^_]+)__$/, replacement: "<b>$1</b>" },
+        { regex: /\*([^\*]+)\*$/, replacement: "<i>$1</i>" },
+        { regex: /_([^_]+)_$/, replacement: "<i>$1</i>" },
+        { regex: /`([^`]+)`$/, replacement: "<code>$1</code>" },
+        { regex: /~~([^~]+)~~$/, replacement: "<s>$1</s>" },
+    ];
+    
+    const wordBeforeCaret = textBeforeCaret.split(/\s+/).pop() || "";
+
+    // Heading and list patterns
+    const blockPattern = patterns.find(p => p.regex.test(wordBeforeCaret) && p.command);
+    if(blockPattern) {
+        event.preventDefault();
+        const match = wordBeforeCaret.match(blockPattern.regex);
+        if(match) {
+            node.textContent = text.substring(caretPos); // remove markdown from text
+             range.setStart(node, 0);
+             range.collapse(true);
+             selection.removeAllRanges();
+             selection.addRange(range);
+
+            if (blockPattern.command === 'formatBlock' && !blockPattern.value) {
+                document.execCommand(blockPattern.command, false, `h${match[1].length}`);
+            } else {
+                 document.execCommand(blockPattern.command, false, blockPattern.value);
+            }
+            return;
+        }
+    }
+
+    // Inline patterns
+    for (const pattern of patterns) {
+        if (!pattern.replacement) continue;
+        const regex = new RegExp(pattern.regex.source); // We need a new RegExp object to avoid state issues
+        const match = wordBeforeCaret.match(regex);
+        
+        if (match) {
+            event.preventDefault();
+            
+            const replacementHtml = pattern.replacement.replace("$1", match[1]);
+            const newText = textBeforeCaret.replace(regex, "");
+
+            // This is a simplified replacement. A robust solution is much more complex.
+            // It doesn't handle all edge cases but works for simple cases.
+            const parent = node.parentNode;
+            if (parent) {
+                const newHtml = parent.innerHTML.replace(wordBeforeCaret, replacementHtml + "&nbsp;");
+                parent.innerHTML = newHtml;
+
+                // Move cursor to the end
+                const newRange = document.createRange();
+                const sel = window.getSelection();
+                // Find the last text node in the parent
+                const lastTextNode = Array.from(parent.childNodes).reverse().find(n => n.nodeType === Node.TEXT_NODE) || parent;
+                newRange.setStart(lastTextNode, lastTextNode.textContent?.length || 0);
+                newRange.collapse(true);
+                sel?.removeAllRanges();
+                sel?.addRange(newRange);
+            }
+            return;
+        }
+    }
+  };
+
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    handleMarkdown(event);
+
     if (event.key === 'Enter' && !event.shiftKey) {
         const selection = window.getSelection();
         if (selection && selection.rangeCount > 0) {
@@ -418,7 +521,6 @@ export function Editor({ page }: EditorProps) {
                   onKeyDown={handleKeyDown}
                   onKeyUp={updateToolbarState}
                   onMouseUp={updateToolbarState}
-                  onBlur={saveSelection}
                   className="prose dark:prose-invert max-w-none w-full h-full bg-card p-4 sm:p-6 md:p-8 lg:p-12 focus:outline-none focus:ring-2 focus:ring-ring"
                   style={{ direction: 'ltr' }}
               />
@@ -427,3 +529,5 @@ export function Editor({ page }: EditorProps) {
     </div>
   );
 }
+
+    
