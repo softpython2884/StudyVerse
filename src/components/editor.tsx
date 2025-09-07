@@ -94,6 +94,7 @@ export function Editor({ page }: EditorProps) {
     if (editorRef.current) {
         editorRef.current.innerHTML = page.content || "<p>&#8203;</p>";
     }
+    document.execCommand("defaultParagraphSeparator", false, "p");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page.id]);
 
@@ -125,7 +126,7 @@ export function Editor({ page }: EditorProps) {
     }, 0);
   };
 
-  const updateToolbarState = () => {
+  const updateToolbarState = React.useCallback(() => {
     if (typeof window === 'undefined') return;
     saveSelection();
     const selection = window.getSelection();
@@ -148,7 +149,7 @@ export function Editor({ page }: EditorProps) {
          }
       }
     }
-  };
+  }, []);
 
   const handleFormat = (command: string, value?: string) => {
     handleFocusAndRestoreSelection();
@@ -166,107 +167,31 @@ export function Editor({ page }: EditorProps) {
     }, 10);
   };
   
-  const handleMarkdown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== ' ') return;
-
-    const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0) return;
-
-    const range = selection.getRangeAt(0);
-    const node = range.startContainer;
-    
-    if (node.nodeType !== Node.TEXT_NODE || !node.textContent) return;
-
-    const text = node.textContent;
-    const caretPos = range.startOffset;
-    const textBeforeCaret = text.substring(0, caretPos);
-    
-    // Block patterns at the start of a line
-    const blockPatterns = [
-        { regex: /^(#{1,6})$/, command: "formatBlock" },
-        { regex: /^\>$/, command: "formatBlock", value: "blockquote" },
-        { regex: /^(\*|\-)$/, command: "insertUnorderedList" },
-        { regex: /^1\.$/, command: "insertOrderedList" },
-    ];
-    
-    const wordBeforeCaret = textBeforeCaret.trim();
-
-    const blockPattern = blockPatterns.find(p => p.regex.test(wordBeforeCaret));
-    if (blockPattern) {
-        event.preventDefault();
-        const match = wordBeforeCaret.match(blockPattern.regex);
-        if (match) {
-            const startOffset = text.indexOf(wordBeforeCaret);
-            node.textContent = text.substring(0, startOffset) + text.substring(startOffset + wordBeforeCaret.length);
-            
-            range.setStart(node, startOffset);
-            range.collapse(true);
-            selection.removeAllRanges();
-            selection.addRange(range);
-
-            if (blockPattern.command === 'formatBlock' && !blockPattern.value) {
-                document.execCommand(blockPattern.command, false, `h${match[1].length}`);
-            } else {
-                document.execCommand(blockPattern.command, false, blockPattern.value);
-            }
-            updateToolbarState();
-            return;
-        }
-    }
-    
-    // Inline patterns
-    const inlinePatterns = [
-        { regex: /\*\*([^\*]+)\*\*$/, command: 'bold' },
-        { regex: /__([^_]+)__$/, command: 'bold' },
-        { regex: /\*([^\*]+)\*$/, command: 'italic' },
-        { regex: /_([^_]+)_$/, command: 'italic' },
-        { regex: /(https?:\/\/[^\s]+)$/, command: 'createLink' },
-    ];
-
-    for (const pattern of inlinePatterns) {
-        const match = textBeforeCaret.match(pattern.regex);
-        if (match) {
-            event.preventDefault();
-            const originalText = match[0];
-            const contentText = match[1];
-            const startIndex = textBeforeCaret.lastIndexOf(originalText);
-
-            // Replace markdown with content
-            node.textContent = text.substring(0, startIndex) + contentText + text.substring(caretPos);
-
-            // Select the content text
-            range.setStart(node, startIndex);
-            range.setEnd(node, startIndex + contentText.length);
-            selection.removeAllRanges();
-            selection.addRange(range);
-            
-            // Apply the command
-            if (pattern.command === 'createLink') {
-                document.execCommand(pattern.command, false, contentText);
-            } else {
-                document.execCommand(pattern.command, false);
-            }
-
-            // Move cursor after the formatted text
-            range.collapse(false);
-            selection.removeAllRanges();
-            selection.addRange(range);
-            
-            // Insert a space after to finalize
-            const spaceNode = document.createTextNode(' ');
-            range.insertNode(spaceNode);
-            range.setStartAfter(spaceNode);
-            range.collapse(true);
-            selection.removeAllRanges();
-            selection.addRange(range);
-
-            return;
-        }
-    }
-  };
-  
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    handleMarkdown(event);
+    if (event.altKey) {
+        let command: string | null = null;
+        let blockCommand: string | null = null;
+
+        switch (event.key) {
+            case 'g': command = 'bold'; break;
+            case 'i': command = 'italic'; break;
+            case 'u': command = 'underline'; break;
+            case '&': blockCommand = 'h1'; break;
+            case 'é': blockCommand = 'h2'; break;
+            case '"': blockCommand = 'h3'; break;
+            case "'": blockCommand = 'h4'; break;
+            case '(': blockCommand = 'h5'; break;
+            case '-': blockCommand = 'h6'; break;
+        }
+
+        if (command) {
+            event.preventDefault();
+            handleFormat(command);
+        } else if (blockCommand) {
+            event.preventDefault();
+            handleFormat('formatBlock', blockCommand);
+        }
+    }
 
     if (event.key === 'Enter' && !event.shiftKey) {
         setTimeout(() => {
@@ -276,12 +201,14 @@ export function Editor({ page }: EditorProps) {
                 let node = range.startContainer;
                 let parentElement = node.nodeType === 3 ? node.parentElement : node as HTMLElement;
     
-                const blockElement = parentElement?.closest('pre, h1, h2, h3, h4, h5, h6, blockquote');
+                const blockElement = parentElement?.closest('pre, h1, h2, h3, h4, h5, h6, blockquote, li');
                 
                 if (blockElement && parentElement?.textContent?.trim() === '') {
-                     event.preventDefault();
-                     document.execCommand('formatBlock', false, 'p');
-                     updateToolbarState();
+                     if (blockElement.tagName !== 'LI') {
+                        event.preventDefault();
+                        document.execCommand('formatBlock', false, 'p');
+                        updateToolbarState();
+                     }
                 }
             }
         }, 0);
@@ -536,7 +463,7 @@ export function Editor({ page }: EditorProps) {
                           <DialogHeader>
                               <DialogTitle>Generate Diagram</DialogTitle>
                               <DialogDescription>Create a diagram from text using AI.</DialogDescription>
-                          </Header>
+                          </DialogHeader>
                           <div className="grid gap-4 py-4">
                               <div className="grid gap-2">
                                   <Label htmlFor="diagram-text">Text</Label>
@@ -605,5 +532,3 @@ export function Editor({ page }: EditorProps) {
     </div>
   );
 }
-
-    
