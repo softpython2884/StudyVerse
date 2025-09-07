@@ -143,6 +143,8 @@ export function Editor({ page }: EditorProps) {
   
   const handleFocusAndRestoreSelection = () => {
     editorRef.current?.focus();
+    // Use a small timeout to ensure the focus event has been processed
+    // before restoring the selection.
     setTimeout(() => {
       restoreSelection();
     }, 0);
@@ -163,17 +165,21 @@ export function Editor({ page }: EditorProps) {
     if (selection && selection.rangeCount > 0) {
       let node = selection.getRangeAt(0).startContainer;
       
+      // Navigate up to the parent element if the node is a text node.
       if (node.nodeType === Node.TEXT_NODE && node.parentNode) {
         node = node.parentNode;
       }
       
       if (node && node instanceof HTMLElement && editorRef.current?.contains(node)) {
+         // Find the closest block-level element to determine the current style.
          const blockElement = node.closest('p, h1, h2, h3, h4, h5, h6, pre, blockquote');
          if (blockElement) {
              setCurrentBlockStyle(blockElement.tagName.toLowerCase());
          } else {
+             // Handle cases where the selection is inside a list item
              const listParent = node.closest('li');
              if (listParent) {
+                 // We can treat list items as paragraphs for style purposes.
                  setCurrentBlockStyle('p'); 
              }
          }
@@ -183,6 +189,7 @@ export function Editor({ page }: EditorProps) {
 
   const handleFormat = (command: string, value?: string) => {
     handleFocusAndRestoreSelection();
+    // Important: Use a timeout to allow the selection to be restored before executing the command.
     setTimeout(() => {
       document.execCommand(command, false, value);
       updateToolbarState();
@@ -199,31 +206,29 @@ export function Editor({ page }: EditorProps) {
 
       if (node.nodeType === Node.TEXT_NODE && node.textContent) {
         const textContent = node.textContent;
-        const matchH1 = textContent.match(/^#\s/);
-        const matchH2 = textContent.match(/^##\s/);
-        const matchH3 = textContent.match(/^###\s/);
+        // Check for Markdown-like heading shortcuts (e.g., "# ", "## ")
+        const match = textContent.match(/^(#{1,6})\s/);
         
-        let match;
-        let level = 0;
-        if (matchH3) { match = matchH3; level = 3; }
-        else if (matchH2) { match = matchH2; level = 2; }
-        else if (matchH1) { match = matchH1; level = 1; }
-
-        if (match && level > 0) {
+        if (match) {
+          const level = match[1].length;
           event.preventDefault();
+          // Remove the Markdown characters
           node.textContent = textContent.substring(match[0].length);
-          document.execCommand('formatBlock', false, `h${level}`);
+          // Apply the heading format
+          handleFormat('formatBlock', `h${level}`);
         }
       }
     }
+    updateToolbarState();
   }
 
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (event.ctrlKey && !event.altKey) {
+      // Standard shortcuts (Bold, Italic, Underline)
+      if (event.ctrlKey && !event.altKey) {
         let command: string | null = null;
         switch (event.key.toLowerCase()) {
-            case 'g': command = 'bold'; break;
+            case 'g': command = 'bold'; break; // Use Ctrl+G for Bold
             case 'i': command = 'italic'; break;
             case 'u': command = 'underline'; break;
             case 'z': command = 'undo'; break;
@@ -235,15 +240,11 @@ export function Editor({ page }: EditorProps) {
         }
     }
 
+    // Heading shortcuts (Ctrl+Alt+1 to 6)
     if (event.ctrlKey && event.altKey) {
         let blockCommand: string | null = null;
-        switch (event.key) {
-            case '1': blockCommand = 'h1'; break;
-            case '2': blockCommand = 'h2'; break;
-            case '3': blockCommand = 'h3'; break;
-            case '4': blockCommand = 'h4'; break;
-            case '5': blockCommand = 'h5'; break;
-            case '6': blockCommand = 'h6'; break;
+        if (parseInt(event.key) >= 1 && parseInt(event.key) <= 6) {
+           blockCommand = `h${event.key}`;
         }
         if (blockCommand) {
             event.preventDefault();
@@ -251,20 +252,28 @@ export function Editor({ page }: EditorProps) {
         }
     }
 
+    // Auto-insert horizontal rule
     if (event.key === 'Enter') {
         const selection = window.getSelection();
         if (selection && selection.rangeCount > 0) {
             const range = selection.getRangeAt(0);
             const node = range.startContainer;
-            if (node.textContent === '---' && node.parentElement) {
+            if (node.nodeType === Node.ELEMENT_NODE && node.textContent === '---') {
+                 event.preventDefault();
+                 // Replace '---' with a horizontal rule
+                 handleFormat('insertHorizontalRule', undefined);
+                 // Insert a new paragraph below for continued typing
+                 document.execCommand('insertHTML', false, '<p>&#8203;</p>');
+            } else if (node.nodeType === Node.TEXT_NODE && node.textContent === '---' && node.parentElement) {
                 event.preventDefault();
-                node.textContent = '';
-                document.execCommand('insertHorizontalRule', false, undefined);
-                document.execCommand('insertHTML', false, '<p>&#8203;</p>')
+                node.parentElement.innerHTML = ''; // Clear the parent
+                handleFormat('insertHorizontalRule', undefined);
+                document.execCommand('insertHTML', false, '<p>&#8203;</p>');
             }
         }
     }
 
+    // Reset block format on Enter in an empty block
     if (event.key === 'Enter' && !event.shiftKey) {
         setTimeout(() => {
             const selection = window.getSelection();
@@ -273,12 +282,14 @@ export function Editor({ page }: EditorProps) {
                 let node = range.startContainer;
                 let parentElement = node.nodeType === 3 ? node.parentElement : node as HTMLElement;
     
+                // Find the closest block-level element
                 const blockElement = parentElement?.closest('pre, h1, h2, h3, h4, h5, h6, blockquote, li');
                 
+                // If the block is empty and not a list item, revert to a paragraph
                 if (blockElement && parentElement?.textContent?.trim() === '') {
                      if (blockElement.tagName !== 'LI') {
                         event.preventDefault();
-                        document.execCommand('formatBlock', false, 'p');
+                        handleFormat('formatBlock', 'p');
                      }
                 }
             }
@@ -307,7 +318,7 @@ export function Editor({ page }: EditorProps) {
         }
         tableHtml += '</tr>';
       }
-      tableHtml += '</table><p>&#8203;</p>';
+      tableHtml += '</table><p>&#8203;</p>'; // Add a paragraph after for easy exit
       document.execCommand("insertHTML", false, tableHtml);
     }, 10);
     setIsTablePopoverOpen(false);
