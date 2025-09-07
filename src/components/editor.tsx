@@ -16,12 +16,10 @@ import {
   Undo,
   Redo,
   Printer,
-  ChevronLeft,
-  Plus,
+  Save,
   Bot,
   Network,
   Share2,
-  Save,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -32,9 +30,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
-import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
+import { updatePageContent } from "@/lib/actions";
 import { SpeechToText } from "./speech-to-text";
+import { Card, CardContent, CardHeader } from "./ui/card";
 import {
   Dialog,
   DialogContent,
@@ -46,17 +45,17 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { refineAndStructureNotes } from "@/ai/flows/refine-and-structure-notes";
 import { generateDiagram } from "@/ai/flows/generate-diagrams-from-text";
-import { useToast } from "@/hooks/use-toast";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
-import { updatePageContent } from "@/lib/actions";
+
 
 interface EditorProps {
   page: Page;
 }
 
 export function Editor({ page }: EditorProps) {
+  const [content, setContent] = React.useState(page.content || "");
   const [isSaving, setIsSaving] = React.useState(false);
   const editorRef = React.useRef<HTMLDivElement>(null);
   
@@ -66,11 +65,13 @@ export function Editor({ page }: EditorProps) {
   const [generatedDiagram, setGeneratedDiagram] = React.useState("");
   const [isRefining, setIsRefining] = React.useState(false);
   const [isGenerating, setIsGenerating] = React.useState(false);
-  
+
   const { toast } = useToast();
 
+  // Update content when page changes
   React.useEffect(() => {
-    if (editorRef.current && page.content !== editorRef.current.innerHTML) {
+    setContent(page.content || "");
+    if (editorRef.current) {
         editorRef.current.innerHTML = page.content || "";
     }
   }, [page]);
@@ -80,14 +81,15 @@ export function Editor({ page }: EditorProps) {
     if (editorRef.current) {
       editorRef.current.focus();
       document.execCommand(command, false, value);
+      setContent(editorRef.current.innerHTML);
     }
   };
 
   const handleSaveContent = async () => {
     if (!editorRef.current) return;
     setIsSaving(true);
-    const content = editorRef.current.innerHTML;
-    const result = await updatePageContent({ pageId: page.id, content });
+    const currentContent = editorRef.current.innerHTML;
+    const result = await updatePageContent({ pageId: page.id, content: currentContent });
      if (result.success) {
       toast({
         title: "Saved",
@@ -102,7 +104,7 @@ export function Editor({ page }: EditorProps) {
     }
     setIsSaving(false);
   };
-  
+
   const handleRefineNotes = async () => {
     const currentNotes = editorRef.current?.innerText || "";
     if (!currentNotes) {
@@ -157,6 +159,7 @@ export function Editor({ page }: EditorProps) {
     }
   };
 
+
   if (!page) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -176,12 +179,12 @@ export function Editor({ page }: EditorProps) {
                   <Button variant="ghost" size="icon" onClick={() => window.print()}> <Printer className="h-4 w-4" /> </Button>
                   <Separator orientation="vertical" className="h-6 mx-1" />
                   <Select defaultValue="p" onValueChange={(value) => handleFormat("formatBlock", `<${value}>`)}>
-                  <SelectTrigger className="w-32"> <SelectValue placeholder="Style" /> </SelectTrigger>
-                  <SelectContent>
-                      <SelectItem value="p"><div className="flex items-center gap-2"><Pilcrow className="h-4 w-4" /> Paragraphe</div></SelectItem>
-                      <SelectItem value="h1"><div className="flex items-center gap-2"><Heading1 className="h-4 w-4" /> Titre 1</div></SelectItem>
-                      <SelectItem value="h2"><div className="flex items-center gap-2"><Heading2 className="h-4 w-4" /> Titre 2</div></SelectItem>
-                  </SelectContent>
+                    <SelectTrigger className="w-32"> <SelectValue placeholder="Style" /> </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="p"><div className="flex items-center gap-2"><Pilcrow className="h-4 w-4" /> Paragraphe</div></SelectItem>
+                        <SelectItem value="h1"><div className="flex items-center gap-2"><Heading1 className="h-4 w-4" /> Titre 1</div></SelectItem>
+                        <SelectItem value="h2"><div className="flex items-center gap-2"><Heading2 className="h-4 w-4" /> Titre 2</div></SelectItem>
+                    </SelectContent>
                   </Select>
                   <Separator orientation="vertical" className="h-6 mx-1" />
                   <Button variant="ghost" size="icon" onClick={() => handleFormat("bold")}> <Bold className="h-4 w-4" /> </Button>
@@ -197,12 +200,13 @@ export function Editor({ page }: EditorProps) {
                     if(editorRef.current) {
                       editorRef.current.focus();
                       document.execCommand('insertHTML', false, ` ${text}`);
+                      setContent(editorRef.current.innerHTML);
                     }
                   }} />
 
                   <Dialog>
                       <DialogTrigger asChild>
-                          <Button variant="ghost" size="sm">
+                          <Button variant="ghost" size="sm" onClick={handleRefineNotes}>
                           <Bot className="mr-2 h-4 w-4" />
                           Refine
                           </Button>
@@ -212,7 +216,7 @@ export function Editor({ page }: EditorProps) {
                               <DialogTitle>Refined Note</DialogTitle>
                               <DialogDescription>Your note, enhanced and structured by AI.</DialogDescription>
                           </DialogHeader>
-                          <div className="max-h-[60vh] overflow-y-auto p-4 border rounded-md" onClick={handleRefineNotes}>
+                          <div className="max-h-[60vh] overflow-y-auto p-4 border rounded-md">
                               {isRefining ? <p>Refining your notes...</p> : <pre className="whitespace-pre-wrap font-body">{refinedNotes}</pre>}
                           </div>
                           <DialogFooter><DialogClose asChild><Button type="button" variant="secondary">Close</Button></DialogClose></DialogFooter>
@@ -277,8 +281,8 @@ export function Editor({ page }: EditorProps) {
                   contentEditable
                   suppressContentEditableWarning
                   className="prose dark:prose-invert max-w-none w-full h-full bg-background p-4 sm:p-6 md:p-8 lg:p-12 rounded-lg shadow-inner focus:outline-none focus:ring-2 focus:ring-ring"
-                  dangerouslySetInnerHTML={{ __html: page.content || "" }}
-                  style={{ direction: 'ltr' }}
+                  dangerouslySetInnerHTML={{ __html: content }}
+                   style={{ direction: 'ltr' }}
               />
           </CardContent>
         </Card>
