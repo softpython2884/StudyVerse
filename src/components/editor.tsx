@@ -70,6 +70,14 @@ interface EditorProps {
   page: Page;
 }
 
+type ActiveStyles = {
+  bold: boolean;
+  italic: boolean;
+  underline: boolean;
+  strikethrough: boolean;
+  [key: string]: boolean;
+};
+
 export function Editor({ page }: EditorProps) {
   const [isSaving, setIsSaving] = React.useState(false);
   const editorRef = React.useRef<HTMLDivElement>(null);
@@ -88,11 +96,19 @@ export function Editor({ page }: EditorProps) {
   const [isTablePopoverOpen, setIsTablePopoverOpen] = React.useState(false);
   const [tableGridSize, setTableGridSize] = React.useState({ rows: 0, cols: 0 });
 
+  const [activeStyles, setActiveStyles] = React.useState<ActiveStyles>({
+    bold: false,
+    italic: false,
+    underline: false,
+    strikethrough: false,
+  });
+
   const { toast } = useToast();
 
   React.useEffect(() => {
     if (editorRef.current) {
         editorRef.current.innerHTML = page.content || "<p>&#8203;</p>";
+        updateToolbarState();
     }
     document.execCommand("defaultParagraphSeparator", false, "p");
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -127,8 +143,17 @@ export function Editor({ page }: EditorProps) {
   };
 
   const updateToolbarState = React.useCallback(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || !document.queryCommandState) return;
     saveSelection();
+    
+    const newActiveStyles: ActiveStyles = {
+        bold: document.queryCommandState('bold'),
+        italic: document.queryCommandState('italic'),
+        underline: document.queryCommandState('underline'),
+        strikethrough: document.queryCommandState('strikeThrough'),
+    };
+    setActiveStyles(newActiveStyles);
+
     const selection = window.getSelection();
     if (selection && selection.rangeCount > 0 && document.activeElement === editorRef.current) {
       let node = selection.getRangeAt(0).startContainer;
@@ -155,11 +180,7 @@ export function Editor({ page }: EditorProps) {
     handleFocusAndRestoreSelection();
     setTimeout(() => {
         if (value && ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'pre'].includes(value)) {
-            if (document.queryCommandValue('formatBlock') === value) {
-                document.execCommand('formatBlock', false, 'p');
-            } else {
-                document.execCommand('formatBlock', false, value);
-            }
+            document.execCommand('formatBlock', false, value);
         } else {
              document.execCommand(command, false, value);
         }
@@ -168,12 +189,10 @@ export function Editor({ page }: EditorProps) {
   };
   
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    // Shortcuts for text styling (e.g., Ctrl+G for bold)
     if (event.ctrlKey && !event.altKey) {
         let command: string | null = null;
         switch (event.key.toLowerCase()) {
-            case 'g': command = 'bold'; break; // Ctrl+G for Bold in French
-            case 'b': command = 'bold'; break; // Keep Ctrl+B for standard
+            case 'b': command = 'bold'; break;
             case 'i': command = 'italic'; break;
             case 'u': command = 'underline'; break;
         }
@@ -183,7 +202,6 @@ export function Editor({ page }: EditorProps) {
         }
     }
 
-    // Heading shortcuts (Ctrl+Alt+[1-6])
     if (event.ctrlKey && event.altKey) {
         let blockCommand: string | null = null;
         switch (event.key) {
@@ -200,7 +218,6 @@ export function Editor({ page }: EditorProps) {
         }
     }
 
-    // Reset block format on Enter in an empty block
     if (event.key === 'Enter' && !event.shiftKey) {
         setTimeout(() => {
             const selection = window.getSelection();
@@ -364,10 +381,10 @@ export function Editor({ page }: EditorProps) {
                     </SelectContent>
                   </Select>
                   <Separator orientation="vertical" className="h-6 mx-1" />
-                  <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("bold")}> <Bold className="h-4 w-4" /> </Button>
-                  <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("italic")}> <Italic className="h-4 w-4" /> </Button>
-                  <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("underline")}> <Underline className="h-4 w-4" /> </Button>
-                  <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("strikeThrough")}> <Strikethrough className="h-4 w-4" /> </Button>
+                  <Button variant={activeStyles.bold ? "secondary" : "ghost"} size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("bold")}> <Bold className="h-4 w-4" /> </Button>
+                  <Button variant={activeStyles.italic ? "secondary" : "ghost"} size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("italic")}> <Italic className="h-4 w-4" /> </Button>
+                  <Button variant={activeStyles.underline ? "secondary" : "ghost"} size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("underline")}> <Underline className="h-4 w-4" /> </Button>
+                  <Button variant={activeStyles.strikethrough ? "secondary" : "ghost"} size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("strikeThrough")}> <Strikethrough className="h-4 w-4" /> </Button>
                   <Popover open={isLinkPopoverOpen} onOpenChange={setIsLinkPopoverOpen}>
                       <PopoverTrigger asChild>
                           <Button variant="ghost" size="icon" onMouseDown={(e) => {e.preventDefault(); saveSelection();}}>
@@ -531,6 +548,7 @@ export function Editor({ page }: EditorProps) {
                   onKeyDown={handleKeyDown}
                   onKeyUp={updateToolbarState}
                   onMouseUp={updateToolbarState}
+                  onFocus={updateToolbarState}
                   onBlur={saveSelection}
                   className="prose dark:prose-invert max-w-none w-full h-full bg-card p-4 sm:p-6 md:p-8 lg:p-12 focus:outline-none focus:ring-2 focus:ring-ring"
                   style={{ direction: 'ltr' }}
@@ -540,3 +558,5 @@ export function Editor({ page }: EditorProps) {
     </div>
   );
 }
+
+    
