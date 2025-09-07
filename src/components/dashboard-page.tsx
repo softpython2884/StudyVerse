@@ -46,7 +46,7 @@ import {
 import { mockData } from "@/lib/mock-data";
 import type { Binder, Notebook, Page, User as UserType } from "@/lib/types";
 import { useParams, useRouter } from "next/navigation";
-import { useToast } from "./hooks/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 
 const icons: { [key: string]: LucideIcon } = {
