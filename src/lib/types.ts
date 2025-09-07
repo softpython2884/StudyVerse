@@ -1,14 +1,14 @@
 export type Page = {
   id: string;
   title: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: string;
   type: 'course' | 'note';
 };
 
 export type Notebook = {
   id: string;
   title: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: string;
   color: string;
   tags: string[];
   pages: Page[];
@@ -17,6 +17,6 @@ export type Notebook = {
 export type Binder = {
   id: string;
   title: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: string;
   notebooks: Notebook[];
 };

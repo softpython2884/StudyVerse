@@ -7,11 +7,14 @@ import {
   BookOpenCheck,
   ChevronDown,
   Circle,
+  FileText,
   FolderKanban,
   PanelLeft,
   Search,
   Settings,
+  StickyNote,
   User,
+  type LucideIcon,
 } from "lucide-react";
 import {
   SidebarProvider,
@@ -46,6 +49,19 @@ import { cn } from "@/lib/utils";
 import { DocumentEditor } from "@/components/document-editor";
 import { NoteEditor } from "@/components/note-editor";
 import { useParams, useRouter } from "next/navigation";
+
+const icons: { [key: string]: LucideIcon } = {
+  FolderKanban,
+  BookOpen,
+  FileText,
+  StickyNote,
+};
+
+const Icon = ({ name }: { name: string }) => {
+    const LucideIcon = icons[name];
+    if (!LucideIcon) return null;
+    return <LucideIcon className="h-4 w-4" />;
+}
 
 
 export function DashboardPage({ initialActivePage }: { initialActivePage: Page | null }) {
@@ -101,7 +117,7 @@ export function DashboardPage({ initialActivePage }: { initialActivePage: Page |
                     <div className="w-full group">
                         <SidebarMenuItem>
                             <SidebarMenuButton className="font-semibold" isActive={false}>
-                                <binder.icon className="h-4 w-4" />
+                                <Icon name={binder.icon} />
                                 <span>{binder.title}</span>
                                 <ChevronDown className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]:rotate-180" />
                             </SidebarMenuButton>
@@ -117,7 +133,7 @@ export function DashboardPage({ initialActivePage }: { initialActivePage: Page |
                                 <SidebarMenuItem>
                                 <SidebarMenuButton isActive={false}>
                                     <div className="flex items-center gap-2">
-                                    <notebook.icon className="h-4 w-4" />
+                                    <Icon name={notebook.icon} />
                                     <span>{notebook.title}</span>
                                     </div>
                                     <ChevronDown className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]:rotate-180" />
@@ -133,7 +149,7 @@ export function DashboardPage({ initialActivePage }: { initialActivePage: Page |
                                     <SidebarMenuButton
                                       isActive={params.pageId === page.id}
                                     >
-                                      <page.icon className="h-4 w-4" />
+                                      <Icon name={page.icon} />
                                       <span>{page.title}</span>
                                     </SidebarMenuButton>
                                   </Link>
