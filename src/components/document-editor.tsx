@@ -88,6 +88,10 @@ export function DocumentEditor({ page }: DocumentEditorProps) {
     }
   };
 
+  React.useEffect(() => {
+    setContent(sampleContent);
+  }, [page]);
+
   return (
     <div className="flex h-full bg-secondary/30">
       {/* Document Outline Sidebar */}

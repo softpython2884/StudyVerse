@@ -44,18 +44,34 @@ import { mockData } from "@/lib/mock-data";
 import type { Binder, Notebook, Page } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { DocumentEditor } from "@/components/document-editor";
+import { NoteEditor } from "@/components/note-editor";
+import { useParams, useRouter } from "next/navigation";
 
-export function DashboardPage() {
+
+export function DashboardPage({ initialActivePage }: { initialActivePage: Page | null }) {
   const [activePage, setActivePage] = React.useState<Page | null>(null);
+  const params = useParams();
+  const router = useRouter();
 
   React.useEffect(() => {
-    // Set active page on client to avoid hydration mismatch
-    setActivePage(mockData[0].notebooks[0].pages[0]);
-  }, []);
-  
-  const handlePageSelect = (page: Page) => {
-    setActivePage(page);
+    setActivePage(initialActivePage);
+  }, [initialActivePage]);
+
+  const handlePageSelect = (binderId: string, notebookId: string, pageId: string) => {
+    router.push(`/dashboard/${binderId}/${notebookId}/${pageId}`);
   };
+
+  const getActivePage = () => {
+    const { binderId, notebookId, pageId } = params;
+    const binder = mockData.find(b => b.id === binderId);
+    if (!binder) return null;
+    const notebook = binder.notebooks.find(n => n.id === notebookId);
+    if (!notebook) return null;
+    return notebook.pages.find(p => p.id === pageId) || null;
+  }
+
+  const currentPage = getActivePage();
+
 
   return (
     <SidebarProvider>
@@ -113,13 +129,14 @@ export function DashboardPage() {
                             <div className="pl-6">
                               {notebook.pages.map((page: Page) => (
                                 <SidebarMenuItem key={page.id}>
-                                  <SidebarMenuButton
-                                    isActive={activePage?.id === page.id}
-                                    onClick={() => handlePageSelect(page)}
-                                  >
-                                    <page.icon className="h-4 w-4" />
-                                    <span>{page.title}</span>
-                                  </SidebarMenuButton>
+                                  <Link href={`/dashboard/${binder.id}/${notebook.id}/${page.id}`}>
+                                    <SidebarMenuButton
+                                      isActive={params.pageId === page.id}
+                                    >
+                                      <page.icon className="h-4 w-4" />
+                                      <span>{page.title}</span>
+                                    </SidebarMenuButton>
+                                  </Link>
                                 </SidebarMenuItem>
                               ))}
                             </div>
@@ -152,7 +169,7 @@ export function DashboardPage() {
                         <PanelLeft />
                     </SidebarTrigger>
                     <div>
-                        <h1 className="text-2xl font-bold font-headline">{activePage?.title || "Welcome"}</h1>
+                        <h1 className="text-2xl font-bold font-headline">{currentPage?.title || "Welcome"}</h1>
                         <p className="text-sm text-muted-foreground">Select a page to start editing.</p>
                     </div>
                 </div>
@@ -178,8 +195,12 @@ export function DashboardPage() {
             </header>
           
             <main className="flex-1 overflow-auto">
-                {activePage ? (
-                    <DocumentEditor key={activePage.id} page={activePage} />
+                {currentPage ? (
+                    currentPage.type === 'note' ? (
+                      <NoteEditor key={`${params.binderId}-${params.notebookId}-${params.pageId}`} page={currentPage} />
+                    ) : (
+                      <DocumentEditor key={`${params.binderId}-${params.notebookId}-${params.pageId}`} page={currentPage} />
+                    )
                 ) : (
                     <div className="flex items-center justify-center h-full">
                         <p className="text-muted-foreground">Select a notebook and page to start your work.</p>
