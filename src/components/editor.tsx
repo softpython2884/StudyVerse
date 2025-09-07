@@ -109,9 +109,14 @@ export function Editor({ page }: EditorProps) {
   React.useEffect(() => {
     if (editorRef.current) {
         editorRef.current.innerHTML = page.content || "<p>&#8203;</p>";
-        updateToolbarState();
     }
     document.execCommand("defaultParagraphSeparator", false, "p");
+    
+    const interval = setInterval(() => {
+        updateToolbarState();
+    }, 200);
+
+    return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page.id]);
 
@@ -184,12 +189,41 @@ export function Editor({ page }: EditorProps) {
     }, 10);
   };
   
+  const handleKeyUp = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === ' ') {
+      const selection = window.getSelection();
+      if (!selection || selection.rangeCount === 0) return;
+      
+      const range = selection.getRangeAt(0);
+      const node = range.startContainer;
+
+      if (node.nodeType === Node.TEXT_NODE && node.textContent) {
+        const textContent = node.textContent;
+        const matchH1 = textContent.match(/^#\s/);
+        const matchH2 = textContent.match(/^##\s/);
+        const matchH3 = textContent.match(/^###\s/);
+        
+        let match;
+        let level = 0;
+        if (matchH3) { match = matchH3; level = 3; }
+        else if (matchH2) { match = matchH2; level = 2; }
+        else if (matchH1) { match = matchH1; level = 1; }
+
+        if (match && level > 0) {
+          event.preventDefault();
+          node.textContent = textContent.substring(match[0].length);
+          document.execCommand('formatBlock', false, `h${level}`);
+        }
+      }
+    }
+  }
+
+
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    // Shortcuts for Bold, Italic, Underline
     if (event.ctrlKey && !event.altKey) {
         let command: string | null = null;
         switch (event.key.toLowerCase()) {
-            case 'b': command = 'bold'; break;
+            case 'g': command = 'bold'; break;
             case 'i': command = 'italic'; break;
             case 'u': command = 'underline'; break;
             case 'z': command = 'undo'; break;
@@ -201,7 +235,6 @@ export function Editor({ page }: EditorProps) {
         }
     }
 
-    // Shortcuts for Headings (Ctrl + Alt + 1-6)
     if (event.ctrlKey && event.altKey) {
         let blockCommand: string | null = null;
         switch (event.key) {
@@ -218,7 +251,6 @@ export function Editor({ page }: EditorProps) {
         }
     }
 
-    // Auto-create horizontal rule with ---
     if (event.key === 'Enter') {
         const selection = window.getSelection();
         if (selection && selection.rangeCount > 0) {
@@ -226,12 +258,8 @@ export function Editor({ page }: EditorProps) {
             const node = range.startContainer;
             if (node.textContent === '---' && node.parentElement) {
                 event.preventDefault();
-                // Replace '---' with a horizontal rule
+                node.textContent = '';
                 document.execCommand('insertHorizontalRule', false, undefined);
-                // Insert a new paragraph after the rule
-                const p = document.createElement('p');
-                p.innerHTML = '&#8203;'; // Zero-width space
-                editorRef.current?.focus();
                 document.execCommand('insertHTML', false, '<p>&#8203;</p>')
             }
         }
@@ -566,7 +594,7 @@ export function Editor({ page }: EditorProps) {
                   contentEditable
                   suppressContentEditableWarning
                   onKeyDown={handleKeyDown}
-                  onKeyUp={updateToolbarState}
+                  onKeyUp={handleKeyUp}
                   onMouseUp={updateToolbarState}
                   onFocus={updateToolbarState}
                   onBlur={saveSelection}
@@ -578,3 +606,4 @@ export function Editor({ page }: EditorProps) {
     </div>
   );
 }
+
