@@ -282,7 +282,6 @@ export function Editor({ page }: EditorProps) {
                   className="prose dark:prose-invert max-w-none w-full h-full bg-background p-4 sm:p-6 md:p-8 lg:p-12 rounded-lg shadow-inner focus:outline-none focus:ring-2 focus:ring-ring"
                   onInput={handleContentChange}
                   dangerouslySetInnerHTML={{ __html: content }}
-                  style={{ direction: 'ltr' }}
               />
           </CardContent>
         </Card>

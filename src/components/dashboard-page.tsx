@@ -301,18 +301,16 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
                                 <SidebarMenuItem className="w-full">
                                     <CollapsibleTrigger asChild>
                                         <SidebarMenuButton isActive={false} className="w-full">
-                                          <div className="flex items-start gap-2 w-full">
+                                            <div className="flex items-center gap-2 w-full">
                                                 <span className={cn("h-3 w-3 mt-1 rounded-full flex-shrink-0", notebook.color)}></span>
-                                                <div className="flex flex-col items-start w-full overflow-hidden">
-                                                    <span className="truncate w-full">{notebook.title}</span>
+                                                <div className="flex-1 flex items-center justify-between overflow-hidden">
+                                                    <span className="truncate">{notebook.title}</span>
+                                                    <div className="flex items-center gap-1 ml-2 flex-shrink-0">
+                                                        {notebook.tags.map(tag => <Badge key={tag} variant="secondary" className="h-4 text-[10px]">{tag}</Badge>)}
+                                                    </div>
                                                 </div>
-                                          </div>
-                                          <div className="flex items-center ml-auto">
-                                            <div className="flex flex-wrap gap-1 justify-end mr-2">
-                                                {notebook.tags.map(tag => <Badge key={tag} variant="secondary" className="h-4 text-[10px]">{tag}</Badge>)}
                                             </div>
-                                            <ChevronDown className="h-4 w-4 transition-transform duration-200 group-data-[state=open]:rotate-180 flex-shrink-0" />
-                                          </div>
+                                            <ChevronDown className="h-4 w-4 transition-transform duration-200 group-data-[state=open]:rotate-180 flex-shrink-0 ml-2" />
                                         </SidebarMenuButton>
                                     </CollapsibleTrigger>
                                 </SidebarMenuItem>
