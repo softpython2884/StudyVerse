@@ -4,8 +4,9 @@ import 'server-only';
 import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import type { User } from './types';
 import { getDb } from './db';
+import type { User } from './types';
+
 
 const secretKey = process.env.SESSION_SECRET || 'your-fallback-secret-key';
 const key = new TextEncoder().encode(secretKey);
@@ -52,26 +53,19 @@ export async function getSession() {
   return session;
 }
 
-export async function getCurrentUser(): Promise<User | null> {
-    const session = await getSession();
-    if (!session?.userId) return null;
-
-    try {
-        const db = await getDb();
-        const user = await db.get<User>('SELECT id, name, email FROM users WHERE id = ?', session.userId);
-        return user || null;
-    } catch (error) {
-        console.error("Failed to fetch user:", error);
-        return null;
-    }
-}
-
 export async function deleteSession() {
   cookies().delete('session');
 }
 
 export async function protectedRoute() {
-    const user = await getCurrentUser();
+    const session = await getSession();
+    if (!session?.userId) {
+        redirect('/login');
+    }
+    
+    const db = await getDb();
+    const user = await db.get<User>('SELECT id, name, email FROM users WHERE id = ?', session.userId);
+
     if (!user) {
         redirect('/login');
     }

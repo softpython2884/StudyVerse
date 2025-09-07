@@ -5,6 +5,7 @@ export const DDL_STATEMENTS = [
         name TEXT NOT NULL,
         email TEXT NOT NULL UNIQUE,
         password TEXT NOT NULL,
+        avatarUrl TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
   `,

@@ -1,8 +1,8 @@
 "use server";
 
 import * as React from 'react';
-import { getCurrentUser } from '@/lib/session';
 import { DashboardPage } from '@/components/dashboard-page';
+import { getCurrentUser } from '@/lib/user';
 
 export default async function DashboardLayout({
   children,
