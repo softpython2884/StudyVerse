@@ -73,7 +73,7 @@ body {
       @apply my-4;
     }
     a {
-      @apply text-primary hover:underline;
+      @apply text-accent-foreground hover:underline;
     }
     b, strong {
       @apply font-bold;

@@ -91,6 +91,7 @@ export function DashboardPage({ children, user }: { children: React.ReactNode, u
   const router = useRouter();
   const { toast } = useToast();
   const [mockData, setMockData] = React.useState(initialMockData);
+  const [searchQuery, setSearchQuery] = React.useState("");
 
   // --- State for dialogs ---
   const [isBinderDialogOpen, setIsBinderDialogOpen] = React.useState(false);
@@ -177,35 +178,67 @@ export function DashboardPage({ children, user }: { children: React.ReactNode, u
   };
 
   const handleCreatePage = () => {
-      if (!newItem.title) {
-          toast({ title: "Error", description: "Page title is required.", variant: "destructive" });
-          return;
-      }
-      const newPage: Page = {
-          id: `page-${Date.now()}`,
-          title: newItem.title,
-          icon: newItem.icon,
-          type: newItem.type,
-      };
-      setMockData(prev => prev.map(b => {
-        if (b.id === activeBinderId) {
-            return {
-                ...b,
-                notebooks: b.notebooks.map(n => {
-                    if (n.id === activeNotebookId) {
-                        return { ...n, pages: [...n.pages, newPage] };
-                    }
-                    return n;
-                })
-            };
-        }
-        return b;
-    }));
-      setIsPageDialogOpen(false);
-      resetNewItem();
-      toast({ title: "Success", description: "Page created successfully."});
-  };
+    if (!newItem.title) {
+        toast({ title: "Error", description: "Page title is required.", variant: "destructive" });
+        return;
+    }
+    const newPage: Page = {
+        id: `page-${Date.now()}`,
+        title: newItem.title,
+        icon: newItem.type === 'course' ? 'FileText' : 'StickyNote',
+        type: newItem.type,
+    };
+    setMockData(prev => {
+        const newData = prev.map(b => {
+            if (b.id === activeBinderId) {
+                return {
+                    ...b,
+                    notebooks: b.notebooks.map(n => {
+                        if (n.id === activeNotebookId) {
+                            return { ...n, pages: [...n.pages, newPage] };
+                        }
+                        return n;
+                    })
+                };
+            }
+            return b;
+        });
+        return newData;
+    });
 
+    // Important: Navigate to the new page AFTER state has been updated
+    // We can use a short timeout to ensure the state update has propagated
+    setTimeout(() => {
+        router.push(`/dashboard/${activeBinderId}/${activeNotebookId}/${newPage.id}`);
+    }, 0);
+    
+    setIsPageDialogOpen(false);
+    resetNewItem();
+    toast({ title: "Success", description: "Page created successfully."});
+};
+
+  const filteredData = React.useMemo(() => {
+    if (!searchQuery) {
+      return mockData;
+    }
+    const lowercasedQuery = searchQuery.toLowerCase();
+    return mockData.map(binder => {
+      const filteredNotebooks = binder.notebooks.map(notebook => {
+        const filteredPages = notebook.pages.filter(page =>
+          page.title.toLowerCase().includes(lowercasedQuery)
+        );
+        if (filteredPages.length > 0 || notebook.title.toLowerCase().includes(lowercasedQuery)) {
+          return { ...notebook, pages: filteredPages };
+        }
+        return null;
+      }).filter(Boolean) as Notebook[];
+
+      if (filteredNotebooks.length > 0 || binder.title.toLowerCase().includes(lowercasedQuery)) {
+        return { ...binder, notebooks: filteredNotebooks };
+      }
+      return null;
+    }).filter(Boolean) as Binder[];
+  }, [searchQuery, mockData]);
 
   return (
     <SidebarProvider>
@@ -263,54 +296,59 @@ export function DashboardPage({ children, user }: { children: React.ReactNode, u
           <SidebarContent className="p-2">
             <div className="relative mb-2">
               <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search..." className="pl-8" />
+              <Input placeholder="Search..." className="pl-8" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
             </div>
 
             <SidebarMenu>
-              {mockData.map((binder: Binder) => (
+              {filteredData.map((binder: Binder) => (
                 <Collapsible key={binder.id} className="w-full" defaultOpen>
-                  <CollapsibleTrigger asChild>
                     <div className="w-full group">
                         <SidebarMenuItem>
-                            <SidebarMenuButton className="font-semibold" isActive={false}>
-                                <Icon name={binder.icon} />
-                                <span>{binder.title}</span>
-                                <Dialog open={isNotebookDialogOpen} onOpenChange={setIsNotebookDialogOpen}>
-                                    <DialogTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="h-6 w-6 ml-auto opacity-0 group-hover:opacity-100" onClick={(e) => { e.stopPropagation(); setActiveBinderId(binder.id); setIsNotebookDialogOpen(true); }}>
-                                            <PlusCircle className="h-4 w-4" />
-                                        </Button>
-                                    </DialogTrigger>
-                                </Dialog>
-                                <ChevronDown className="ml-2 h-4 w-4 transition-transform duration-200 group-data-[state=open]:rotate-180" />
-                            </SidebarMenuButton>
+                            <CollapsibleTrigger asChild>
+                                <SidebarMenuButton className="font-semibold" isActive={false}>
+                                    <Icon name={binder.icon} />
+                                    <span>{binder.title}</span>
+                                    <ChevronDown className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                                </SidebarMenuButton>
+                            </CollapsibleTrigger>
+                             <Dialog open={isNotebookDialogOpen} onOpenChange={setIsNotebookDialogOpen}>
+                                <DialogTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-6 w-6 ml-auto opacity-0 group-hover:opacity-100 absolute right-8 top-1" onClick={(e) => { e.stopPropagation(); setActiveBinderId(binder.id); setIsNotebookDialogOpen(true); }}>
+                                        <PlusCircle className="h-4 w-4" />
+                                    </Button>
+                                </DialogTrigger>
+                            </Dialog>
                         </SidebarMenuItem>
                     </div>
-                  </CollapsibleTrigger>
                   <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
                     <div className="pl-4">
                       {binder.notebooks.map((notebook: Notebook) => (
                         <Collapsible key={notebook.id} className="w-full" defaultOpen>
-                          <CollapsibleTrigger asChild>
                             <div className="w-full group">
                                 <SidebarMenuItem>
-                                <SidebarMenuButton isActive={false}>
-                                    <div className="flex items-center gap-2">
-                                    <span className={cn("h-3 w-3 rounded-full", notebook.color)}></span>
-                                    <span>{notebook.title}</span>
-                                    </div>
+                                    <CollapsibleTrigger asChild>
+                                        <SidebarMenuButton isActive={false}>
+                                            <div className="flex items-center gap-2">
+                                            <span className={cn("h-3 w-3 rounded-full", notebook.color)}></span>
+                                                <div className="flex flex-col items-start">
+                                                    <span>{notebook.title}</span>
+                                                    <div className="flex gap-1 mt-1">
+                                                        {notebook.tags.map(tag => <Badge key={tag} variant="secondary" className="h-4 text-[10px]">{tag}</Badge>)}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <ChevronDown className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                                        </SidebarMenuButton>
+                                    </CollapsibleTrigger>
                                      <Dialog open={isPageDialogOpen} onOpenChange={setIsPageDialogOpen}>
                                         <DialogTrigger asChild>
-                                            <Button variant="ghost" size="icon" className="h-6 w-6 ml-auto opacity-0 group-hover:opacity-100" onClick={(e) => { e.stopPropagation(); setActiveBinderId(binder.id); setActiveNotebookId(notebook.id); setIsPageDialogOpen(true); }}>
+                                            <Button variant="ghost" size="icon" className="h-6 w-6 ml-auto opacity-0 group-hover:opacity-100 absolute right-8 top-1" onClick={(e) => { e.stopPropagation(); setActiveBinderId(binder.id); setActiveNotebookId(notebook.id); setIsPageDialogOpen(true); }}>
                                                 <PlusCircle className="h-4 w-4" />
                                             </Button>
                                         </DialogTrigger>
                                     </Dialog>
-                                    <ChevronDown className="ml-2 h-4 w-4 transition-transform duration-200 group-data-[state=open]:rotate-180" />
-                                </SidebarMenuButton>
                                 </SidebarMenuItem>
                             </div>
-                          </CollapsibleTrigger>
                           <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
                             <div className="pl-6">
                               {notebook.pages.map((page: Page) => (
@@ -396,7 +434,7 @@ export function DashboardPage({ children, user }: { children: React.ReactNode, u
         </SidebarInset>
         
         {/* Notebook Creation Dialog */}
-        <Dialog open={isNotebookDialogOpen} onOpenChange={setIsNotebookDialogOpen}>
+        <Dialog open={isNotebookDialogOpen} onOpenChange={(isOpen) => { if(!isOpen) resetNewItem(); setIsNotebookDialogOpen(isOpen);}}>
             <DialogContent>
                 <DialogHeader>
                     <DialogTitle>Create New Notebook</DialogTitle>
@@ -443,7 +481,7 @@ export function DashboardPage({ children, user }: { children: React.ReactNode, u
         </Dialog>
 
         {/* Page Creation Dialog */}
-         <Dialog open={isPageDialogOpen} onOpenChange={setIsPageDialogOpen}>
+         <Dialog open={isPageDialogOpen} onOpenChange={(isOpen) => { if(!isOpen) resetNewItem(); setIsPageDialogOpen(isOpen);}}>
             <DialogContent>
                 <DialogHeader>
                     <DialogTitle>Create New Page</DialogTitle>
@@ -455,17 +493,6 @@ export function DashboardPage({ children, user }: { children: React.ReactNode, u
                     <div>
                         <Label htmlFor="page-title">Title</Label>
                         <Input id="page-title" value={newItem.title} onChange={e => setNewItem({...newItem, title: e.target.value})} placeholder="e.g., Lecture 1: Intro" />
-                    </div>
-                    <div>
-                        <Label>Icon</Label>
-                        <Select onValueChange={value => setNewItem({...newItem, icon: value})} defaultValue={newItem.icon}>
-                             <SelectTrigger><SelectValue placeholder="Select an icon" /></SelectTrigger>
-                            <SelectContent>
-                                {iconNames.map(name => (
-                                    <SelectItem key={name} value={name}><Icon name={name} /> <span className="ml-2">{name}</span></SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
                     </div>
                     <div>
                         <Label>Page Type</Label>
