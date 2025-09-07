@@ -275,48 +275,50 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
             <SidebarMenu>
               {filteredData.map((binder: Binder) => (
                 <Collapsible key={binder.id} className="w-full" defaultOpen>
-                    <div className="w-full group relative flex items-center">
-                        <SidebarMenuItem className="w-full">
-                            <CollapsibleTrigger asChild>
-                                <SidebarMenuButton className="font-semibold" isActive={false}>
-                                    <Icon name={binder.icon} />
-                                    <span>{binder.title}</span>
-                                    <ChevronDown className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]:rotate-180" />
-                                </SidebarMenuButton>
-                            </CollapsibleTrigger>
-                        </SidebarMenuItem>
-                         <Dialog open={isNotebookDialogOpen} onOpenChange={setIsNotebookDialogOpen}>
-                            <DialogTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-6 w-6 ml-auto opacity-0 group-hover:opacity-100 absolute right-2 top-1" onClick={(e) => { e.stopPropagation(); setActiveBinderId(binder.id); }}>
-                                    <PlusCircle className="h-4 w-4" />
-                                </Button>
-                            </DialogTrigger>
-                        </Dialog>
-                    </div>
+                  <div className="flex items-center justify-between group">
+                      <SidebarMenuItem className="w-full">
+                          <CollapsibleTrigger asChild>
+                              <SidebarMenuButton className="font-semibold w-full" isActive={false}>
+                                  <Icon name={binder.icon} />
+                                  <span>{binder.title}</span>
+                                  <ChevronDown className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                              </SidebarMenuButton>
+                          </CollapsibleTrigger>
+                      </SidebarMenuItem>
+                       <Dialog open={isNotebookDialogOpen} onOpenChange={setIsNotebookDialogOpen}>
+                          <DialogTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-6 w-6 mr-2 opacity-0 group-hover:opacity-100" onClick={(e) => { e.stopPropagation(); setActiveBinderId(binder.id); }}>
+                                  <PlusCircle className="h-4 w-4" />
+                              </Button>
+                          </DialogTrigger>
+                      </Dialog>
+                  </div>
                   <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
                     <div className="pl-4">
                       {binder.notebooks.map((notebook: Notebook) => (
                         <Collapsible key={notebook.id} className="w-full" defaultOpen>
-                            <div className="w-full group relative flex items-center">
+                            <div className="flex items-center justify-between group">
                                 <SidebarMenuItem className="w-full">
                                     <CollapsibleTrigger asChild>
-                                        <SidebarMenuButton isActive={false}>
-                                            <div className="flex items-start gap-2 w-full">
+                                        <SidebarMenuButton isActive={false} className="w-full">
+                                          <div className="flex items-start gap-2 w-full">
                                                 <span className={cn("h-3 w-3 mt-1 rounded-full flex-shrink-0", notebook.color)}></span>
                                                 <div className="flex flex-col items-start w-full overflow-hidden">
                                                     <span className="truncate w-full">{notebook.title}</span>
-                                                    <div className="flex flex-wrap gap-1 mt-1">
-                                                        {notebook.tags.map(tag => <Badge key={tag} variant="secondary" className="h-4 text-[10px]">{tag}</Badge>)}
-                                                    </div>
                                                 </div>
+                                          </div>
+                                          <div className="flex items-center ml-auto">
+                                            <div className="flex flex-wrap gap-1 justify-end mr-2">
+                                                {notebook.tags.map(tag => <Badge key={tag} variant="secondary" className="h-4 text-[10px]">{tag}</Badge>)}
                                             </div>
-                                            <ChevronDown className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]:rotate-180 flex-shrink-0" />
+                                            <ChevronDown className="h-4 w-4 transition-transform duration-200 group-data-[state=open]:rotate-180 flex-shrink-0" />
+                                          </div>
                                         </SidebarMenuButton>
                                     </CollapsibleTrigger>
                                 </SidebarMenuItem>
                                  <Dialog open={isPageDialogOpen} onOpenChange={setIsPageDialogOpen}>
                                     <DialogTrigger asChild>
-                                         <Button variant="ghost" size="icon" className="h-6 w-6 ml-auto opacity-0 group-hover:opacity-100 absolute right-2 top-1" onClick={(e) => { e.stopPropagation(); setActiveBinderId(binder.id); setActiveNotebookId(notebook.id); }}>
+                                         <Button variant="ghost" size="icon" className="h-6 w-6 mr-2 opacity-0 group-hover:opacity-100" onClick={(e) => { e.stopPropagation(); setActiveBinderId(binder.id); setActiveNotebookId(notebook.id); }}>
                                             <PlusCircle className="h-4 w-4" />
                                         </Button>
                                     </DialogTrigger>
