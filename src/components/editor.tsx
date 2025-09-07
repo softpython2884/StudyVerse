@@ -95,17 +95,22 @@ export function Editor({ page }: EditorProps) {
         editorRef.current.innerHTML = page.content || "<p>&#8203;</p>";
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page.id]); // Only re-run when the page ID changes
-  
+  }, [page.id]);
+
   const saveSelection = () => {
-    const selection = window.getSelection();
-    if (selection && selection.rangeCount > 0) {
-      savedSelection.current = selection.getRangeAt(0);
+    if (typeof window !== 'undefined') {
+      const selection = window.getSelection();
+      if (selection && selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        if (editorRef.current && editorRef.current.contains(range.commonAncestorContainer)) {
+          savedSelection.current = range;
+        }
+      }
     }
   };
 
   const restoreSelection = () => {
-    if (!savedSelection.current) return;
+    if (!savedSelection.current || typeof window === 'undefined') return;
     const selection = window.getSelection();
     if (selection) {
       selection.removeAllRanges();
@@ -114,38 +119,19 @@ export function Editor({ page }: EditorProps) {
   };
   
   const handleFocusAndRestoreSelection = () => {
-    // A small timeout is necessary to ensure the editor is focused before restoring selection.
+    editorRef.current?.focus();
     setTimeout(() => {
-      editorRef.current?.focus();
       restoreSelection();
     }, 0);
   };
 
-
-  const handleFormat = (command: string, value?: string) => {
-    handleFocusAndRestoreSelection();
-    setTimeout(() => {
-        // Toggle logic for block formats
-        if (value && ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'pre'].includes(value)) {
-            if (document.queryCommandValue('formatBlock') === value) {
-                document.execCommand('formatBlock', false, 'p');
-            } else {
-                document.execCommand(command, false, `<${value}>`);
-            }
-        } else {
-             document.execCommand(command, false, value);
-        }
-        updateToolbarState();
-    }, 10);
-  };
-
   const updateToolbarState = () => {
+    if (typeof window === 'undefined') return;
     saveSelection();
     const selection = window.getSelection();
     if (selection && selection.rangeCount > 0 && document.activeElement === editorRef.current) {
       let node = selection.getRangeAt(0).startContainer;
       
-      // Traverse up to find the element node if the start is a text node
       if (node.nodeType === Node.TEXT_NODE && node.parentNode) {
         node = node.parentNode;
       }
@@ -155,16 +141,31 @@ export function Editor({ page }: EditorProps) {
          if (blockElement) {
              setCurrentBlockStyle(blockElement.tagName.toLowerCase());
          } else {
-             // Fallback for elements inside other tags like <li>
              const listParent = node.closest('li');
              if (listParent) {
-                 setCurrentBlockStyle('p'); // Treat list items as paragraphs for simplicity
+                 setCurrentBlockStyle('p'); 
              }
          }
       }
     }
   };
 
+  const handleFormat = (command: string, value?: string) => {
+    handleFocusAndRestoreSelection();
+    setTimeout(() => {
+        if (value && ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'pre'].includes(value)) {
+            if (document.queryCommandValue('formatBlock') === value) {
+                document.execCommand('formatBlock', false, 'p');
+            } else {
+                document.execCommand('formatBlock', false, value);
+            }
+        } else {
+             document.execCommand(command, false, value);
+        }
+        updateToolbarState();
+    }, 10);
+  };
+  
   const handleMarkdown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (event.key !== ' ') return;
 
@@ -174,16 +175,13 @@ export function Editor({ page }: EditorProps) {
     const range = selection.getRangeAt(0);
     const node = range.startContainer;
     
-    // We only care about text nodes
     if (node.nodeType !== Node.TEXT_NODE || !node.textContent) return;
 
     const text = node.textContent;
     const caretPos = range.startOffset;
-
-    // The text before the space
     const textBeforeCaret = text.substring(0, caretPos);
     
-    // Block patterns (e.g. "## ", "> ")
+    // Block patterns at the start of a line
     const blockPatterns = [
         { regex: /^(#{1,6})$/, command: "formatBlock" },
         { regex: /^\>$/, command: "formatBlock", value: "blockquote" },
@@ -191,36 +189,38 @@ export function Editor({ page }: EditorProps) {
         { regex: /^1\.$/, command: "insertOrderedList" },
     ];
     
-    const wordBeforeCaret = textBeforeCaret.split(/\s+/).pop() || "";
+    const wordBeforeCaret = textBeforeCaret.trim();
 
     const blockPattern = blockPatterns.find(p => p.regex.test(wordBeforeCaret));
     if (blockPattern) {
         event.preventDefault();
         const match = wordBeforeCaret.match(blockPattern.regex);
         if (match) {
-             const newTextContent = text.substring(0, caretPos - wordBeforeCaret.length) + text.substring(caretPos);
-             node.textContent = newTextContent; 
-             range.setStart(node, caretPos - wordBeforeCaret.length);
-             range.collapse(true);
-             selection.removeAllRanges();
-             selection.addRange(range);
+            const startOffset = text.indexOf(wordBeforeCaret);
+            node.textContent = text.substring(0, startOffset) + text.substring(startOffset + wordBeforeCaret.length);
+            
+            range.setStart(node, startOffset);
+            range.collapse(true);
+            selection.removeAllRanges();
+            selection.addRange(range);
 
             if (blockPattern.command === 'formatBlock' && !blockPattern.value) {
                 document.execCommand(blockPattern.command, false, `h${match[1].length}`);
             } else {
-                 document.execCommand(blockPattern.command, false, blockPattern.value);
+                document.execCommand(blockPattern.command, false, blockPattern.value);
             }
             updateToolbarState();
             return;
         }
     }
     
-    // Inline patterns (e.g. "**bold** ")
+    // Inline patterns
     const inlinePatterns = [
         { regex: /\*\*([^\*]+)\*\*$/, command: 'bold' },
         { regex: /__([^_]+)__$/, command: 'bold' },
         { regex: /\*([^\*]+)\*$/, command: 'italic' },
         { regex: /_([^_]+)_$/, command: 'italic' },
+        { regex: /(https?:\/\/[^\s]+)$/, command: 'createLink' },
     ];
 
     for (const pattern of inlinePatterns) {
@@ -229,54 +229,62 @@ export function Editor({ page }: EditorProps) {
             event.preventDefault();
             const originalText = match[0];
             const contentText = match[1];
+            const startIndex = textBeforeCaret.lastIndexOf(originalText);
 
-            const newTextContent = text.substring(0, caretPos - originalText.length) + contentText + text.substring(caretPos);
-            node.textContent = newTextContent;
+            // Replace markdown with content
+            node.textContent = text.substring(0, startIndex) + contentText + text.substring(caretPos);
 
-            range.setStart(node, caretPos - originalText.length);
-            range.setEnd(node, caretPos - originalText.length + contentText.length);
-            selection.removeAllRanges();
-            selection.addRange(range);
-
-            document.execCommand(pattern.command, false);
-
-            range.collapse(false); // Move cursor to the end
+            // Select the content text
+            range.setStart(node, startIndex);
+            range.setEnd(node, startIndex + contentText.length);
             selection.removeAllRanges();
             selection.addRange(range);
             
-            // Add the space that triggered the event
-            document.execCommand('insertText', false, ' ');
+            // Apply the command
+            if (pattern.command === 'createLink') {
+                document.execCommand(pattern.command, false, contentText);
+            } else {
+                document.execCommand(pattern.command, false);
+            }
+
+            // Move cursor after the formatted text
+            range.collapse(false);
+            selection.removeAllRanges();
+            selection.addRange(range);
+            
+            // Insert a space after to finalize
+            const spaceNode = document.createTextNode(' ');
+            range.insertNode(spaceNode);
+            range.setStartAfter(spaceNode);
+            range.collapse(true);
+            selection.removeAllRanges();
+            selection.addRange(range);
 
             return;
         }
     }
   };
-
-
+  
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     handleMarkdown(event);
 
     if (event.key === 'Enter' && !event.shiftKey) {
-        const selection = window.getSelection();
-        if (selection && selection.rangeCount > 0) {
-            const range = selection.getRangeAt(0);
-            const node = range.startContainer;
-            const parentElement = node.nodeType === 3 ? node.parentElement : node as HTMLElement;
-
-            const blockElement = parentElement?.closest('pre, h1, h2, h3, h4, h5, h6, blockquote');
-            if (blockElement && range.endOffset === (node.textContent?.length || 0)) {
-                event.preventDefault();
-                const newParagraph = document.createElement('p');
-                newParagraph.innerHTML = '&#8203;'; // Zero-width space to ensure the element is focusable
-                blockElement.insertAdjacentElement('afterend', newParagraph);
+        setTimeout(() => {
+            const selection = window.getSelection();
+            if (selection && selection.rangeCount > 0) {
+                const range = selection.getRangeAt(0);
+                let node = range.startContainer;
+                let parentElement = node.nodeType === 3 ? node.parentElement : node as HTMLElement;
+    
+                const blockElement = parentElement?.closest('pre, h1, h2, h3, h4, h5, h6, blockquote');
                 
-                const newRange = document.createRange();
-                newRange.setStart(newParagraph, 0);
-                newRange.collapse(true);
-                selection.removeAllRanges();
-                selection.addRange(newRange);
+                if (blockElement && parentElement?.textContent?.trim() === '') {
+                     event.preventDefault();
+                     document.execCommand('formatBlock', false, 'p');
+                     updateToolbarState();
+                }
             }
-        }
+        }, 0);
     }
   };
 
@@ -290,18 +298,21 @@ export function Editor({ page }: EditorProps) {
   };
   
   const handleInsertTable = (rows: number, cols: number) => {
-    let tableHtml = '<table style="border-collapse: collapse; width: 100%;">';
-    for (let i = 0; i < rows; i++) {
-      tableHtml += '<tr style="border: 1px solid #ccc;">';
-      for (let j = 0; j < cols; j++) {
-        tableHtml += '<td style="border: 1px solid #ccc; padding: 8px;">&nbsp;</td>';
-      }
-      tableHtml += '</tr>';
-    }
-    tableHtml += '</table><p>&#8203;</p>';
     handleFocusAndRestoreSelection();
-    setTimeout(() => document.execCommand("insertHTML", false, tableHtml), 10);
+    setTimeout(() => {
+      let tableHtml = '<table style="border-collapse: collapse; width: 100%;">';
+      for (let i = 0; i < rows; i++) {
+        tableHtml += '<tr style="border: 1px solid #ccc;">';
+        for (let j = 0; j < cols; j++) {
+          tableHtml += '<td style="border: 1px solid #ccc; padding: 8px;"><p>&#8203;</p></td>';
+        }
+        tableHtml += '</tr>';
+      }
+      tableHtml += '</table><p>&#8203;</p>';
+      document.execCommand("insertHTML", false, tableHtml);
+    }, 10);
     setIsTablePopoverOpen(false);
+    setTableGridSize({ rows: 0, cols: 0 });
   };
 
   const handleSaveContent = async () => {
@@ -384,7 +395,7 @@ export function Editor({ page }: EditorProps) {
   
    const handleInsertChecklist = () => {
      handleFocusAndRestoreSelection();
-     setTimeout(() => document.execCommand("insertHTML", false, `<ul data-type="checklist"><li><input type="checkbox"><label contenteditable="true">To-do item</label></li></ul>`), 10)
+     setTimeout(() => document.execCommand("insertHTML", false, `<ul data-type="checklist"><li><input type="checkbox"><label contenteditable="true">To-do item</label></li></ul><p>&#8203;</p>`), 10)
   };
 
   if (!page) {
@@ -424,7 +435,7 @@ export function Editor({ page }: EditorProps) {
                   <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("strikeThrough")}> <Strikethrough className="h-4 w-4" /> </Button>
                   <Popover open={isLinkPopoverOpen} onOpenChange={setIsLinkPopoverOpen}>
                       <PopoverTrigger asChild>
-                          <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => saveSelection()}>
+                          <Button variant="ghost" size="icon" onMouseDown={(e) => {e.preventDefault(); saveSelection();}}>
                               <Link className="h-4 w-4" />
                           </Button>
                       </PopoverTrigger>
@@ -456,7 +467,7 @@ export function Editor({ page }: EditorProps) {
                   <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("formatBlock", "pre")}> <Code className="h-4 w-4" /> </Button>
                   <Popover open={isTablePopoverOpen} onOpenChange={(isOpen) => { if(!isOpen) setTableGridSize({rows: 0, cols: 0}); setIsTablePopoverOpen(isOpen)}}>
                       <PopoverTrigger asChild>
-                           <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => saveSelection()}><Table className="h-4 w-4" /></Button>
+                           <Button variant="ghost" size="icon" onMouseDown={(e) => {e.preventDefault(); saveSelection();}}><Table className="h-4 w-4" /></Button>
                       </PopoverTrigger>
                        <PopoverContent className="w-auto p-2" onOpenAutoFocus={(e) => e.preventDefault()}>
                           <div className="flex flex-col gap-1">
@@ -503,7 +514,10 @@ export function Editor({ page }: EditorProps) {
                           </div>
                            <DialogFooter>
                             <Button onClick={() => {
-                              if(editorRef.current) editorRef.current.innerHTML = refinedNotes.replace(/\\n/g, '<br />');
+                              if(editorRef.current) {
+                                  const refinedHtml = refinedNotes.replace(/\\n/g, '<br />');
+                                  editorRef.current.innerHTML = refinedHtml;
+                              }
                             }}>
                               Insert
                             </Button>
@@ -551,7 +565,8 @@ export function Editor({ page }: EditorProps) {
                              <Button onClick={() => {
                                 handleFocusAndRestoreSelection();
                                  setTimeout(() => {
-                                document.execCommand('insertHTML', false, `<pre><code>${generatedDiagram}</code></pre>`);
+                                const sanitizedDiagram = generatedDiagram.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                                document.execCommand('insertHTML', false, `<pre><code>${sanitizedDiagram}</code></pre>`);
                                 }, 10);
                              }}>
                               Insert
@@ -590,3 +605,5 @@ export function Editor({ page }: EditorProps) {
     </div>
   );
 }
+
+    

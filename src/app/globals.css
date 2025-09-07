@@ -74,7 +74,7 @@ body {
       @apply my-4;
     }
     a {
-      @apply text-accent-foreground hover:underline;
+      color: #FECACA;
     }
     b, strong {
       @apply font-bold;
@@ -129,21 +129,27 @@ body {
 
 @media print {
     body, .printable-area {
-        visibility: visible;
-        background: white;
+        background: white !important;
+        color: black !important;
     }
     .printable-area {
+        display: block;
         position: absolute;
         left: 0;
         top: 0;
         width: 100%;
         height: auto;
     }
-    body > *:not(.printable-area) {
-        display: none;
+    .print-hidden, .print-hidden * {
+        display: none !important;
     }
-    .print-container {
-        padding: 2rem; /* Add some padding for the print layout */
+    .prose {
+        visibility: hidden;
+    }
+    .prose.printable-area, .prose.printable-area * {
+        visibility: visible;
     }
 }
     
+
+
