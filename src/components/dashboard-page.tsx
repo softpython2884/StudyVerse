@@ -274,7 +274,7 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
 
             <SidebarMenu>
               {filteredData.map((binder: Binder) => (
-                <Collapsible key={binder.id} className="w-full" defaultOpen>
+                <Collapsible key={binder.id} className="w-full" defaultOpen={false}>
                   <div className="flex items-center justify-between group">
                       <SidebarMenuItem className="w-full">
                           <CollapsibleTrigger asChild>
@@ -296,7 +296,7 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
                   <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
                     <div className="pl-4">
                       {binder.notebooks.map((notebook: Notebook) => (
-                        <Collapsible key={notebook.id} className="w-full" defaultOpen>
+                        <Collapsible key={notebook.id} className="w-full" defaultOpen={false}>
                             <div className="flex items-center justify-between group">
                                 <SidebarMenuItem className="w-full">
                                     <CollapsibleTrigger asChild>

@@ -88,34 +88,41 @@ export function Editor({ page }: EditorProps) {
     }
   }, [page]);
   
+  const saveSelection = () => {
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0) {
+      savedSelection.current = selection.getRangeAt(0);
+    }
+  };
+
   const restoreSelection = () => {
-    if (savedSelection.current) {
-        const selection = window.getSelection();
-        if (selection) {
-            selection.removeAllRanges();
-            selection.addRange(savedSelection.current);
-        }
-    } else if (editorRef.current) {
-        editorRef.current.focus();
+    if (savedSelection.current && editorRef.current) {
+      editorRef.current.focus();
+      const selection = window.getSelection();
+      if (selection) {
+        selection.removeAllRanges();
+        selection.addRange(savedSelection.current);
+      }
     }
   };
 
   const handleFormat = (command: string, value?: string) => {
     restoreSelection();
-    document.execCommand(command, false, value);
+    if (document.queryCommandSupported(command)) {
+      document.execCommand(command, false, value);
+    }
     editorRef.current?.focus();
     updateToolbarState();
   };
 
   const updateToolbarState = () => {
+    saveSelection();
     const selection = window.getSelection();
     if (selection && selection.rangeCount > 0) {
-      savedSelection.current = selection.getRangeAt(0).cloneRange();
       let node = selection.getRangeAt(0).startContainer;
       
-      // Navigate up to find the block-level element
-      while (node && node.nodeType === Node.TEXT_NODE) {
-        node = node.parentNode!;
+      while (node && node.nodeType === Node.TEXT_NODE && node.parentNode) {
+        node = node.parentNode;
       }
       
       if (node && node instanceof HTMLElement) {
@@ -259,36 +266,7 @@ export function Editor({ page }: EditorProps) {
   };
 
   const handlePrint = () => {
-    const printContent = editorRef.current?.innerHTML;
-    if (printContent) {
-      const printWindow = window.open('', '_blank');
-      if (printWindow) {
-        printWindow.document.write(`
-          <html>
-            <head>
-              <title>${page.title} - Print</title>
-              <style>
-                body { font-family: 'Alegreya', serif; }
-                .prose { max-width: 100%; }
-                .prose h1, .prose h2, .prose h3, .prose h4, .prose h5, .prose h6 { font-weight: bold; margin-top: 1.25em; margin-bottom: 0.5em; }
-                .prose h1 { font-size: 2em; } .prose h2 { font-size: 1.5em; } .prose h3 { font-size: 1.25em; }
-                .prose p { margin: 1em 0; }
-                .prose ul { list-style-type: disc; padding-left: 2em; }
-                .prose ol { list-style-type: decimal; padding-left: 2em; }
-                .prose blockquote { border-left: 4px solid #ccc; padding-left: 1em; margin-left: 0; font-style: italic; color: #555; }
-                .prose pre { background-color: #f5f5f5; padding: 1em; border-radius: 4px; overflow-x: auto; }
-                .prose code { font-family: monospace; }
-                .prose table { border-collapse: collapse; width: 100%; }
-                .prose td, .prose th { border: 1px solid #ccc; padding: 8px; }
-              </style>
-            </head>
-            <body><div class="prose">${printContent}</div></body>
-          </html>
-        `);
-        printWindow.document.close();
-        printWindow.print();
-      }
-    }
+    window.print();
   }
 
   if (!page) {
@@ -300,17 +278,17 @@ export function Editor({ page }: EditorProps) {
   }
 
   return (
-    <div className="flex flex-col h-full bg-background p-1 sm:p-2 lg:p-4">
+    <div className="flex flex-col h-full bg-background p-1 sm:p-2 lg:p-4 printable-area">
       <Card className="w-full flex-1 flex flex-col overflow-hidden">
           <CardHeader className="p-2 print:hidden">
               <div className="flex items-center justify-between p-2 mb-2 border-b rounded-t-md bg-secondary/50 flex-wrap">
               <div className="flex items-center gap-1 flex-wrap">
-                  <Button variant="ghost" size="icon" onClick={() => handleFormat("undo")}> <Undo className="h-4 w-4" /> </Button>
-                  <Button variant="ghost" size="icon" onClick={() => handleFormat("redo")}> <Redo className="h-4 w-4" /> </Button>
-                  <Button variant="ghost" size="icon" onClick={handlePrint}> <Printer className="h-4 w-4" /> </Button>
+                  <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("undo")}> <Undo className="h-4 w-4" /> </Button>
+                  <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("redo")}> <Redo className="h-4 w-4" /> </Button>
+                  <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={handlePrint}> <Printer className="h-4 w-4" /> </Button>
                   <Separator orientation="vertical" className="h-6 mx-1" />
                   <Select value={currentBlockStyle} onValueChange={(value) => handleFormat("formatBlock", `<${value}>`)}>
-                    <SelectTrigger className="w-32"> <SelectValue placeholder="Style" /> </SelectTrigger>
+                    <SelectTrigger className="w-32" onMouseDown={(e) => e.preventDefault()}> <SelectValue placeholder="Style" /> </SelectTrigger>
                     <SelectContent>
                         <SelectItem value="p"><div className="flex items-center gap-2"><Pilcrow className="h-4 w-4" /> Paragraphe</div></SelectItem>
                         <SelectItem value="h1"><div className="flex items-center gap-2"><Heading1 className="h-4 w-4" /> Titre 1</div></SelectItem>
@@ -322,24 +300,24 @@ export function Editor({ page }: EditorProps) {
                     </SelectContent>
                   </Select>
                   <Separator orientation="vertical" className="h-6 mx-1" />
-                  <Button variant="ghost" size="icon" onClick={() => handleFormat("bold")}> <Bold className="h-4 w-4" /> </Button>
-                  <Button variant="ghost" size="icon" onClick={() => handleFormat("italic")}> <Italic className="h-4 w-4" /> </Button>
-                  <Button variant="ghost" size="icon" onClick={() => handleFormat("underline")}> <Underline className="h-4 w-4" /> </Button>
-                  <Button variant="ghost" size="icon" onClick={() => handleFormat("strikeThrough")}> <Strikethrough className="h-4 w-4" /> </Button>
-                  <Button variant="ghost" size="icon" onClick={handleInsertLink}> <Link className="h-4 w-4" /> </Button>
+                  <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("bold")}> <Bold className="h-4 w-4" /> </Button>
+                  <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("italic")}> <Italic className="h-4 w-4" /> </Button>
+                  <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("underline")}> <Underline className="h-4 w-4" /> </Button>
+                  <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("strikeThrough")}> <Strikethrough className="h-4 w-4" /> </Button>
+                  <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={handleInsertLink}> <Link className="h-4 w-4" /> </Button>
                   <Separator orientation="vertical" className="h-6 mx-1" />
-                   <Button variant="ghost" size="icon" onClick={() => handleFormat("justifyLeft")}> <AlignLeft className="h-4 w-4" /> </Button>
-                  <Button variant="ghost" size="icon" onClick={() => handleFormat("justifyCenter")}> <AlignCenter className="h-4 w-4" /> </Button>
-                  <Button variant="ghost" size="icon" onClick={() => handleFormat("justifyRight")}> <AlignRight className="h-4 w-4" /> </Button>
-                  <Button variant="ghost" size="icon" onClick={() => handleFormat("justifyFull")}> <AlignJustify className="h-4 w-4" /> </Button>
+                   <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("justifyLeft")}> <AlignLeft className="h-4 w-4" /> </Button>
+                  <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("justifyCenter")}> <AlignCenter className="h-4 w-4" /> </Button>
+                  <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("justifyRight")}> <AlignRight className="h-4 w-4" /> </Button>
+                  <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("justifyFull")}> <AlignJustify className="h-4 w-4" /> </Button>
                   <Separator orientation="vertical" className="h-6 mx-1" />
-                  <Button variant="ghost" size="icon" onClick={() => handleFormat("insertUnorderedList")}> <List className="h-4 w-4" /> </Button>
-                  <Button variant="ghost" size="icon" onClick={() => handleFormat("insertOrderedList")}> <ListOrdered className="h-4 w-4" /> </Button>
-                  <Button variant="ghost" size="icon" onClick={handleInsertChecklist}> <ListChecks className="h-4 w-4" /> </Button>
-                  <Button variant="ghost" size="icon" onClick={() => handleFormat("formatBlock", "<blockquote>")}> <Quote className="h-4 w-4" /> </Button>
-                  <Button variant="ghost" size="icon" onClick={() => handleFormat("formatBlock", "<pre>")}> <Code className="h-4 w-4" /> </Button>
-                   <Button variant="ghost" size="icon" onClick={handleInsertTable}> <Table className="h-4 w-4" /> </Button>
-                   <Button variant="ghost" size="icon" onClick={() => handleFormat("insertHorizontalRule")}> <Minus className="h-4 w-4" /> </Button>
+                  <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("insertUnorderedList")}> <List className="h-4 w-4" /> </Button>
+                  <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("insertOrderedList")}> <ListOrdered className="h-4 w-4" /> </Button>
+                  <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={handleInsertChecklist}> <ListChecks className="h-4 w-4" /> </Button>
+                  <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("formatBlock", "<blockquote>")}> <Quote className="h-4 w-4" /> </Button>
+                  <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("formatBlock", "<pre>")}> <Code className="h-4 w-4" /> </Button>
+                   <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={handleInsertTable}> <Table className="h-4 w-4" /> </Button>
+                   <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("insertHorizontalRule")}> <Minus className="h-4 w-4" /> </Button>
                   <Separator orientation="vertical" className="h-6 mx-1" />
                   <SpeechToText onTranscriptionComplete={(text) => {
                     restoreSelection();
@@ -440,6 +418,7 @@ export function Editor({ page }: EditorProps) {
                   onKeyDown={handleKeyDown}
                   onKeyUp={updateToolbarState}
                   onMouseUp={updateToolbarState}
+                  onBlur={saveSelection}
                   className="prose dark:prose-invert max-w-none w-full h-full bg-card p-4 sm:p-6 md:p-8 lg:p-12 focus:outline-none focus:ring-2 focus:ring-ring"
                   style={{ direction: 'ltr' }}
               />
