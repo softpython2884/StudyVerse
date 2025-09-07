@@ -46,7 +46,12 @@ import { cn } from "@/lib/utils";
 import { DocumentEditor } from "@/components/document-editor";
 
 export function DashboardPage() {
-  const [activePage, setActivePage] = React.useState<Page | null>(mockData[0].notebooks[0].pages[0]);
+  const [activePage, setActivePage] = React.useState<Page | null>(null);
+
+  React.useEffect(() => {
+    // Set active page on client to avoid hydration mismatch
+    setActivePage(mockData[0].notebooks[0].pages[0]);
+  }, []);
   
   const handlePageSelect = (page: Page) => {
     setActivePage(page);
@@ -77,7 +82,7 @@ export function DashboardPage() {
               {mockData.map((binder: Binder) => (
                 <Collapsible key={binder.id} className="w-full" defaultOpen>
                   <CollapsibleTrigger asChild>
-                    <div className="w-full">
+                    <div className="w-full group">
                         <SidebarMenuItem>
                             <SidebarMenuButton className="font-semibold" isActive={false}>
                                 <binder.icon className="h-4 w-4" />
@@ -92,7 +97,7 @@ export function DashboardPage() {
                       {binder.notebooks.map((notebook: Notebook) => (
                         <Collapsible key={notebook.id} className="w-full" defaultOpen>
                           <CollapsibleTrigger asChild>
-                            <div className="w-full">
+                            <div className="w-full group">
                                 <SidebarMenuItem>
                                 <SidebarMenuButton isActive={false}>
                                     <div className="flex items-center gap-2">

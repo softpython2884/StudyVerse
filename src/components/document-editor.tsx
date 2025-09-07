@@ -54,7 +54,7 @@ const sampleContent = `<h1>Titre Principal</h1>
 <h3>Citation</h3>
 <blockquote>Ceci est une citation inspirante.</blockquote>
 <h3>Lien</h3>
-<p><a href="#" class="text-blue-600 underline">Visitez Microsoft Copilot</a></p>
+<p><a href="#" class="text-primary hover:underline">Visitez Microsoft Copilot</a></p>
 <h3>Bloc de code</h3>
 <pre><code class="language-python">def dire_bonjour():
   print("Bonjour, monde !")</code></pre>`;
@@ -191,7 +191,7 @@ export function DocumentEditor({ page }: DocumentEditorProps) {
             ref={editorRef}
             contentEditable
             suppressContentEditableWarning
-            className="bg-background p-12 rounded-lg shadow-md prose prose-sm max-w-none prose-headings:font-headline prose-a:text-primary hover:prose-a:text-primary/80 focus:outline-none focus:ring-2 focus:ring-ring"
+            className="prose dark:prose-invert max-w-none w-full bg-background p-12 rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-ring"
             onInput={handleContentChange}
             dangerouslySetInnerHTML={{ __html: content }}
           />

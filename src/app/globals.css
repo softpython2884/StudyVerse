@@ -59,4 +59,27 @@ body {
   body {
     @apply bg-background text-foreground;
   }
+  .prose {
+    h1, h2, h3, h4, h5, h6 {
+      @apply font-headline;
+    }
+    a {
+      @apply text-primary hover:text-primary/80;
+    }
+    blockquote {
+      @apply border-l-4 border-primary pl-4 italic text-muted-foreground;
+    }
+    code {
+      @apply bg-muted text-muted-foreground rounded-sm px-1 py-0.5 font-code;
+    }
+    pre > code {
+      @apply bg-transparent p-0;
+    }
+    pre {
+      @apply bg-muted p-4 rounded-md;
+    }
+    hr {
+      @apply border-border;
+    }
+  }
 }
