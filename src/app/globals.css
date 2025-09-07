@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -125,3 +126,20 @@ body {
     }
   }
 }
+
+@media print {
+  body, .printable-area {
+    visibility: visible;
+    background: white;
+  }
+  .printable-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+  body > *:not(.printable-area) {
+    visibility: hidden;
+  }
+}
+    

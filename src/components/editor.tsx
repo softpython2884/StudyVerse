@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -87,6 +88,30 @@ export function Editor({ page }: EditorProps) {
     }
   }, [page]);
 
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+        const selection = window.getSelection();
+        if (selection && selection.rangeCount > 0) {
+            const range = selection.getRangeAt(0);
+            const node = range.startContainer;
+            const parentElement = node.nodeType === 3 ? node.parentElement : node as HTMLElement;
+
+            const blockElement = parentElement?.closest('pre, h1, h2, h3, h4, h5, h6');
+            if (blockElement) {
+                event.preventDefault();
+                const newParagraph = document.createElement('p');
+                newParagraph.innerHTML = '&#8203;';
+                blockElement.insertAdjacentElement('afterend', newParagraph);
+                
+                const newRange = document.createRange();
+                newRange.setStart(newParagraph, 0);
+                newRange.collapse(true);
+                selection.removeAllRanges();
+                selection.addRange(newRange);
+            }
+        }
+    }
+};
 
   const handleFormat = (command: string, value?: string) => {
     if (editorRef.current) {
@@ -220,6 +245,32 @@ export function Editor({ page }: EditorProps) {
     }
   };
 
+    const handlePrint = () => {
+        const printableArea = document.querySelector('.printable-area');
+        if (printableArea) {
+            const printContents = printableArea.innerHTML;
+            const originalContents = document.body.innerHTML;
+            
+            // Temporarily replace body content with only printable area
+            const tempDiv = document.createElement('div');
+            tempDiv.className = 'printable-area';
+            tempDiv.innerHTML = printContents;
+            
+            // Hide everything else
+            Array.from(document.body.children).forEach(child => (child as HTMLElement).style.display = 'none');
+            document.body.appendChild(tempDiv);
+            
+            window.print();
+            
+            // Restore original content
+            document.body.innerHTML = originalContents;
+            // We need to re-attach React event listeners, a simple router refresh will do
+            window.location.reload();
+        } else {
+            window.print();
+        }
+    }
+
 
   if (!page) {
     return (
@@ -232,12 +283,12 @@ export function Editor({ page }: EditorProps) {
   return (
     <div className="flex flex-col h-full bg-secondary/30 p-4 sm:p-6 lg:p-8">
       <Card className="w-full flex-1 flex flex-col">
-          <CardHeader>
+          <CardHeader className="print:hidden">
               <div className="flex items-center justify-between p-2 mb-2 border rounded-md bg-secondary/50 flex-wrap">
               <div className="flex items-center gap-1 flex-wrap">
                   <Button variant="ghost" size="icon" onClick={() => handleFormat("undo")}> <Undo className="h-4 w-4" /> </Button>
                   <Button variant="ghost" size="icon" onClick={() => handleFormat("redo")}> <Redo className="h-4 w-4" /> </Button>
-                  <Button variant="ghost" size="icon" onClick={() => window.print()}> <Printer className="h-4 w-4" /> </Button>
+                  <Button variant="ghost" size="icon" onClick={handlePrint}> <Printer className="h-4 w-4" /> </Button>
                   <Separator orientation="vertical" className="h-6 mx-1" />
                   <Select defaultValue="p" onValueChange={(value) => handleFormat("formatBlock", `<${value}>`)}>
                     <SelectTrigger className="w-32"> <SelectValue placeholder="Style" /> </SelectTrigger>
@@ -295,7 +346,7 @@ export function Editor({ page }: EditorProps) {
                           </div>
                            <DialogFooter>
                             <Button onClick={() => {
-                              if(editorRef.current) editorRef.current.innerHTML = refinedNotes.replace(/\n/g, '<br />');
+                              if(editorRef.current) editorRef.current.innerHTML = refinedNotes.replace(/\\n/g, '<br />');
                             }}>
                               Insert
                             </Button>
@@ -363,13 +414,13 @@ export function Editor({ page }: EditorProps) {
                 </div>
               </div>
           </CardHeader>
-          <CardContent className="flex-1 overflow-y-auto">
+          <CardContent className="flex-1 overflow-y-auto p-0 printable-area">
               <div
                   ref={editorRef}
                   contentEditable
                   suppressContentEditableWarning
+                  onKeyDown={handleKeyDown}
                   className="prose dark:prose-invert max-w-none w-full h-full bg-background p-4 sm:p-6 md:p-8 lg:p-12 rounded-lg shadow-inner focus:outline-none focus:ring-2 focus:ring-ring"
-                  style={{ direction: 'ltr' }}
               />
           </CardContent>
         </Card>
