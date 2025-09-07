@@ -168,11 +168,12 @@ export function Editor({ page }: EditorProps) {
   };
   
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    // Standard shortcuts (Ctrl+B, Ctrl+I, Ctrl+U)
+    // Shortcuts for text styling (e.g., Ctrl+G for bold)
     if (event.ctrlKey && !event.altKey) {
         let command: string | null = null;
         switch (event.key.toLowerCase()) {
-            case 'b': command = 'bold'; break;
+            case 'g': command = 'bold'; break; // Ctrl+G for Bold in French
+            case 'b': command = 'bold'; break; // Keep Ctrl+B for standard
             case 'i': command = 'italic'; break;
             case 'u': command = 'underline'; break;
         }
@@ -539,5 +540,3 @@ export function Editor({ page }: EditorProps) {
     </div>
   );
 }
-
-    
