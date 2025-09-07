@@ -78,12 +78,11 @@ const sampleContent = `<h1>Titre Principal</h1>
 <pre><code class="language-python">def dire_bonjour():
   print("Bonjour, monde !")</code></pre>`;
 
-const sampleNote = `A neural network is a method in artificial intelligence that teaches computers to process data in a way that is inspired by the human brain. It is a type of machine learning process, called deep learning, that uses interconnected nodes or neurons in a layered structure that resembles the human brain. It creates an adaptive system that computers use to learn from their mistakes and improve continuously.`;
+const sampleNote = `<h1>Notes de cours</h1><p>A neural network is a method in artificial intelligence that teaches computers to process data in a way that is inspired by the human brain. It is a type of machine learning process, called deep learning, that uses interconnected nodes or neurons in a layered structure that resembles the human brain. It creates an adaptive system that computers use to learn from their mistakes and improve continuously.</p>`;
 
 
 export function Editor({ page }: EditorProps) {
   const [content, setContent] = React.useState("");
-  const [noteContent, setNoteContent] = React.useState("");
   const editorRef = React.useRef<HTMLDivElement>(null);
   
   const [refinedNotes, setRefinedNotes] = React.useState("");
@@ -96,12 +95,12 @@ export function Editor({ page }: EditorProps) {
   const { toast } = useToast();
 
   React.useEffect(() => {
+    // Both types now use the same rich content.
+    // We can differentiate initial content if needed.
     if (page.type === 'note') {
-      setNoteContent(sampleNote)
-      setContent('');
+      setContent(sampleNote)
     } else {
       setContent(sampleContent);
-      setNoteContent('')
     }
   }, [page]);
 
@@ -120,7 +119,7 @@ export function Editor({ page }: EditorProps) {
   };
   
   const handleRefineNotes = async () => {
-    const currentNotes = page.type === 'note' ? noteContent : content;
+    const currentNotes = editorRef.current?.innerText || "";
     if (!currentNotes) {
       toast({
         title: "Error",
@@ -185,42 +184,42 @@ export function Editor({ page }: EditorProps) {
     <div className="flex h-full bg-secondary/30 justify-center">
       <div className="flex-1 flex flex-col items-center p-8 overflow-y-auto max-w-7xl">
         <div className="w-full">
-          {/* Toolbar */}
           <Card>
             <CardHeader>
                 <div className="flex items-center justify-between p-2 mb-2 border rounded-md bg-secondary/50">
                 <div className="flex items-center gap-1 flex-wrap">
-                    {page.type === 'document' ? (
-                    <>
-                        <Button variant="ghost" size="icon" onClick={() => handleFormat("undo")}> <Undo className="h-4 w-4" /> </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleFormat("redo")}> <Redo className="h-4 w-4" /> </Button>
-                        <Button variant="ghost" size="icon" onClick={() => window.print()}> <Printer className="h-4 w-4" /> </Button>
-                        <Separator orientation="vertical" className="h-6 mx-1" />
-                        <Select defaultValue="p" onValueChange={(value) => handleFormat("formatBlock", `<${value}>`)}>
-                        <SelectTrigger className="w-32"> <SelectValue placeholder="Style" /> </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="p"><div className="flex items-center gap-2"><Pilcrow className="h-4 w-4" /> Paragraphe</div></SelectItem>
-                            <SelectItem value="h1"><div className="flex items-center gap-2"><Heading1 className="h-4 w-4" /> Titre 1</div></SelectItem>
-                            <SelectItem value="h2"><div className="flex items-center gap-2"><Heading2 className="h-4 w-4" /> Titre 2</div></SelectItem>
-                        </SelectContent>
-                        </Select>
-                        <Separator orientation="vertical" className="h-6 mx-1" />
-                        <Button variant="ghost" size="icon" onClick={() => handleFormat("bold")}> <Bold className="h-4 w-4" /> </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleFormat("italic")}> <Italic className="h-4 w-4" /> </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleFormat("underline")}> <Underline className="h-4 w-4" /> </Button>
-                        <Separator orientation="vertical" className="h-6 mx-1" />
-                        <Button variant="ghost" size="icon" onClick={() => handleFormat("insertUnorderedList")}> <List className="h-4 w-4" /> </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleFormat("insertOrderedList")}> <ListOrdered className="h-4 w-4" /> </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleFormat("formatBlock", "<blockquote>")}> <Quote className="h-4 w-4" /> </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleFormat("formatBlock", "<pre>")}> <Code className="h-4 w-4" /> </Button>
-                    </>
-                    ) : (
-                        <SpeechToText onTranscriptionComplete={(text) => setNoteContent((prev) => prev + " " + text)} />
-                    )}
+                    <Button variant="ghost" size="icon" onClick={() => handleFormat("undo")}> <Undo className="h-4 w-4" /> </Button>
+                    <Button variant="ghost" size="icon" onClick={() => handleFormat("redo")}> <Redo className="h-4 w-4" /> </Button>
+                    <Button variant="ghost" size="icon" onClick={() => window.print()}> <Printer className="h-4 w-4" /> </Button>
+                    <Separator orientation="vertical" className="h-6 mx-1" />
+                    <Select defaultValue="p" onValueChange={(value) => handleFormat("formatBlock", `<${value}>`)}>
+                    <SelectTrigger className="w-32"> <SelectValue placeholder="Style" /> </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="p"><div className="flex items-center gap-2"><Pilcrow className="h-4 w-4" /> Paragraphe</div></SelectItem>
+                        <SelectItem value="h1"><div className="flex items-center gap-2"><Heading1 className="h-4 w-4" /> Titre 1</div></SelectItem>
+                        <SelectItem value="h2"><div className="flex items-center gap-2"><Heading2 className="h-4 w-4" /> Titre 2</div></SelectItem>
+                    </SelectContent>
+                    </Select>
+                    <Separator orientation="vertical" className="h-6 mx-1" />
+                    <Button variant="ghost" size="icon" onClick={() => handleFormat("bold")}> <Bold className="h-4 w-4" /> </Button>
+                    <Button variant="ghost" size="icon" onClick={() => handleFormat("italic")}> <Italic className="h-4 w-4" /> </Button>
+                    <Button variant="ghost" size="icon" onClick={() => handleFormat("underline")}> <Underline className="h-4 w-4" /> </Button>
+                    <Separator orientation="vertical" className="h-6 mx-1" />
+                    <Button variant="ghost" size="icon" onClick={() => handleFormat("insertUnorderedList")}> <List className="h-4 w-4" /> </Button>
+                    <Button variant="ghost" size="icon" onClick={() => handleFormat("insertOrderedList")}> <ListOrdered className="h-4 w-4" /> </Button>
+                    <Button variant="ghost" size="icon" onClick={() => handleFormat("formatBlock", "<blockquote>")}> <Quote className="h-4 w-4" /> </Button>
+                    <Button variant="ghost" size="icon" onClick={() => handleFormat("formatBlock", "<pre>")}> <Code className="h-4 w-4" /> </Button>
+                    <Separator orientation="vertical" className="h-6 mx-1" />
+                    <SpeechToText onTranscriptionComplete={(text) => {
+                      if(editorRef.current) {
+                        editorRef.current.focus();
+                        document.execCommand('insertHTML', false, ` ${text}`);
+                      }
+                    }} />
 
                     <Dialog>
                         <DialogTrigger asChild>
-                            <Button variant="ghost" size="sm" onClick={handleRefineNotes}>
+                            <Button variant="ghost" size="sm">
                             <Bot className="mr-2 h-4 w-4" />
                             Refine
                             </Button>
@@ -230,7 +229,7 @@ export function Editor({ page }: EditorProps) {
                                 <DialogTitle>Refined Note</DialogTitle>
                                 <DialogDescription>Your note, enhanced and structured by AI.</DialogDescription>
                             </DialogHeader>
-                            <div className="max-h-[60vh] overflow-y-auto p-4 border rounded-md">
+                            <div className="max-h-[60vh] overflow-y-auto p-4 border rounded-md" onClick={handleRefineNotes}>
                                 {isRefining ? <p>Refining your notes...</p> : <pre className="whitespace-pre-wrap font-body">{refinedNotes}</pre>}
                             </div>
                             <DialogFooter><DialogClose asChild><Button type="button" variant="secondary">Close</Button></DialogClose></DialogFooter>
@@ -284,7 +283,6 @@ export function Editor({ page }: EditorProps) {
                 </div>
             </CardHeader>
             <CardContent>
-                {page.type === 'document' ? (
                 <div
                     ref={editorRef}
                     contentEditable
@@ -293,14 +291,6 @@ export function Editor({ page }: EditorProps) {
                     onInput={handleContentChange}
                     dangerouslySetInnerHTML={{ __html: content }}
                 />
-                ) : (
-                <Textarea
-                    value={noteContent}
-                    onChange={(e) => setNoteContent(e.target.value)}
-                    placeholder="Start typing your notes here, or use the speech-to-text feature..."
-                    className="min-h-[50vh] w-full bg-background p-12 rounded-lg shadow-inner focus:outline-none focus:ring-2 focus:ring-ring"
-                />
-                )}
             </CardContent>
           </Card>
         </div>
