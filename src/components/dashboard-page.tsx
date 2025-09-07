@@ -45,7 +45,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { mockData } from "@/lib/mock-data";
 import type { Binder, Notebook, Page, User as UserType } from "@/lib/types";
-import { Editor } from "@/components/editor";
 import { useParams, useRouter } from "next/navigation";
 import { useToast } from "./hooks/use-toast";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
@@ -63,7 +62,7 @@ const Icon = ({ name }: { name: string }) => {
     return <LucideIcon className="h-4 w-4" />;
 }
 
-export function DashboardPage({ initialActivePage, user }: { initialActivePage: Page | null, user: UserType | null }) {
+export function DashboardPage({ children, user }: { children: React.ReactNode, user: UserType | null }) {
   const params = useParams();
   const router = useRouter();
   const { toast } = useToast();
@@ -229,13 +228,7 @@ export function DashboardPage({ initialActivePage, user }: { initialActivePage: 
             </header>
           
             <main className="flex-1 overflow-auto">
-                {currentPage ? (
-                  <Editor key={`${params.binderId}-${params.notebookId}-${params.pageId}`} page={currentPage} />
-                ) : (
-                    <div className="flex items-center justify-center h-full">
-                        <p className="text-muted-foreground">Select a notebook and page to start your work.</p>
-                    </div>
-                )}
+                {children}
             </main>
         </SidebarInset>
       </div>
