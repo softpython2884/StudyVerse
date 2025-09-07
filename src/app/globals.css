@@ -96,6 +96,24 @@ body {
     hr {
       @apply border-border my-6;
     }
+    ul[data-type="checklist"] {
+      list-style: none;
+      padding: 0;
+    }
+    
+    ul[data-type="checklist"] > li {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    
+    ul[data-type="checklist"] > li > label {
+      flex: 1;
+    }
+    
+    ul[data-type="checklist"] > li > input[type="checkbox"] {
+      cursor: pointer;
+    }
     ul {
       @apply list-disc list-inside;
     }
