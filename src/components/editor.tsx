@@ -125,7 +125,16 @@ export function Editor({ page }: EditorProps) {
   const handleFormat = (command: string, value?: string) => {
     handleFocusAndRestoreSelection();
     setTimeout(() => {
-        document.execCommand(command, false, value);
+        // Toggle logic for block formats
+        if (value && ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'pre'].includes(value)) {
+            if (document.queryCommandValue('formatBlock') === value) {
+                document.execCommand('formatBlock', false, 'p');
+            } else {
+                document.execCommand(command, false, `<${value}>`);
+            }
+        } else {
+             document.execCommand(command, false, value);
+        }
         updateToolbarState();
     }, 10);
   };
@@ -174,7 +183,8 @@ export function Editor({ page }: EditorProps) {
     // The text before the space
     const textBeforeCaret = text.substring(0, caretPos);
     
-    const patterns = [
+    // Block patterns (e.g. "## ", "> ")
+    const blockPatterns = [
         { regex: /^(#{1,6})$/, command: "formatBlock" },
         { regex: /^\>$/, command: "formatBlock", value: "blockquote" },
         { regex: /^(\*|\-)$/, command: "insertUnorderedList" },
@@ -183,15 +193,13 @@ export function Editor({ page }: EditorProps) {
     
     const wordBeforeCaret = textBeforeCaret.split(/\s+/).pop() || "";
 
-    // Heading and list patterns
-    const blockPattern = patterns.find(p => p.regex.test(wordBeforeCaret) && p.command);
-    if(blockPattern) {
+    const blockPattern = blockPatterns.find(p => p.regex.test(wordBeforeCaret));
+    if (blockPattern) {
         event.preventDefault();
         const match = wordBeforeCaret.match(blockPattern.regex);
-        if(match) {
-            
-            const newTextContent = text.substring(0, caretPos - wordBeforeCaret.length) + text.substring(caretPos);
-            node.textContent = newTextContent; 
+        if (match) {
+             const newTextContent = text.substring(0, caretPos - wordBeforeCaret.length) + text.substring(caretPos);
+             node.textContent = newTextContent; 
              range.setStart(node, caretPos - wordBeforeCaret.length);
              range.collapse(true);
              selection.removeAllRanges();
@@ -202,6 +210,43 @@ export function Editor({ page }: EditorProps) {
             } else {
                  document.execCommand(blockPattern.command, false, blockPattern.value);
             }
+            updateToolbarState();
+            return;
+        }
+    }
+    
+    // Inline patterns (e.g. "**bold** ")
+    const inlinePatterns = [
+        { regex: /\*\*([^\*]+)\*\*$/, command: 'bold' },
+        { regex: /__([^_]+)__$/, command: 'bold' },
+        { regex: /\*([^\*]+)\*$/, command: 'italic' },
+        { regex: /_([^_]+)_$/, command: 'italic' },
+    ];
+
+    for (const pattern of inlinePatterns) {
+        const match = textBeforeCaret.match(pattern.regex);
+        if (match) {
+            event.preventDefault();
+            const originalText = match[0];
+            const contentText = match[1];
+
+            const newTextContent = text.substring(0, caretPos - originalText.length) + contentText + text.substring(caretPos);
+            node.textContent = newTextContent;
+
+            range.setStart(node, caretPos - originalText.length);
+            range.setEnd(node, caretPos - originalText.length + contentText.length);
+            selection.removeAllRanges();
+            selection.addRange(range);
+
+            document.execCommand(pattern.command, false);
+
+            range.collapse(false); // Move cursor to the end
+            selection.removeAllRanges();
+            selection.addRange(range);
+            
+            // Add the space that triggered the event
+            document.execCommand('insertText', false, ' ');
+
             return;
         }
     }
@@ -236,8 +281,9 @@ export function Editor({ page }: EditorProps) {
   };
 
   const handleApplyLink = () => {
+    handleFocusAndRestoreSelection();
     if (linkUrl) {
-      handleFormat("createLink", linkUrl);
+      setTimeout(() => document.execCommand("createLink", false, linkUrl), 10);
     }
     setLinkUrl("");
     setIsLinkPopoverOpen(false);
@@ -253,7 +299,8 @@ export function Editor({ page }: EditorProps) {
       tableHtml += '</tr>';
     }
     tableHtml += '</table><p>&#8203;</p>';
-    handleFormat("insertHTML", tableHtml);
+    handleFocusAndRestoreSelection();
+    setTimeout(() => document.execCommand("insertHTML", false, tableHtml), 10);
     setIsTablePopoverOpen(false);
   };
 
@@ -332,21 +379,12 @@ export function Editor({ page }: EditorProps) {
   };
 
   const handlePrint = () => {
-    const printArea = document.querySelector('.printable-area');
-    if (printArea) {
-      const originalContents = document.body.innerHTML;
-      const printContents = printArea.innerHTML;
-      document.body.innerHTML = `<div class="print-container">${printContents}</div>`;
-      window.print();
-      document.body.innerHTML = originalContents;
-      // This is a bit of a hack to re-attach the event listeners.
-      // In a real app, a more robust solution like a state manager would be better.
-      window.location.reload(); 
-    }
+    window.print();
   };
   
    const handleInsertChecklist = () => {
-    handleFormat("insertHTML", `<ul data-type="checklist"><li><input type="checkbox"><label contenteditable="true">To-do item</label></li></ul>`);
+     handleFocusAndRestoreSelection();
+     setTimeout(() => document.execCommand("insertHTML", false, `<ul data-type="checklist"><li><input type="checkbox"><label contenteditable="true">To-do item</label></li></ul>`), 10)
   };
 
   if (!page) {
@@ -367,7 +405,7 @@ export function Editor({ page }: EditorProps) {
                   <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("redo")}> <Redo className="h-4 w-4" /> </Button>
                   <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={handlePrint}> <Printer className="h-4 w-4" /> </Button>
                   <Separator orientation="vertical" className="h-6 mx-1" />
-                  <Select value={currentBlockStyle} onValueChange={(value) => handleFormat("formatBlock", `<${value}>`)}>
+                  <Select value={currentBlockStyle} onValueChange={(value) => handleFormat("formatBlock", value)}>
                     <SelectTrigger className="w-32" onMouseDown={(e) => { e.preventDefault(); saveSelection(); }}> <SelectValue placeholder="Style" /> </SelectTrigger>
                     <SelectContent>
                         <SelectItem value="p"><div className="flex items-center gap-2"><Pilcrow className="h-4 w-4" /> Paragraphe</div></SelectItem>
@@ -414,9 +452,9 @@ export function Editor({ page }: EditorProps) {
                   <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("insertUnorderedList")}> <List className="h-4 w-4" /> </Button>
                   <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("insertOrderedList")}> <ListOrdered className="h-4 w-4" /> </Button>
                   <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={handleInsertChecklist}> <ListChecks className="h-4 w-4" /> </Button>
-                  <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("formatBlock", "<blockquote>")}> <Quote className="h-4 w-4" /> </Button>
-                  <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("formatBlock", "<pre>")}> <Code className="h-4 w-4" /> </Button>
-                  <Popover open={isTablePopoverOpen} onOpenChange={setIsTablePopoverOpen}>
+                  <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("formatBlock", "blockquote")}> <Quote className="h-4 w-4" /> </Button>
+                  <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("formatBlock", "pre")}> <Code className="h-4 w-4" /> </Button>
+                  <Popover open={isTablePopoverOpen} onOpenChange={(isOpen) => { if(!isOpen) setTableGridSize({rows: 0, cols: 0}); setIsTablePopoverOpen(isOpen)}}>
                       <PopoverTrigger asChild>
                            <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => saveSelection()}><Table className="h-4 w-4" /></Button>
                       </PopoverTrigger>
@@ -484,7 +522,7 @@ export function Editor({ page }: EditorProps) {
                           <DialogHeader>
                               <DialogTitle>Generate Diagram</DialogTitle>
                               <DialogDescription>Create a diagram from text using AI.</DialogDescription>
-                          </DialogHeader>
+                          </Header>
                           <div className="grid gap-4 py-4">
                               <div className="grid gap-2">
                                   <Label htmlFor="diagram-text">Text</Label>
@@ -552,7 +590,3 @@ export function Editor({ page }: EditorProps) {
     </div>
   );
 }
-
-    
-
-    
