@@ -182,7 +182,7 @@ export function Editor({ page }: EditorProps) {
 
   return (
     <div className="flex h-full bg-secondary/30 justify-center">
-      <div className="flex-1 flex flex-col items-center p-8 overflow-y-auto max-w-7xl">
+      <div className="flex-1 flex flex-col items-center p-8 overflow-y-auto">
         <div className="w-full">
           <Card>
             <CardHeader>
