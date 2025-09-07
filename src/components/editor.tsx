@@ -62,8 +62,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { refineAndStructureNotes } from "@/ai/flows/refine-and-structure-notes";
 import { generateDiagram } from "@/ai/flows/generate-diagrams-from-text";
-import { Input } from "./ui/input";
-
 
 interface EditorProps {
   page: Page;
@@ -72,7 +70,9 @@ interface EditorProps {
 export function Editor({ page }: EditorProps) {
   const [isSaving, setIsSaving] = React.useState(false);
   const editorRef = React.useRef<HTMLDivElement>(null);
-  
+  const [currentBlockStyle, setCurrentBlockStyle] = React.useState("p");
+  const savedSelection = React.useRef<Range | null>(null);
+
   const [refinedNotes, setRefinedNotes] = React.useState("");
   const [diagramText, setDiagramText] = React.useState("");
   const [diagramFormat, setDiagramFormat] = React.useState<"markdown" | "latex" | "txt">("txt");
@@ -84,9 +84,51 @@ export function Editor({ page }: EditorProps) {
 
   React.useEffect(() => {
     if (editorRef.current) {
-        editorRef.current.innerHTML = page.content || "";
+        editorRef.current.innerHTML = page.content || "<p>&#8203;</p>";
     }
   }, [page]);
+  
+  const restoreSelection = () => {
+    if (savedSelection.current) {
+        const selection = window.getSelection();
+        if (selection) {
+            selection.removeAllRanges();
+            selection.addRange(savedSelection.current);
+        }
+    } else if (editorRef.current) {
+        editorRef.current.focus();
+    }
+  };
+
+  const handleFormat = (command: string, value?: string) => {
+    restoreSelection();
+    document.execCommand(command, false, value);
+    editorRef.current?.focus();
+    updateToolbarState();
+  };
+
+  const updateToolbarState = () => {
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0) {
+      savedSelection.current = selection.getRangeAt(0).cloneRange();
+      let node = selection.getRangeAt(0).startContainer;
+      
+      // Navigate up to find the block-level element
+      while (node && node.nodeType === Node.TEXT_NODE) {
+        node = node.parentNode!;
+      }
+      
+      if (node && node instanceof HTMLElement) {
+         const blockElement = node.closest('p, h1, h2, h3, h4, h5, h6, pre, blockquote');
+         if (blockElement) {
+             setCurrentBlockStyle(blockElement.tagName.toLowerCase());
+         } else {
+             setCurrentBlockStyle('p');
+         }
+      }
+    }
+  };
+
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (event.key === 'Enter' && !event.shiftKey) {
@@ -96,11 +138,11 @@ export function Editor({ page }: EditorProps) {
             const node = range.startContainer;
             const parentElement = node.nodeType === 3 ? node.parentElement : node as HTMLElement;
 
-            const blockElement = parentElement?.closest('pre, h1, h2, h3, h4, h5, h6');
+            const blockElement = parentElement?.closest('pre, h1, h2, h3, h4, h5, h6, blockquote');
             if (blockElement) {
                 event.preventDefault();
                 const newParagraph = document.createElement('p');
-                newParagraph.innerHTML = '&#8203;';
+                newParagraph.innerHTML = '&#8203;'; // Zero-width space to ensure the element is focusable
                 blockElement.insertAdjacentElement('afterend', newParagraph);
                 
                 const newRange = document.createRange();
@@ -110,14 +152,6 @@ export function Editor({ page }: EditorProps) {
                 selection.addRange(newRange);
             }
         }
-    }
-};
-
-  const handleFormat = (command: string, value?: string) => {
-    if (editorRef.current) {
-      editorRef.current.focus();
-      document.execCommand(command, false, value);
-      editorRef.current.focus();
     }
   };
 
@@ -129,30 +163,9 @@ export function Editor({ page }: EditorProps) {
   };
 
   const handleInsertChecklist = () => {
-    if (editorRef.current) {
-      const list = document.createElement('ul');
-      list.setAttribute('data-type', 'checklist');
-      const listItem = document.createElement('li');
-      const checkbox = document.createElement('input');
-      checkbox.type = 'checkbox';
-      const label = document.createElement('label');
-      label.contentEditable = 'true';
-      label.innerText = 'To-do item';
-      
-      listItem.appendChild(checkbox);
-      listItem.appendChild(label);
-      list.appendChild(listItem);
-      
-      editorRef.current.focus();
-      const selection = window.getSelection();
-      if (selection && selection.rangeCount > 0) {
-        const range = selection.getRangeAt(0);
-        range.deleteContents();
-        range.insertNode(list);
-      }
-    }
+    handleFormat("insertHTML", `<ul data-type="checklist"><li><input type="checkbox"><label>To-do item</label></li></ul>`);
   };
-
+  
   const handleInsertTable = () => {
     const rows = parseInt(prompt("Enter number of rows:") || "2", 10);
     const cols = parseInt(prompt("Enter number of columns:") || "2", 10);
@@ -166,7 +179,7 @@ export function Editor({ page }: EditorProps) {
         }
         tableHtml += '</tr>';
       }
-      tableHtml += '</table>';
+      tableHtml += '</table><p>&#8203;</p>';
       handleFormat("insertHTML", tableHtml);
     }
   };
@@ -245,32 +258,38 @@ export function Editor({ page }: EditorProps) {
     }
   };
 
-    const handlePrint = () => {
-        const printableArea = document.querySelector('.printable-area');
-        if (printableArea) {
-            const printContents = printableArea.innerHTML;
-            const originalContents = document.body.innerHTML;
-            
-            // Temporarily replace body content with only printable area
-            const tempDiv = document.createElement('div');
-            tempDiv.className = 'printable-area';
-            tempDiv.innerHTML = printContents;
-            
-            // Hide everything else
-            Array.from(document.body.children).forEach(child => (child as HTMLElement).style.display = 'none');
-            document.body.appendChild(tempDiv);
-            
-            window.print();
-            
-            // Restore original content
-            document.body.innerHTML = originalContents;
-            // We need to re-attach React event listeners, a simple router refresh will do
-            window.location.reload();
-        } else {
-            window.print();
-        }
+  const handlePrint = () => {
+    const printContent = editorRef.current?.innerHTML;
+    if (printContent) {
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(`
+          <html>
+            <head>
+              <title>${page.title} - Print</title>
+              <style>
+                body { font-family: 'Alegreya', serif; }
+                .prose { max-width: 100%; }
+                .prose h1, .prose h2, .prose h3, .prose h4, .prose h5, .prose h6 { font-weight: bold; margin-top: 1.25em; margin-bottom: 0.5em; }
+                .prose h1 { font-size: 2em; } .prose h2 { font-size: 1.5em; } .prose h3 { font-size: 1.25em; }
+                .prose p { margin: 1em 0; }
+                .prose ul { list-style-type: disc; padding-left: 2em; }
+                .prose ol { list-style-type: decimal; padding-left: 2em; }
+                .prose blockquote { border-left: 4px solid #ccc; padding-left: 1em; margin-left: 0; font-style: italic; color: #555; }
+                .prose pre { background-color: #f5f5f5; padding: 1em; border-radius: 4px; overflow-x: auto; }
+                .prose code { font-family: monospace; }
+                .prose table { border-collapse: collapse; width: 100%; }
+                .prose td, .prose th { border: 1px solid #ccc; padding: 8px; }
+              </style>
+            </head>
+            <body><div class="prose">${printContent}</div></body>
+          </html>
+        `);
+        printWindow.document.close();
+        printWindow.print();
+      }
     }
-
+  }
 
   if (!page) {
     return (
@@ -281,16 +300,16 @@ export function Editor({ page }: EditorProps) {
   }
 
   return (
-    <div className="flex flex-col h-full bg-secondary/30 p-4 sm:p-6 lg:p-8">
-      <Card className="w-full flex-1 flex flex-col">
-          <CardHeader className="print:hidden">
-              <div className="flex items-center justify-between p-2 mb-2 border rounded-md bg-secondary/50 flex-wrap">
+    <div className="flex flex-col h-full bg-background p-1 sm:p-2 lg:p-4">
+      <Card className="w-full flex-1 flex flex-col overflow-hidden">
+          <CardHeader className="p-2 print:hidden">
+              <div className="flex items-center justify-between p-2 mb-2 border-b rounded-t-md bg-secondary/50 flex-wrap">
               <div className="flex items-center gap-1 flex-wrap">
                   <Button variant="ghost" size="icon" onClick={() => handleFormat("undo")}> <Undo className="h-4 w-4" /> </Button>
                   <Button variant="ghost" size="icon" onClick={() => handleFormat("redo")}> <Redo className="h-4 w-4" /> </Button>
                   <Button variant="ghost" size="icon" onClick={handlePrint}> <Printer className="h-4 w-4" /> </Button>
                   <Separator orientation="vertical" className="h-6 mx-1" />
-                  <Select defaultValue="p" onValueChange={(value) => handleFormat("formatBlock", `<${value}>`)}>
+                  <Select value={currentBlockStyle} onValueChange={(value) => handleFormat("formatBlock", `<${value}>`)}>
                     <SelectTrigger className="w-32"> <SelectValue placeholder="Style" /> </SelectTrigger>
                     <SelectContent>
                         <SelectItem value="p"><div className="flex items-center gap-2"><Pilcrow className="h-4 w-4" /> Paragraphe</div></SelectItem>
@@ -323,12 +342,10 @@ export function Editor({ page }: EditorProps) {
                    <Button variant="ghost" size="icon" onClick={() => handleFormat("insertHorizontalRule")}> <Minus className="h-4 w-4" /> </Button>
                   <Separator orientation="vertical" className="h-6 mx-1" />
                   <SpeechToText onTranscriptionComplete={(text) => {
-                    if(editorRef.current) {
-                      editorRef.current.focus();
-                      document.execCommand('insertHTML', false, ` ${text}`);
-                    }
+                    restoreSelection();
+                    document.execCommand('insertHTML', false, ` ${text}`);
+                    editorRef.current?.focus();
                   }} />
-
                   <Dialog>
                       <DialogTrigger asChild>
                           <Button variant="ghost" size="sm" onClick={handleRefineNotes}>
@@ -354,7 +371,6 @@ export function Editor({ page }: EditorProps) {
                           </DialogFooter>
                       </DialogContent>
                   </Dialog>
-
                   <Dialog>
                       <DialogTrigger asChild>
                           <Button variant="ghost" size="sm">
@@ -393,7 +409,9 @@ export function Editor({ page }: EditorProps) {
                           </div>
                            <DialogFooter>
                              <Button onClick={() => {
-                                if(editorRef.current) document.execCommand('insertHTML', false, `<pre><code>${generatedDiagram}</code></pre>`);
+                                restoreSelection();
+                                document.execCommand('insertHTML', false, `<pre><code>${generatedDiagram}</code></pre>`);
+                                editorRef.current?.focus();
                              }}>
                               Insert
                             </Button>
@@ -414,13 +432,16 @@ export function Editor({ page }: EditorProps) {
                 </div>
               </div>
           </CardHeader>
-          <CardContent className="flex-1 overflow-y-auto p-0 printable-area">
+          <CardContent className="flex-1 overflow-y-auto p-0">
               <div
                   ref={editorRef}
                   contentEditable
                   suppressContentEditableWarning
                   onKeyDown={handleKeyDown}
-                  className="prose dark:prose-invert max-w-none w-full h-full bg-background p-4 sm:p-6 md:p-8 lg:p-12 rounded-lg shadow-inner focus:outline-none focus:ring-2 focus:ring-ring"
+                  onKeyUp={updateToolbarState}
+                  onMouseUp={updateToolbarState}
+                  className="prose dark:prose-invert max-w-none w-full h-full bg-card p-4 sm:p-6 md:p-8 lg:p-12 focus:outline-none focus:ring-2 focus:ring-ring"
+                  style={{ direction: 'ltr' }}
               />
           </CardContent>
         </Card>

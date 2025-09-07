@@ -77,12 +77,14 @@ export function LoginForm() {
   return (
     <div className="flex items-center justify-center min-h-screen bg-secondary/50">
         <Card className="mx-auto max-w-sm w-full">
-            <CardHeader className="space-y-2 text-center">
-                <Link href="/" className="inline-block">
-                    <BookOpenCheck className="h-12 w-12 mx-auto text-primary" />
-                </Link>
-                <CardTitle className="text-2xl font-headline">Welcome Back</CardTitle>
-                <CardDescription>Enter your email below to login to your account</CardDescription>
+            <CardHeader>
+                <div className="flex flex-col items-center space-y-2 text-center">
+                    <Link href="/" className="inline-block">
+                        <BookOpenCheck className="h-12 w-12 mx-auto text-primary" />
+                    </Link>
+                    <div className="text-2xl font-headline font-bold">Welcome Back</div>
+                    <p className="text-muted-foreground text-sm">Enter your email below to login to your account</p>
+                </div>
             </CardHeader>
             <CardContent>
             <Form {...form}>
