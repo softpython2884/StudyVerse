@@ -3,6 +3,7 @@ export type Page = {
   title: string;
   icon: string;
   type: 'course' | 'note';
+  content?: string | null;
 };
 
 export type Notebook = {

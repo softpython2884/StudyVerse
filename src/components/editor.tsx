@@ -21,6 +21,7 @@ import {
   Bot,
   Network,
   Share2,
+  Save,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -49,38 +50,15 @@ import { refineAndStructureNotes } from "@/ai/flows/refine-and-structure-notes";
 import { generateDiagram } from "@/ai/flows/generate-diagrams-from-text";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
+import { updatePageContent } from "@/lib/actions";
 
 interface EditorProps {
   page: Page;
 }
 
-const sampleContent = `<h1>Titre Principal</h1>
-<h2>Sous-titre</h2>
-<p>Ceci est un paragraphe de texte. Il peut contenir <b>du gras</b>, <i>de l'italique</i>, ou même <code>du code inline</code>.</p>
-<hr/>
-<h3>Liste à puces</h3>
-<ul>
-  <li>Élément 1</li>
-  <li>Élément 2</li>
-  <li>Élément 3</li>
-</ul>
-<h3>Liste numérotée</h3>
-<ol>
-  <li>Première étape</li>
-  <li>Deuxième étape</li>
-  <li>Troisième étape</li>
-</ol>
-<h3>Citation</h3>
-<blockquote>Ceci est une citation inspirante.</blockquote>
-<h3>Lien</h3>
-<p><a href="#" class="text-accent hover:underline">Visitez Microsoft Copilot</a></p>
-<h3>Bloc de code</h3>
-<pre><code class="language-python">def dire_bonjour():
-  print("Bonjour, monde !")</code></pre>`;
-
-
 export function Editor({ page }: EditorProps) {
-  const [content, setContent] = React.useState(sampleContent);
+  const [content, setContent] = React.useState(page.content || "");
+  const [isSaving, setIsSaving] = React.useState(false);
   const editorRef = React.useRef<HTMLDivElement>(null);
   
   const [refinedNotes, setRefinedNotes] = React.useState("");
@@ -91,6 +69,11 @@ export function Editor({ page }: EditorProps) {
   const [isGenerating, setIsGenerating] = React.useState(false);
   
   const { toast } = useToast();
+
+  React.useEffect(() => {
+    setContent(page.content || "");
+  }, [page]);
+
 
   const handleFormat = (command: string, value?: string) => {
     if (editorRef.current) {
@@ -103,6 +86,24 @@ export function Editor({ page }: EditorProps) {
     if (editorRef.current) {
       setContent(editorRef.current.innerHTML);
     }
+  };
+
+  const handleSaveContent = async () => {
+    setIsSaving(true);
+    const result = await updatePageContent({ pageId: page.id, content });
+     if (result.success) {
+      toast({
+        title: "Saved",
+        description: "Your changes have been saved.",
+      });
+    } else {
+      toast({
+        title: "Error",
+        description: result.message,
+        variant: "destructive",
+      });
+    }
+    setIsSaving(false);
   };
   
   const handleRefineNotes = async () => {
@@ -261,10 +262,16 @@ export function Editor({ page }: EditorProps) {
                       </DialogContent>
                   </Dialog>
               </div>
-              <Button variant="ghost" size="sm">
-                  <Share2 className="mr-2 h-4 w-4" />
-                  Share
-              </Button>
+               <div className="flex items-center gap-2">
+                    <Button variant="ghost" size="sm" onClick={handleSaveContent} disabled={isSaving}>
+                        <Save className="mr-2 h-4 w-4" />
+                        {isSaving ? "Saving..." : "Save"}
+                    </Button>
+                    <Button variant="ghost" size="sm">
+                        <Share2 className="mr-2 h-4 w-4" />
+                        Share
+                    </Button>
+                </div>
               </div>
           </CardHeader>
           <CardContent className="flex-1 overflow-y-auto">

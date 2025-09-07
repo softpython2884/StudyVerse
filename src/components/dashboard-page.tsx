@@ -16,9 +16,6 @@ import {
   User,
   PlusCircle,
   type LucideIcon,
-  Tag,
-  Palette,
-  Type,
 } from "lucide-react";
 import {
   SidebarProvider,
@@ -56,7 +53,6 @@ import {
   DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { mockData as initialMockData } from "@/lib/mock-data";
 import type { Binder, Notebook, Page, User as UserType } from "@/lib/types";
 import { useParams, useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
@@ -65,6 +61,7 @@ import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Badge } from "./ui/badge";
 import { cn } from "@/lib/utils";
+import { createBinder, createNotebook, createPage } from "@/lib/actions";
 
 const icons: { [key: string]: LucideIcon } = {
   FolderKanban,
@@ -84,12 +81,18 @@ const Icon = ({ name }: { name: string }) => {
     return <LucideIcon className="h-4 w-4" />;
 }
 
-export function DashboardPage({ children, user }: { children: React.ReactNode, user: UserType | null }) {
+export function DashboardPage({ initialData, children, user }: { initialData: Binder[], children: React.ReactNode, user: UserType | null }) {
   const params = useParams();
   const router = useRouter();
   const { toast } = useToast();
-  const [mockData, setMockData] = React.useState(initialMockData);
+  const [data, setData] = React.useState(initialData);
   const [searchQuery, setSearchQuery] = React.useState("");
+
+  // Update data when initialData changes
+  React.useEffect(() => {
+    setData(initialData);
+  }, [initialData]);
+
 
   // --- State for dialogs ---
   const [isBinderDialogOpen, setIsBinderDialogOpen] = React.useState(false);
@@ -125,7 +128,7 @@ export function DashboardPage({ children, user }: { children: React.ReactNode, u
   const getActivePage = () => {
     const { binderId, notebookId, pageId } = params;
     if (!binderId || !notebookId || !pageId) return null;
-    const binder = mockData.find(b => b.id === binderId);
+    const binder = data.find(b => b.id === binderId);
     if (!binder) return null;
     const notebook = binder.notebooks.find(n => n.id === notebookId);
     if (!notebook) return null;
@@ -138,88 +141,72 @@ export function DashboardPage({ children, user }: { children: React.ReactNode, u
       setNewItem({ title: "", color: predefinedColors[0], tags: "", type: "note"});
   }
 
-  const handleCreateBinder = () => {
+  const handleCreateBinder = async () => {
       if (!newItem.title) {
           toast({ title: "Error", description: "Binder title is required.", variant: "destructive" });
           return;
       }
-      const newBinder: Binder = {
-          id: `binder-${Date.now()}`,
-          title: newItem.title,
-          icon: "FolderKanban",
-          notebooks: []
-      };
-      setMockData(prev => [...prev, newBinder]);
+      const result = await createBinder({ title: newItem.title });
+      if (result.success) {
+          toast({ title: "Success", description: "Binder created successfully."});
+          router.refresh();
+      } else {
+          toast({ title: "Error", description: result.message, variant: "destructive" });
+      }
       setIsBinderDialogOpen(false);
       resetNewItem();
-      toast({ title: "Success", description: "Binder created successfully."});
   };
 
-  const handleCreateNotebook = () => {
-      if (!newItem.title) {
-          toast({ title: "Error", description: "Notebook title is required.", variant: "destructive" });
+  const handleCreateNotebook = async () => {
+      if (!newItem.title || !activeBinderId) {
+          toast({ title: "Error", description: "Notebook title and active binder are required.", variant: "destructive" });
           return;
       }
-      const newNotebook: Notebook = {
-          id: `notebook-${Date.now()}`,
-          title: newItem.title,
-          icon: "BookOpen",
+      const result = await createNotebook({ 
+          title: newItem.title, 
+          binderId: activeBinderId,
           color: newItem.color,
-          tags: newItem.tags.split(",").map(t => t.trim()).filter(Boolean),
-          pages: []
-      };
-      setMockData(prev => prev.map(b => b.id === activeBinderId ? { ...b, notebooks: [...b.notebooks, newNotebook] } : b));
+          tags: newItem.tags.split(',').map(t => t.trim()).filter(Boolean)
+      });
+       if (result.success) {
+          toast({ title: "Success", description: "Notebook created successfully."});
+          router.refresh();
+      } else {
+          toast({ title: "Error", description: result.message, variant: "destructive" });
+      }
       setIsNotebookDialogOpen(false);
       resetNewItem();
-      toast({ title: "Success", description: "Notebook created successfully."});
   };
 
-  const handleCreatePage = () => {
-    if (!newItem.title) {
-        toast({ title: "Error", description: "Page title is required.", variant: "destructive" });
+  const handleCreatePage = async () => {
+    if (!newItem.title || !activeBinderId || !activeNotebookId) {
+        toast({ title: "Error", description: "Page title and active notebook are required.", variant: "destructive" });
         return;
     }
-    const newPage: Page = {
-        id: `page-${Date.now()}`,
-        title: newItem.title,
-        icon: newItem.type === 'course' ? 'FileText' : 'StickyNote',
-        type: newItem.type,
-    };
-    setMockData(prev => {
-        const newData = prev.map(b => {
-            if (b.id === activeBinderId) {
-                return {
-                    ...b,
-                    notebooks: b.notebooks.map(n => {
-                        if (n.id === activeNotebookId) {
-                            return { ...n, pages: [...n.pages, newPage] };
-                        }
-                        return n;
-                    })
-                };
-            }
-            return b;
-        });
-        return newData;
-    });
+     const result = await createPage({ 
+          title: newItem.title, 
+          notebookId: activeNotebookId,
+          type: newItem.type
+      });
 
-    // Important: Navigate to the new page AFTER state has been updated
-    // We can use a short timeout to ensure the state update has propagated
-    setTimeout(() => {
-        router.push(`/dashboard/${activeBinderId}/${activeNotebookId}/${newPage.id}`);
-    }, 0);
+    if (result.success && result.pageId) {
+        toast({ title: "Success", description: "Page created successfully."});
+        router.push(`/dashboard/${activeBinderId}/${activeNotebookId}/${result.pageId}`);
+        router.refresh();
+    } else {
+        toast({ title: "Error", description: result.message, variant: "destructive" });
+    }
     
     setIsPageDialogOpen(false);
     resetNewItem();
-    toast({ title: "Success", description: "Page created successfully."});
 };
 
   const filteredData = React.useMemo(() => {
     if (!searchQuery) {
-      return mockData;
+      return data;
     }
     const lowercasedQuery = searchQuery.toLowerCase();
-    return mockData.map(binder => {
+    return data.map(binder => {
       const filteredNotebooks = binder.notebooks.map(notebook => {
         const filteredPages = notebook.pages.filter(page =>
           page.title.toLowerCase().includes(lowercasedQuery)
@@ -235,7 +222,7 @@ export function DashboardPage({ children, user }: { children: React.ReactNode, u
       }
       return null;
     }).filter(Boolean) as Binder[];
-  }, [searchQuery, mockData]);
+  }, [searchQuery, data]);
 
   return (
     <SidebarProvider>
@@ -288,8 +275,8 @@ export function DashboardPage({ children, user }: { children: React.ReactNode, u
             <SidebarMenu>
               {filteredData.map((binder: Binder) => (
                 <Collapsible key={binder.id} className="w-full" defaultOpen>
-                    <div className="w-full group relative">
-                        <SidebarMenuItem>
+                    <div className="w-full group relative flex items-center">
+                        <SidebarMenuItem className="w-full">
                             <CollapsibleTrigger asChild>
                                 <SidebarMenuButton className="font-semibold" isActive={false}>
                                     <Icon name={binder.icon} />
@@ -297,43 +284,43 @@ export function DashboardPage({ children, user }: { children: React.ReactNode, u
                                     <ChevronDown className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]:rotate-180" />
                                 </SidebarMenuButton>
                             </CollapsibleTrigger>
-                             <Dialog open={isNotebookDialogOpen} onOpenChange={setIsNotebookDialogOpen}>
-                                <DialogTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-6 w-6 ml-auto opacity-0 group-hover:opacity-100 absolute right-8 top-1" onClick={(e) => { e.stopPropagation(); setActiveBinderId(binder.id); setIsNotebookDialogOpen(true); }}>
-                                        <PlusCircle className="h-4 w-4" />
-                                    </Button>
-                                </DialogTrigger>
-                            </Dialog>
                         </SidebarMenuItem>
+                         <Dialog open={isNotebookDialogOpen} onOpenChange={setIsNotebookDialogOpen}>
+                            <DialogTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-6 w-6 ml-auto opacity-0 group-hover:opacity-100 absolute right-2 top-1" onClick={(e) => { e.stopPropagation(); setActiveBinderId(binder.id); }}>
+                                    <PlusCircle className="h-4 w-4" />
+                                </Button>
+                            </DialogTrigger>
+                        </Dialog>
                     </div>
                   <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
                     <div className="pl-4">
                       {binder.notebooks.map((notebook: Notebook) => (
                         <Collapsible key={notebook.id} className="w-full" defaultOpen>
-                            <div className="w-full group relative">
-                                <SidebarMenuItem>
+                            <div className="w-full group relative flex items-center">
+                                <SidebarMenuItem className="w-full">
                                     <CollapsibleTrigger asChild>
                                         <SidebarMenuButton isActive={false}>
-                                            <div className="flex items-start gap-2">
-                                                <span className={cn("h-3 w-3 mt-1 rounded-full", notebook.color)}></span>
-                                                <div className="flex flex-col items-start w-full">
-                                                    <span>{notebook.title}</span>
+                                            <div className="flex items-start gap-2 w-full">
+                                                <span className={cn("h-3 w-3 mt-1 rounded-full flex-shrink-0", notebook.color)}></span>
+                                                <div className="flex flex-col items-start w-full overflow-hidden">
+                                                    <span className="truncate w-full">{notebook.title}</span>
                                                     <div className="flex flex-wrap gap-1 mt-1">
                                                         {notebook.tags.map(tag => <Badge key={tag} variant="secondary" className="h-4 text-[10px]">{tag}</Badge>)}
                                                     </div>
                                                 </div>
                                             </div>
-                                            <ChevronDown className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                                            <ChevronDown className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]:rotate-180 flex-shrink-0" />
                                         </SidebarMenuButton>
                                     </CollapsibleTrigger>
-                                     <Dialog open={isPageDialogOpen} onOpenChange={setIsPageDialogOpen}>
-                                        <DialogTrigger asChild>
-                                            <Button variant="ghost" size="icon" className="h-6 w-6 ml-auto opacity-0 group-hover:opacity-100 absolute right-8 top-1" onClick={(e) => { e.stopPropagation(); setActiveBinderId(binder.id); setActiveNotebookId(notebook.id); setIsPageDialogOpen(true); }}>
-                                                <PlusCircle className="h-4 w-4" />
-                                            </Button>
-                                        </DialogTrigger>
-                                    </Dialog>
                                 </SidebarMenuItem>
+                                 <Dialog open={isPageDialogOpen} onOpenChange={setIsPageDialogOpen}>
+                                    <DialogTrigger asChild>
+                                         <Button variant="ghost" size="icon" className="h-6 w-6 ml-auto opacity-0 group-hover:opacity-100 absolute right-2 top-1" onClick={(e) => { e.stopPropagation(); setActiveBinderId(binder.id); setActiveNotebookId(notebook.id); }}>
+                                            <PlusCircle className="h-4 w-4" />
+                                        </Button>
+                                    </DialogTrigger>
+                                </Dialog>
                             </div>
                           <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
                             <div className="pl-6">
