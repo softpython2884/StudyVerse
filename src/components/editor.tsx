@@ -181,10 +181,9 @@ export function Editor({ page }: EditorProps) {
   }
 
   return (
-    <div className="flex h-full bg-secondary/30 justify-center">
-      <div className="flex-1 flex flex-col items-center p-8 overflow-y-auto">
-        <div className="w-full">
-          <Card>
+    <div className="flex flex-col h-full bg-secondary/30">
+      <div className="flex-1 p-8 overflow-y-auto">
+        <Card className="w-full">
             <CardHeader>
                 <div className="flex items-center justify-between p-2 mb-2 border rounded-md bg-secondary/50">
                 <div className="flex items-center gap-1 flex-wrap">
@@ -293,7 +292,6 @@ export function Editor({ page }: EditorProps) {
                 />
             </CardContent>
           </Card>
-        </div>
       </div>
     </div>
   );
