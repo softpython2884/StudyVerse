@@ -28,6 +28,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
+
 
 interface DocumentEditorProps {
   page: Page;
@@ -71,6 +73,20 @@ const documentOutline = [
 export function DocumentEditor({ page }: DocumentEditorProps) {
   const [content, setContent] = React.useState(sampleContent);
   const [activeOutlineItem, setActiveOutlineItem] = React.useState("1");
+  const editorRef = React.useRef<HTMLDivElement>(null);
+
+  const handleFormat = (command: string, value?: string) => {
+    if (editorRef.current) {
+      editorRef.current.focus();
+      document.execCommand(command, false, value);
+    }
+  };
+
+  const handleContentChange = () => {
+    if (editorRef.current) {
+      setContent(editorRef.current.innerHTML);
+    }
+  };
 
   return (
     <div className="flex h-full bg-secondary/30">
@@ -90,11 +106,12 @@ export function DocumentEditor({ page }: DocumentEditorProps) {
             <li key={item.id} className="mb-1">
               <button
                 onClick={() => setActiveOutlineItem(item.id)}
-                className={`w-full text-left text-sm rounded-md px-2 py-1.5 transition-colors ${
+                className={cn(
+                  "w-full text-left text-sm rounded-md px-2 py-1.5 transition-colors",
                   activeOutlineItem === item.id
                     ? "bg-primary/10 text-primary font-semibold"
                     : "hover:bg-muted"
-                }`}
+                )}
                 style={{ paddingLeft: `${item.level * 0.75}rem` }}
               >
                 {item.title}
@@ -109,17 +126,20 @@ export function DocumentEditor({ page }: DocumentEditorProps) {
         <div className="w-full max-w-4xl">
           {/* Toolbar */}
           <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm mb-4 p-2 border rounded-lg shadow-sm flex items-center gap-1 flex-wrap">
-            <Button variant="ghost" size="icon">
+            <Button variant="ghost" size="icon" onClick={() => handleFormat("undo")}>
               <Undo className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon">
+            <Button variant="ghost" size="icon" onClick={() => handleFormat("redo")}>
               <Redo className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon">
+            <Button variant="ghost" size="icon" onClick={() => window.print()}>
               <Printer className="h-4 w-4" />
             </Button>
             <Separator orientation="vertical" className="h-6 mx-1" />
-            <Select defaultValue="p">
+            <Select
+              defaultValue="p"
+              onValueChange={(value) => handleFormat("formatBlock", `<${value}>`)}
+            >
               <SelectTrigger className="w-32">
                 <SelectValue placeholder="Style" />
               </SelectTrigger>
@@ -142,33 +162,37 @@ export function DocumentEditor({ page }: DocumentEditorProps) {
               </SelectContent>
             </Select>
             <Separator orientation="vertical" className="h-6 mx-1" />
-            <Button variant="ghost" size="icon">
+            <Button variant="ghost" size="icon" onClick={() => handleFormat("bold")}>
               <Bold className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon">
+            <Button variant="ghost" size="icon" onClick={() => handleFormat("italic")}>
               <Italic className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon">
+            <Button variant="ghost" size="icon" onClick={() => handleFormat("underline")}>
               <Underline className="h-4 w-4" />
             </Button>
             <Separator orientation="vertical" className="h-6 mx-1" />
-            <Button variant="ghost" size="icon">
+            <Button variant="ghost" size="icon" onClick={() => handleFormat("insertUnorderedList")}>
               <List className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon">
+            <Button variant="ghost" size="icon" onClick={() => handleFormat("insertOrderedList")}>
               <ListOrdered className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon">
+            <Button variant="ghost" size="icon" onClick={() => handleFormat("formatBlock", "<blockquote>")}>
               <Quote className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon">
+            <Button variant="ghost" size="icon" onClick={() => handleFormat("formatBlock", "<pre>")}>
               <Code className="h-4 w-4" />
             </Button>
           </div>
 
           {/* Editable Content */}
           <div
-            className="bg-background p-12 rounded-lg shadow-md prose prose-sm max-w-none prose-headings:font-headline prose-a:text-primary hover:prose-a:text-primary/80"
+            ref={editorRef}
+            contentEditable
+            suppressContentEditableWarning
+            className="bg-background p-12 rounded-lg shadow-md prose prose-sm max-w-none prose-headings:font-headline prose-a:text-primary hover:prose-a:text-primary/80 focus:outline-none focus:ring-2 focus:ring-ring"
+            onInput={handleContentChange}
             dangerouslySetInnerHTML={{ __html: content }}
           />
         </div>

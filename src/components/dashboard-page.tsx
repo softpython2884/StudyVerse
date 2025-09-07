@@ -82,12 +82,12 @@ export function DashboardPage() {
                             <SidebarMenuButton className="font-semibold" isActive={false}>
                                 <binder.icon className="h-4 w-4" />
                                 <span>{binder.title}</span>
-                                <ChevronDown className="ml-auto h-4 w-4 transition-transform group-data-[state=open]:rotate-180" />
+                                <ChevronDown className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]:rotate-180" />
                             </SidebarMenuButton>
                         </SidebarMenuItem>
                     </div>
                   </CollapsibleTrigger>
-                  <CollapsibleContent>
+                  <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
                     <div className="pl-4">
                       {binder.notebooks.map((notebook: Notebook) => (
                         <Collapsible key={notebook.id} className="w-full" defaultOpen>
@@ -99,12 +99,12 @@ export function DashboardPage() {
                                     <notebook.icon className="h-4 w-4" />
                                     <span>{notebook.title}</span>
                                     </div>
-                                    <ChevronDown className="ml-auto h-4 w-4 transition-transform group-data-[state=open]:rotate-180" />
+                                    <ChevronDown className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]:rotate-180" />
                                 </SidebarMenuButton>
                                 </SidebarMenuItem>
                             </div>
                           </CollapsibleTrigger>
-                          <CollapsibleContent>
+                          <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
                             <div className="pl-6">
                               {notebook.pages.map((page: Page) => (
                                 <SidebarMenuItem key={page.id}>
