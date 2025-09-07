@@ -168,31 +168,38 @@ export function Editor({ page }: EditorProps) {
   };
   
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (event.ctrlKey && event.altKey) {
+    // Standard shortcuts (Ctrl+B, Ctrl+I, Ctrl+U)
+    if (event.ctrlKey && !event.altKey) {
         let command: string | null = null;
-        let blockCommand: string | null = null;
-
-        switch (event.key) {
-            case 'g': command = 'bold'; break;
+        switch (event.key.toLowerCase()) {
+            case 'b': command = 'bold'; break;
             case 'i': command = 'italic'; break;
             case 'u': command = 'underline'; break;
-            case '&': blockCommand = 'h1'; break;
-            case 'é': blockCommand = 'h2'; break;
-            case '"': blockCommand = 'h3'; break;
-            case "'": blockCommand = 'h4'; break;
-            case '(': blockCommand = 'h5'; break;
-            case '-': blockCommand = 'h6'; break;
         }
-
         if (command) {
             event.preventDefault();
             handleFormat(command);
-        } else if (blockCommand) {
+        }
+    }
+
+    // Heading shortcuts (Ctrl+Alt+[1-6])
+    if (event.ctrlKey && event.altKey) {
+        let blockCommand: string | null = null;
+        switch (event.key) {
+            case '1': blockCommand = 'h1'; break;
+            case '2': blockCommand = 'h2'; break;
+            case '3': blockCommand = 'h3'; break;
+            case '4': blockCommand = 'h4'; break;
+            case '5': blockCommand = 'h5'; break;
+            case '6': blockCommand = 'h6'; break;
+        }
+        if (blockCommand) {
             event.preventDefault();
             handleFormat('formatBlock', blockCommand);
         }
     }
 
+    // Reset block format on Enter in an empty block
     if (event.key === 'Enter' && !event.shiftKey) {
         setTimeout(() => {
             const selection = window.getSelection();
