@@ -33,7 +33,8 @@ import {
   AlignLeft,
   AlignRight,
   AlignJustify,
-  Minus
+  Minus,
+  Info
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -144,7 +145,6 @@ export function Editor({ page }: EditorProps) {
 
   const updateToolbarState = React.useCallback(() => {
     if (typeof window === 'undefined' || !document.queryCommandState) return;
-    saveSelection();
     
     const newActiveStyles: ActiveStyles = {
         bold: document.queryCommandState('bold'),
@@ -155,14 +155,14 @@ export function Editor({ page }: EditorProps) {
     setActiveStyles(newActiveStyles);
 
     const selection = window.getSelection();
-    if (selection && selection.rangeCount > 0 && document.activeElement === editorRef.current) {
+    if (selection && selection.rangeCount > 0) {
       let node = selection.getRangeAt(0).startContainer;
       
       if (node.nodeType === Node.TEXT_NODE && node.parentNode) {
         node = node.parentNode;
       }
       
-      if (node && node instanceof HTMLElement) {
+      if (node && node instanceof HTMLElement && editorRef.current?.contains(node)) {
          const blockElement = node.closest('p, h1, h2, h3, h4, h5, h6, pre, blockquote');
          if (blockElement) {
              setCurrentBlockStyle(blockElement.tagName.toLowerCase());
@@ -179,22 +179,21 @@ export function Editor({ page }: EditorProps) {
   const handleFormat = (command: string, value?: string) => {
     handleFocusAndRestoreSelection();
     setTimeout(() => {
-        if (value && ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'pre'].includes(value)) {
-            document.execCommand('formatBlock', false, value);
-        } else {
-             document.execCommand(command, false, value);
-        }
-        updateToolbarState();
+      document.execCommand(command, false, value);
+      updateToolbarState();
     }, 10);
   };
   
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    // Shortcuts for Bold, Italic, Underline
     if (event.ctrlKey && !event.altKey) {
         let command: string | null = null;
         switch (event.key.toLowerCase()) {
             case 'b': command = 'bold'; break;
             case 'i': command = 'italic'; break;
             case 'u': command = 'underline'; break;
+            case 'z': command = 'undo'; break;
+            case 'y': command = 'redo'; break;
         }
         if (command) {
             event.preventDefault();
@@ -202,6 +201,7 @@ export function Editor({ page }: EditorProps) {
         }
     }
 
+    // Shortcuts for Headings (Ctrl + Alt + 1-6)
     if (event.ctrlKey && event.altKey) {
         let blockCommand: string | null = null;
         switch (event.key) {
@@ -215,6 +215,25 @@ export function Editor({ page }: EditorProps) {
         if (blockCommand) {
             event.preventDefault();
             handleFormat('formatBlock', blockCommand);
+        }
+    }
+
+    // Auto-create horizontal rule with ---
+    if (event.key === 'Enter') {
+        const selection = window.getSelection();
+        if (selection && selection.rangeCount > 0) {
+            const range = selection.getRangeAt(0);
+            const node = range.startContainer;
+            if (node.textContent === '---' && node.parentElement) {
+                event.preventDefault();
+                // Replace '---' with a horizontal rule
+                document.execCommand('insertHorizontalRule', false, undefined);
+                // Insert a new paragraph after the rule
+                const p = document.createElement('p');
+                p.innerHTML = '&#8203;'; // Zero-width space
+                editorRef.current?.focus();
+                document.execCommand('insertHTML', false, '<p>&#8203;</p>')
+            }
         }
     }
 
@@ -232,10 +251,10 @@ export function Editor({ page }: EditorProps) {
                      if (blockElement.tagName !== 'LI') {
                         event.preventDefault();
                         document.execCommand('formatBlock', false, 'p');
-                        updateToolbarState();
                      }
                 }
             }
+             updateToolbarState();
         }, 0);
     }
   };
@@ -367,6 +386,7 @@ export function Editor({ page }: EditorProps) {
                   <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("undo")}> <Undo className="h-4 w-4" /> </Button>
                   <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("redo")}> <Redo className="h-4 w-4" /> </Button>
                   <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={handlePrint}> <Printer className="h-4 w-4" /> </Button>
+                  <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => { /* Show shortcuts */ }}> <Info className="h-4 w-4" /> </Button>
                   <Separator orientation="vertical" className="h-6 mx-1" />
                   <Select value={currentBlockStyle} onValueChange={(value) => handleFormat("formatBlock", value)}>
                     <SelectTrigger className="w-32" onMouseDown={(e) => { e.preventDefault(); saveSelection(); }}> <SelectValue placeholder="Style" /> </SelectTrigger>
@@ -558,5 +578,3 @@ export function Editor({ page }: EditorProps) {
     </div>
   );
 }
-
-    
