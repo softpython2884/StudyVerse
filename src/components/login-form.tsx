@@ -41,13 +41,37 @@ export function LoginForm() {
     },
   })
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    console.log(values)
-    toast({
-      title: "Login Successful",
-      description: "Redirecting to your dashboard...",
-    })
-    router.push("/dashboard")
+  async function onSubmit(values: z.infer<typeof formSchema>) {
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(values),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        toast({
+          title: "Login Successful",
+          description: "Redirecting to your dashboard...",
+        })
+        router.push("/dashboard")
+        router.refresh(); // To reflect login state
+      } else {
+        toast({
+          title: "Login Failed",
+          description: data.message || "An error occurred.",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      toast({
+        title: "Login Failed",
+        description: "An unexpected error occurred.",
+        variant: "destructive",
+      })
+    }
   }
 
   return (
@@ -89,7 +113,9 @@ export function LoginForm() {
                     </FormItem>
                     )}
                 />
-                <Button type="submit" className="w-full">Login</Button>
+                <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
+                  {form.formState.isSubmitting ? 'Logging in...' : 'Login'}
+                </Button>
                 </form>
             </Form>
             <div className="mt-4 text-center text-sm">

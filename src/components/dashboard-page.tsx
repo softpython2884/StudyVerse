@@ -6,9 +6,9 @@ import {
   BookOpen,
   BookOpenCheck,
   ChevronDown,
-  Circle,
   FileText,
   FolderKanban,
+  LogOut,
   PanelLeft,
   Search,
   Settings,
@@ -44,10 +44,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { mockData } from "@/lib/mock-data";
-import type { Binder, Notebook, Page } from "@/lib/types";
-import { cn } from "@/lib/utils";
+import type { Binder, Notebook, Page, User as UserType } from "@/lib/types";
 import { Editor } from "@/components/editor";
 import { useParams, useRouter } from "next/navigation";
+import { useToast } from "./hooks/use-toast";
+import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 
 const icons: { [key: string]: LucideIcon } = {
   FolderKanban,
@@ -62,19 +63,26 @@ const Icon = ({ name }: { name: string }) => {
     return <LucideIcon className="h-4 w-4" />;
 }
 
-
-export function DashboardPage({ initialActivePage }: { initialActivePage: Page | null }) {
-  const [activePage, setActivePage] = React.useState<Page | null>(null);
+export function DashboardPage({ initialActivePage, user }: { initialActivePage: Page | null, user: UserType | null }) {
   const params = useParams();
   const router = useRouter();
+  const { toast } = useToast();
 
-  React.useEffect(() => {
-    setActivePage(initialActivePage);
-  }, [initialActivePage]);
-
-  const handlePageSelect = (binderId: string, notebookId: string, pageId: string) => {
-    router.push(`/dashboard/${binderId}/${notebookId}/${pageId}`);
+  const handleLogout = async () => {
+    try {
+      const response = await fetch('/api/auth/logout', { method: 'POST' });
+      if (response.ok) {
+        toast({ title: "Logged Out", description: "You have been successfully logged out." });
+        router.push('/login');
+        router.refresh();
+      } else {
+        toast({ title: "Logout Failed", description: "Something went wrong.", variant: "destructive" });
+      }
+    } catch (error) {
+      toast({ title: "Logout Failed", description: "An unexpected error occurred.", variant: "destructive" });
+    }
   };
+
 
   const getActivePage = () => {
     const { binderId, notebookId, pageId } = params;
@@ -191,20 +199,30 @@ export function DashboardPage({ initialActivePage }: { initialActivePage: Page |
                 </div>
                  <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="rounded-full h-9 w-9">
-                        <User className="h-5 w-5" />
-                        <span className="sr-only">Toggle user menu</span>
-                    </Button>
+                      <Button variant="ghost" className="flex items-center gap-2 rounded-full h-9">
+                          <Avatar className="h-8 w-8">
+                            <AvatarImage src={user?.avatarUrl || ''} alt={user?.name || 'User'}/>
+                            <AvatarFallback>{user ? user.name.charAt(0).toUpperCase() : 'G'}</AvatarFallback>
+                          </Avatar>
+                          <span>{user?.name || 'Guest User'}</span>
+                          <ChevronDown className="h-4 w-4" />
+                      </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                    <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem>Profile</DropdownMenuItem>
-                    <DropdownMenuItem>Billing</DropdownMenuItem>
-                    <DropdownMenuItem>Settings</DropdownMenuItem>
+                    <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuLabel>{user?.name || "Guest"}</DropdownMenuLabel>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem>
-                        <Link href="/">Logout</Link>
+                        <User className="mr-2 h-4 w-4" />
+                        <span>Profile</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem>
+                        <Settings className="mr-2 h-4 w-4" />
+                        <span>Settings</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={handleLogout}>
+                        <LogOut className="mr-2 h-4 w-4" />
+                        <span>Logout</span>
                     </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>

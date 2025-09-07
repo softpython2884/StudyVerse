@@ -20,3 +20,10 @@ export type Binder = {
   icon: string;
   notebooks: Notebook[];
 };
+
+export interface User {
+  id: number;
+  name: string;
+  email: string;
+  avatarUrl?: string;
+}
