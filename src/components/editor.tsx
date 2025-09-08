@@ -96,8 +96,15 @@ export function Editor({ page }: EditorProps) {
   const [isTablePopoverOpen, setIsTablePopoverOpen] = React.useState(false);
   const [tableGridSize, setTableGridSize] = React.useState({ rows: 0, cols: 0 });
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = React.useState(false);
-  const [isAiPromptOpen, setIsAiPromptOpen] = React.useState(false);
+  
+  // State for the new AI Popover
+  const [isAiPopoverOpen, setIsAiPopoverOpen] = React.useState(false);
+  const [aiPopoverAnchor, setAiPopoverAnchor] = React.useState<HTMLElement | null>(null);
 
+  // State for the custom context menu
+  const [contextMenu, setContextMenu] = React.useState<{ x: number; y: number; visible: boolean }>({
+    x: 0, y: 0, visible: false,
+  });
 
   const [activeStyles, setActiveStyles] = React.useState<ActiveStyles>({
     bold: false,
@@ -114,14 +121,22 @@ export function Editor({ page }: EditorProps) {
     }
     document.execCommand("defaultParagraphSeparator", false, "p");
     
-    const interval = setInterval(() => {
-        if (document.activeElement === editorRef.current) {
-          updateToolbarState();
+    const handleClickOutside = (event: MouseEvent) => {
+        if (contextMenu.visible) {
+            setContextMenu({ ...contextMenu, visible: false });
         }
+    };
+    document.addEventListener('click', handleClickOutside);
+
+    const interval = setInterval(() => {
+        updateToolbarState();
     }, 200);
 
-    return () => clearInterval(interval);
-  }, [page.id]);
+    return () => {
+        clearInterval(interval);
+        document.removeEventListener('click', handleClickOutside);
+    };
+  }, [page.id, contextMenu]);
 
   const saveSelection = () => {
     if (typeof window !== 'undefined') {
@@ -185,52 +200,57 @@ export function Editor({ page }: EditorProps) {
   }, []);
 
   const handleFormat = (command: string, value?: string) => {
+    saveSelection();
     handleFocusAndRestoreSelection();
     setTimeout(() => {
       document.execCommand(command, false, value);
       updateToolbarState();
     }, 10);
   };
-  
+
   const handleKeyUp = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (event.key === ' ') {
-      const selection = window.getSelection();
-      if (!selection || selection.rangeCount === 0) return;
-      
-      const range = selection.getRangeAt(0);
-      const node = range.startContainer;
-
-      if (node.nodeType === Node.TEXT_NODE && node.textContent) {
-        const textContent = node.textContent;
-        // Markdown for headings
-        const headingMatch = textContent.match(/^(#{1,6})\s/);
-        if (headingMatch) {
-          const level = headingMatch[1].length;
-          event.preventDefault();
-          node.textContent = textContent.substring(headingMatch[0].length);
-          handleFormat('formatBlock', `h${level}`);
-          return;
-        }
-
-        // Markdown for bold/italic
-        const boldMatch = textContent.match(/\*\*([^\*]+)\*\*\s$/);
-        if (boldMatch) {
-            event.preventDefault();
-            const boldText = boldMatch[1];
-            node.textContent = textContent.replace(boldMatch[0], '');
-            document.execCommand('insertHTML', false, `<strong>${boldText}</strong>&nbsp;`);
-            return;
-        }
+        const selection = window.getSelection();
+        if (!selection || selection.rangeCount === 0) return;
         
-        const italicMatch = textContent.match(/\*([^\*]+)\*\s$/);
-        if (italicMatch) {
-            event.preventDefault();
-            const italicText = italicMatch[1];
-            node.textContent = textContent.replace(italicMatch[0], '');
-            document.execCommand('insertHTML', false, `<em>${italicText}</em>&nbsp;`);
-            return;
+        const range = selection.getRangeAt(0);
+        const node = range.startContainer;
+
+        if (node.nodeType === Node.TEXT_NODE && node.textContent) {
+            const textContent = node.textContent;
+            
+            // Markdown for headings
+            const headingMatch = textContent.match(/^(#{1,6})\s/);
+            if (headingMatch) {
+                const level = headingMatch[1].length;
+                event.preventDefault();
+                node.textContent = textContent.substring(headingMatch[0].length);
+                handleFormat('formatBlock', `h${level}`);
+                return;
+            }
+
+            // Markdown for bold/italic
+            const boldRegex = /\*\*([^\*]+)\*\*(\s)$/;
+            const italicRegex = /\*([^\*]+)\*(\s)$/;
+
+            const boldMatch = textContent.match(boldRegex);
+            if (boldMatch) {
+                event.preventDefault();
+                const boldText = boldMatch[1];
+                node.textContent = textContent.replace(boldMatch[0], '');
+                document.execCommand('insertHTML', false, `<strong>${boldText}</strong>&nbsp;`);
+                return;
+            }
+            
+            const italicMatch = textContent.match(italicRegex);
+            if (italicMatch) {
+                event.preventDefault();
+                const italicText = italicMatch[1];
+                node.textContent = textContent.replace(italicMatch[0], '');
+                document.execCommand('insertHTML', false, `<em>${italicText}</em>&nbsp;`);
+                return;
+            }
         }
-      }
     }
     updateToolbarState();
   }
@@ -241,10 +261,21 @@ export function Editor({ page }: EditorProps) {
           event.preventDefault();
           setIsCommandPaletteOpen(true);
       }
+      
       if (event.ctrlKey && event.code === 'Space') {
         event.preventDefault();
-        setIsAiPromptOpen(true);
-      }
+        saveSelection();
+        const selection = window.getSelection();
+        if (selection && selection.rangeCount > 0) {
+            const range = selection.getRangeAt(0);
+            let anchorNode = document.createElement('span');
+            range.insertNode(anchorNode);
+            setAiPopoverAnchor(anchorNode);
+        } else {
+            setAiPopoverAnchor(editorRef.current);
+        }
+        setIsAiPopoverOpen(true);
+    }
 
       if (event.ctrlKey && !event.altKey) {
         let command: string | null = null;
@@ -308,6 +339,13 @@ export function Editor({ page }: EditorProps) {
         }, 0);
     }
   };
+
+    const handleContextMenu = (e: React.MouseEvent<HTMLDivElement>) => {
+        if (!editorRef.current) return;
+        e.preventDefault();
+        saveSelection();
+        setContextMenu({ x: e.clientX, y: e.clientY, visible: true });
+    };
 
   const handleApplyLink = () => {
     handleFocusAndRestoreSelection();
@@ -565,8 +603,7 @@ export function Editor({ page }: EditorProps) {
                                   <Textarea id="diagram-text" value={diagramText} onChange={(e) => setDiagramText(e.target.value)} placeholder="Enter text to turn into a diagram..." />
                               </div>
                               <div className="grid gap-2">
-                                  <Label htmlFor="diagram-format">Format</Label>
-                                  <Select onValueChange={(value: "markdown" | "latex" | "txt") => setDiagramFormat(value)} defaultValue={diagramFormat}>
+                                  <Label htmlFor="diagram-format">Format</Label>                                  <Select onValueChange={(value: "markdown" | "latex" | "txt") => setDiagramFormat(value)} defaultValue={diagramFormat}>
                                   <SelectTrigger><SelectValue placeholder="Select a format" /></SelectTrigger>
                                   <SelectContent>
                                       <SelectItem value="txt">TXT + ASCII</SelectItem>
@@ -611,6 +648,24 @@ export function Editor({ page }: EditorProps) {
               </div>
           </CardHeader>
           <CardContent className="flex-1 overflow-y-auto p-0 printable-area">
+          <Popover open={isAiPopoverOpen} onOpenChange={setIsAiPopoverOpen} modal={false}>
+                <PopoverTrigger asChild>
+                    {/* The Popover is triggered programmatically */}
+                    {aiPopoverAnchor && <div style={{ position: 'absolute', top: 0, left: 0, width: 0, height: 0 }} ref={node => { if(node) aiPopoverAnchor.parentElement?.replaceChild(node, aiPopoverAnchor)}}></div>}
+                </PopoverTrigger>
+                <PopoverContent className="w-96" onOpenAutoFocus={(e) => e.preventDefault()} align="center">
+                     <div className="grid gap-4">
+                        <div className="space-y-2">
+                          <h4 className="font-medium leading-none">AI Assistant</h4>
+                          <p className="text-sm text-muted-foreground">
+                            What do you want to do with the selected text?
+                          </p>
+                        </div>
+                        <Textarea placeholder="e.g., Summarize the text above, or write a conclusion..." />
+                        <Button>Generate</Button>
+                      </div>
+                </PopoverContent>
+            </Popover>
               <div
                   ref={editorRef}
                   contentEditable
@@ -620,11 +675,32 @@ export function Editor({ page }: EditorProps) {
                   onMouseUp={updateToolbarState}
                   onFocus={updateToolbarState}
                   onBlur={saveSelection}
+                  onContextMenu={handleContextMenu}
                   className="prose dark:prose-invert max-w-none w-full h-full bg-card p-4 sm:p-6 md:p-8 lg:p-12 focus:outline-none focus:ring-2 focus:ring-ring"
                   style={{ direction: 'ltr' }}
               />
           </CardContent>
         </Card>
+
+        {contextMenu.visible && (
+            <div
+                style={{
+                position: 'fixed',
+                left: contextMenu.x,
+                top: contextMenu.y,
+                }}
+                className="z-50 min-w-[150px] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95"
+                onMouseLeave={() => setContextMenu({ ...contextMenu, visible: false })}
+            >
+                <button className="flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent focus:bg-accent" onClick={() => { handleFormat('bold'); setContextMenu({ ...contextMenu, visible: false }); }}><Bold className="h-4 w-4" /> Bold</button>
+                <button className="flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent focus:bg-accent" onClick={() => { handleFormat('italic'); setContextMenu({ ...contextMenu, visible: false }); }}><Italic className="h-4 w-4" /> Italic</button>
+                <button className="flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent focus:bg-accent" onClick={() => { setIsLinkPopoverOpen(true); setContextMenu({ ...contextMenu, visible: false }); }}><Link className="h-4 w-4"/> Add link</button>
+                <Separator className="my-1"/>
+                <button className="flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent focus:bg-accent" onClick={() => { handleFormat('formatBlock', 'blockquote'); setContextMenu({ ...contextMenu, visible: false }); }}><Quote className="h-4 w-4"/> Blockquote</button>
+                <button className="flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent focus:bg-accent" onClick={() => { handleFormat('insertHorizontalRule'); setContextMenu({ ...contextMenu, visible: false }); }}><Minus className="h-4 w-4"/> Insert HR</button>
+            </div>
+        )}
+        
         <Dialog open={isCommandPaletteOpen} onOpenChange={setIsCommandPaletteOpen}>
             <DialogContent>
                 <DialogHeader>
@@ -644,7 +720,6 @@ export function Editor({ page }: EditorProps) {
                      <ul className="list-disc list-inside text-sm text-muted-foreground">
                         <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Alt+1</kbd> - Heading 1</li>
                         <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Alt+2</kbd> - Heading 2</li>
-                        <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Alt+3</kbd> - Heading 3</li>
                         <li>...and so on up to 6</li>
                     </ul>
                      <h3 className="font-semibold">Editing</h3>
@@ -655,20 +730,6 @@ export function Editor({ page }: EditorProps) {
                         <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Space</kbd> - AI Prompt</li>
                     </ul>
                 </div>
-            </DialogContent>
-        </Dialog>
-         <Dialog open={isAiPromptOpen} onOpenChange={setIsAiPromptOpen}>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>AI Prompt</DialogTitle>
-                    <DialogDescription>
-                        Use AI to help you write, edit, and more.
-                    </DialogDescription>
-                </DialogHeader>
-                <Textarea placeholder="e.g., Summarize the text above, or write a conclusion..." />
-                <DialogFooter>
-                    <Button>Generate</Button>
-                </DialogFooter>
             </DialogContent>
         </Dialog>
     </div>
