@@ -15,7 +15,8 @@ export async function encrypt(payload: any) {
   return await new SignJWT(payload)
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
-    .setExpirationTime('30d') // Token expires in 30 days
+    .setNotBefore(payload.nbf)
+    .setExpirationTime(payload.exp)
     .sign(key);
 }
 
@@ -31,9 +32,23 @@ export async function decrypt(input: string): Promise<any> {
   }
 }
 
-export async function createSession(userId: number) {
-    const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days from now
-    const session = await encrypt({ userId, expires });
+export async function createSession(userId: number, durationInDays: number = 30) {
+    const now = Math.floor(Date.now() / 1000);
+    // if duration is -1, set it to 10 years, otherwise use the provided days
+    const durationInSeconds = durationInDays === -1 
+        ? 10 * 365 * 24 * 60 * 60 
+        : durationInDays * 24 * 60 * 60;
+    
+    const expires = new Date(Date.now() + durationInSeconds * 1000);
+
+    const sessionPayload = {
+        userId,
+        iat: now,
+        nbf: now,
+        exp: now + durationInSeconds,
+    };
+    
+    const session = await encrypt(sessionPayload);
 
     cookies().set('session', session, { expires, httpOnly: true });
 }
@@ -45,11 +60,7 @@ export async function getSession() {
   const session = await decrypt(sessionCookie);
   if (!session || !session.userId) return null;
 
-  // Check if the session is expired
-  if (new Date(session.expires) < new Date()) {
-    return null;
-  }
-
+  // The 'exp' check is handled by jwtVerify, so we just need to check for existence
   return session;
 }
 

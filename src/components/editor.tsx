@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import * as React from "react";
@@ -96,6 +97,8 @@ export function Editor({ page }: EditorProps) {
   const [linkUrl, setLinkUrl] = React.useState("");
   const [isTablePopoverOpen, setIsTablePopoverOpen] = React.useState(false);
   const [tableGridSize, setTableGridSize] = React.useState({ rows: 0, cols: 0 });
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = React.useState(false);
+
 
   const [activeStyles, setActiveStyles] = React.useState<ActiveStyles>({
     bold: false,
@@ -224,11 +227,15 @@ export function Editor({ page }: EditorProps) {
 
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (event.ctrlKey && event.key === 'k') {
+          event.preventDefault();
+          setIsCommandPaletteOpen(true);
+      }
       // Standard shortcuts (Bold, Italic, Underline)
       if (event.ctrlKey && !event.altKey) {
         let command: string | null = null;
         switch (event.key.toLowerCase()) {
-            case 'g': command = 'bold'; break; // Use Ctrl+G for Bold
+            case 'g': command = 'bold'; break;
             case 'i': command = 'italic'; break;
             case 'u': command = 'underline'; break;
             case 'z': command = 'undo'; break;
@@ -242,13 +249,10 @@ export function Editor({ page }: EditorProps) {
 
     // Heading shortcuts (Ctrl+Alt+1 to 6)
     if (event.ctrlKey && event.altKey) {
-        let blockCommand: string | null = null;
-        if (parseInt(event.key) >= 1 && parseInt(event.key) <= 6) {
-           blockCommand = `h${event.key}`;
-        }
-        if (blockCommand) {
+        const keyNumber = parseInt(event.key, 10);
+        if (keyNumber >= 1 && keyNumber <= 6) {
             event.preventDefault();
-            handleFormat('formatBlock', blockCommand);
+            handleFormat('formatBlock', `h${keyNumber}`);
         }
     }
 
@@ -614,7 +618,19 @@ export function Editor({ page }: EditorProps) {
               />
           </CardContent>
         </Card>
+        {/* Command Palette Dialog */}
+        <Dialog open={isCommandPaletteOpen} onOpenChange={setIsCommandPaletteOpen}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Command Palette</DialogTitle>
+                    <DialogDescription>
+                        Search for commands, features, and shortcuts.
+                    </DialogDescription>
+                </DialogHeader>
+                {/* Content for the command palette will go here */}
+                <p>Command palette is under construction.</p>
+            </DialogContent>
+        </Dialog>
     </div>
   );
 }
-

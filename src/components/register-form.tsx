@@ -20,6 +20,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast"
 import { BookOpenCheck } from "lucide-react"
 import { registerUser } from "@/lib/auth"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select"
 
 const formSchema = z.object({
   name: z.string().min(2, {
@@ -31,6 +32,7 @@ const formSchema = z.object({
   password: z.string().min(6, {
     message: "Password must be at least 6 characters.",
   }),
+  sessionDuration: z.string().default("30"),
 })
 
 export function RegisterForm() {
@@ -43,6 +45,7 @@ export function RegisterForm() {
       name: "",
       email: "",
       password: "",
+      sessionDuration: "30",
     },
   })
 
@@ -111,6 +114,29 @@ export function RegisterForm() {
                         <FormControl>
                         <Input type="password" placeholder="••••••••" {...field} />
                         </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                    )}
+                />
+                 <FormField
+                    control={form.control}
+                    name="sessionDuration"
+                    render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Remember Me</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Session duration" />
+                                </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                                <SelectItem value="1">For 1 day</SelectItem>
+                                <SelectItem value="7">For 7 days</SelectItem>
+                                <SelectItem value="30">For 30 days</SelectItem>
+                                <SelectItem value="-1">Forever</SelectItem>
+                            </SelectContent>
+                        </Select>
                         <FormMessage />
                     </FormItem>
                     )}
