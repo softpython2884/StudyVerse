@@ -1,5 +1,3 @@
-
-
 "use client";
 
 import * as React from "react";
@@ -98,6 +96,7 @@ export function Editor({ page }: EditorProps) {
   const [isTablePopoverOpen, setIsTablePopoverOpen] = React.useState(false);
   const [tableGridSize, setTableGridSize] = React.useState({ rows: 0, cols: 0 });
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = React.useState(false);
+  const [isAiPromptOpen, setIsAiPromptOpen] = React.useState(false);
 
 
   const [activeStyles, setActiveStyles] = React.useState<ActiveStyles>({
@@ -120,7 +119,6 @@ export function Editor({ page }: EditorProps) {
     }, 200);
 
     return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page.id]);
 
   const saveSelection = () => {
@@ -146,8 +144,6 @@ export function Editor({ page }: EditorProps) {
   
   const handleFocusAndRestoreSelection = () => {
     editorRef.current?.focus();
-    // Use a small timeout to ensure the focus event has been processed
-    // before restoring the selection.
     setTimeout(() => {
       restoreSelection();
     }, 0);
@@ -168,21 +164,17 @@ export function Editor({ page }: EditorProps) {
     if (selection && selection.rangeCount > 0) {
       let node = selection.getRangeAt(0).startContainer;
       
-      // Navigate up to the parent element if the node is a text node.
       if (node.nodeType === Node.TEXT_NODE && node.parentNode) {
         node = node.parentNode;
       }
       
       if (node && node instanceof HTMLElement && editorRef.current?.contains(node)) {
-         // Find the closest block-level element to determine the current style.
          const blockElement = node.closest('p, h1, h2, h3, h4, h5, h6, pre, blockquote');
          if (blockElement) {
              setCurrentBlockStyle(blockElement.tagName.toLowerCase());
          } else {
-             // Handle cases where the selection is inside a list item
              const listParent = node.closest('li');
              if (listParent) {
-                 // We can treat list items as paragraphs for style purposes.
                  setCurrentBlockStyle('p'); 
              }
          }
@@ -192,7 +184,6 @@ export function Editor({ page }: EditorProps) {
 
   const handleFormat = (command: string, value?: string) => {
     handleFocusAndRestoreSelection();
-    // Important: Use a timeout to allow the selection to be restored before executing the command.
     setTimeout(() => {
       document.execCommand(command, false, value);
       updateToolbarState();
@@ -209,15 +200,12 @@ export function Editor({ page }: EditorProps) {
 
       if (node.nodeType === Node.TEXT_NODE && node.textContent) {
         const textContent = node.textContent;
-        // Check for Markdown-like heading shortcuts (e.g., "# ", "## ")
         const match = textContent.match(/^(#{1,6})\s/);
         
         if (match) {
           const level = match[1].length;
           event.preventDefault();
-          // Remove the Markdown characters
           node.textContent = textContent.substring(match[0].length);
-          // Apply the heading format
           handleFormat('formatBlock', `h${level}`);
         }
       }
@@ -227,11 +215,15 @@ export function Editor({ page }: EditorProps) {
 
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-      if (event.ctrlKey && event.key === 'k') {
+      if (event.ctrlKey && event.key.toLowerCase() === 'k') {
           event.preventDefault();
           setIsCommandPaletteOpen(true);
       }
-      // Standard shortcuts (Bold, Italic, Underline)
+      if (event.ctrlKey && event.code === 'Space') {
+        event.preventDefault();
+        setIsAiPromptOpen(true);
+      }
+
       if (event.ctrlKey && !event.altKey) {
         let command: string | null = null;
         switch (event.key.toLowerCase()) {
@@ -247,7 +239,6 @@ export function Editor({ page }: EditorProps) {
         }
     }
 
-    // Heading shortcuts (Ctrl+Alt+1 to 6)
     if (event.ctrlKey && event.altKey) {
         const keyNumber = parseInt(event.key, 10);
         if (keyNumber >= 1 && keyNumber <= 6) {
@@ -256,7 +247,6 @@ export function Editor({ page }: EditorProps) {
         }
     }
 
-    // Auto-insert horizontal rule
     if (event.key === 'Enter') {
         const selection = window.getSelection();
         if (selection && selection.rangeCount > 0) {
@@ -264,20 +254,17 @@ export function Editor({ page }: EditorProps) {
             const node = range.startContainer;
             if (node.nodeType === Node.ELEMENT_NODE && node.textContent === '---') {
                  event.preventDefault();
-                 // Replace '---' with a horizontal rule
-                 handleFormat('insertHorizontalRule', undefined);
-                 // Insert a new paragraph below for continued typing
+                 handleFormat('insertHorizontalRule');
                  document.execCommand('insertHTML', false, '<p>&#8203;</p>');
             } else if (node.nodeType === Node.TEXT_NODE && node.textContent === '---' && node.parentElement) {
                 event.preventDefault();
-                node.parentElement.innerHTML = ''; // Clear the parent
-                handleFormat('insertHorizontalRule', undefined);
+                node.parentElement.innerHTML = '';
+                handleFormat('insertHorizontalRule');
                 document.execCommand('insertHTML', false, '<p>&#8203;</p>');
             }
         }
     }
 
-    // Reset block format on Enter in an empty block
     if (event.key === 'Enter' && !event.shiftKey) {
         setTimeout(() => {
             const selection = window.getSelection();
@@ -286,10 +273,8 @@ export function Editor({ page }: EditorProps) {
                 let node = range.startContainer;
                 let parentElement = node.nodeType === 3 ? node.parentElement : node as HTMLElement;
     
-                // Find the closest block-level element
                 const blockElement = parentElement?.closest('pre, h1, h2, h3, h4, h5, h6, blockquote, li');
                 
-                // If the block is empty and not a list item, revert to a paragraph
                 if (blockElement && parentElement?.textContent?.trim() === '') {
                      if (blockElement.tagName !== 'LI') {
                         event.preventDefault();
@@ -322,7 +307,7 @@ export function Editor({ page }: EditorProps) {
         }
         tableHtml += '</tr>';
       }
-      tableHtml += '</table><p>&#8203;</p>'; // Add a paragraph after for easy exit
+      tableHtml += '</table><p>&#8203;</p>';
       document.execCommand("insertHTML", false, tableHtml);
     }, 10);
     setIsTablePopoverOpen(false);
@@ -618,7 +603,6 @@ export function Editor({ page }: EditorProps) {
               />
           </CardContent>
         </Card>
-        {/* Command Palette Dialog */}
         <Dialog open={isCommandPaletteOpen} onOpenChange={setIsCommandPaletteOpen}>
             <DialogContent>
                 <DialogHeader>
@@ -645,12 +629,26 @@ export function Editor({ page }: EditorProps) {
                      <ul className="list-disc list-inside text-sm text-muted-foreground">
                         <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Z</kbd> - Undo</li>
                         <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Y</kbd> - Redo</li>
+                        <li><kbd className="p-1 bg-muted rounded-md">Ctrl+K</kbd> - Command Palette</li>
+                        <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Space</kbd> - AI Prompt</li>
                     </ul>
                 </div>
+            </DialogContent>
+        </Dialog>
+         <Dialog open={isAiPromptOpen} onOpenChange={setIsAiPromptOpen}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>AI Prompt</DialogTitle>
+                    <DialogDescription>
+                        Use AI to help you write, edit, and more.
+                    </DialogDescription>
+                </DialogHeader>
+                <Textarea placeholder="e.g., Summarize the text above, or write a conclusion..." />
+                <DialogFooter>
+                    <Button>Generate</Button>
+                </DialogFooter>
             </DialogContent>
         </Dialog>
     </div>
   );
 }
-
-    
