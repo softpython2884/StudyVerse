@@ -115,7 +115,9 @@ export function Editor({ page }: EditorProps) {
     document.execCommand("defaultParagraphSeparator", false, "p");
     
     const interval = setInterval(() => {
-        updateToolbarState();
+        if (document.activeElement === editorRef.current) {
+          updateToolbarState();
+        }
     }, 200);
 
     return () => clearInterval(interval);
@@ -200,13 +202,33 @@ export function Editor({ page }: EditorProps) {
 
       if (node.nodeType === Node.TEXT_NODE && node.textContent) {
         const textContent = node.textContent;
-        const match = textContent.match(/^(#{1,6})\s/);
-        
-        if (match) {
-          const level = match[1].length;
+        // Markdown for headings
+        const headingMatch = textContent.match(/^(#{1,6})\s/);
+        if (headingMatch) {
+          const level = headingMatch[1].length;
           event.preventDefault();
-          node.textContent = textContent.substring(match[0].length);
+          node.textContent = textContent.substring(headingMatch[0].length);
           handleFormat('formatBlock', `h${level}`);
+          return;
+        }
+
+        // Markdown for bold/italic
+        const boldMatch = textContent.match(/\*\*([^\*]+)\*\*\s$/);
+        if (boldMatch) {
+            event.preventDefault();
+            const boldText = boldMatch[1];
+            node.textContent = textContent.replace(boldMatch[0], '');
+            document.execCommand('insertHTML', false, `<strong>${boldText}</strong>&nbsp;`);
+            return;
+        }
+        
+        const italicMatch = textContent.match(/\*([^\*]+)\*\s$/);
+        if (italicMatch) {
+            event.preventDefault();
+            const italicText = italicMatch[1];
+            node.textContent = textContent.replace(italicMatch[0], '');
+            document.execCommand('insertHTML', false, `<em>${italicText}</em>&nbsp;`);
+            return;
         }
       }
     }
