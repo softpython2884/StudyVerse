@@ -82,8 +82,11 @@ export function Editor({ page }: EditorProps) {
   const [isSaving, setIsSaving] = React.useState(false);
   const editorRef = React.useRef<HTMLDivElement>(null);
   const [currentBlockStyle, setCurrentBlockStyle] = React.useState("p");
+  
+  // --- SELECTION MARKER HELPERS ---
+  const selectionMarkerId = React.useRef<string | null>(null);
   const savedSelection = React.useRef<Range | null>(null);
-
+  
   const [refinedNotes, setRefinedNotes] = React.useState("");
   const [diagramText, setDiagramText] = React.useState("");
   const [diagramFormat, setDiagramFormat] = React.useState<"markdown" | "latex" | "txt">("txt");
@@ -96,12 +99,9 @@ export function Editor({ page }: EditorProps) {
   const [isTablePopoverOpen, setIsTablePopoverOpen] = React.useState(false);
   const [tableGridSize, setTableGridSize] = React.useState({ rows: 0, cols: 0 });
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = React.useState(false);
-  
-  // State for the new AI Popover
   const [isAiPopoverOpen, setIsAiPopoverOpen] = React.useState(false);
   const [aiPopoverAnchor, setAiPopoverAnchor] = React.useState<HTMLElement | null>(null);
 
-  // State for the custom context menu
   const [contextMenu, setContextMenu] = React.useState<{ x: number; y: number; visible: boolean }>({
     x: 0, y: 0, visible: false,
   });
@@ -115,55 +115,88 @@ export function Editor({ page }: EditorProps) {
 
   const { toast } = useToast();
 
-  React.useEffect(() => {
-    if (editorRef.current) {
-        editorRef.current.innerHTML = page.content || "<p>&#8203;</p>";
-    }
-    document.execCommand("defaultParagraphSeparator", false, "p");
-    
-    const handleClickOutside = (event: MouseEvent) => {
-        if (contextMenu.visible) {
-            setContextMenu({ ...contextMenu, visible: false });
-        }
-    };
-    document.addEventListener('click', handleClickOutside);
-
-    const interval = setInterval(() => {
-        updateToolbarState();
-    }, 200);
-
-    return () => {
-        clearInterval(interval);
-        document.removeEventListener('click', handleClickOutside);
-    };
-  }, [page.id, contextMenu]);
+  const makeMarkerId = () => `sel_marker_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
 
   const saveSelection = () => {
-    if (typeof window !== 'undefined') {
-      const selection = window.getSelection();
-      if (selection && selection.rangeCount > 0) {
-        const range = selection.getRangeAt(0);
-        if (editorRef.current && editorRef.current.contains(range.commonAncestorContainer)) {
-          savedSelection.current = range;
-        }
+    if (!editorRef.current) return;
+    try {
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) return;
+      const range = sel.getRangeAt(0).cloneRange();
+  
+      // cleanup previous markers
+      if (selectionMarkerId.current) {
+        const oldStart = editorRef.current.querySelector(`[data-sel-start="${selectionMarkerId.current}"]`);
+        const oldEnd = editorRef.current.querySelector(`[data-sel-end="${selectionMarkerId.current}"]`);
+        oldStart?.remove();
+        oldEnd?.remove();
+        selectionMarkerId.current = null;
       }
-    }
-  };
-
-  const restoreSelection = () => {
-    if (!savedSelection.current || typeof window === 'undefined') return;
-    const selection = window.getSelection();
-    if (selection) {
-      selection.removeAllRanges();
-      selection.addRange(savedSelection.current);
+  
+      const id = makeMarkerId();
+      selectionMarkerId.current = id;
+  
+      const startMarker = document.createElement("span");
+      startMarker.setAttribute("data-sel-start", id);
+      startMarker.style.opacity = "0";
+      startMarker.style.pointerEvents = "none";
+      startMarker.appendChild(document.createTextNode("\uFEFF"));
+  
+      const endMarker = document.createElement("span");
+      endMarker.setAttribute("data-sel-end", id);
+      endMarker.style.opacity = "0";
+      endMarker.style.pointerEvents = "none";
+      endMarker.appendChild(document.createTextNode("\uFEFF"));
+  
+      const startRange = range.cloneRange();
+      startRange.collapse(true);
+      startRange.insertNode(startMarker);
+  
+      const endRange = range.cloneRange();
+      endRange.collapse(false);
+      endRange.insertNode(endMarker);
+  
+      const newRange = document.createRange();
+      newRange.setStartAfter(startMarker);
+      newRange.setEndBefore(endMarker);
+  
+      sel.removeAllRanges();
+      sel.addRange(newRange);
+    } catch (err) {
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0) savedSelection.current = sel.getRangeAt(0).cloneRange();
     }
   };
   
-  const handleFocusAndRestoreSelection = () => {
-    editorRef.current?.focus();
-    setTimeout(() => {
-      restoreSelection();
-    }, 0);
+  const restoreSelection = () => {
+    if (!editorRef.current) return;
+    const id = selectionMarkerId.current;
+    if (!id) {
+      if (savedSelection.current) {
+        const sel = window.getSelection();
+        sel?.removeAllRanges();
+        sel?.addRange(savedSelection.current);
+        savedSelection.current = null;
+      }
+      return;
+    }
+  
+    const startMarker = editorRef.current.querySelector(`[data-sel-start="${id}"]`);
+    const endMarker = editorRef.current.querySelector(`[data-sel-end="${id}"]`);
+    if (!startMarker || !endMarker) return;
+  
+    const sel = window.getSelection();
+    const range = document.createRange();
+    range.setStartAfter(startMarker);
+    range.setEndBefore(endMarker);
+  
+    sel?.removeAllRanges();
+    sel?.addRange(range);
+  
+    startMarker.remove();
+    endMarker.remove();
+    selectionMarkerId.current = null;
+    savedSelection.current = null;
   };
 
   const updateToolbarState = React.useCallback(() => {
@@ -199,67 +232,170 @@ export function Editor({ page }: EditorProps) {
     }
   }, []);
 
-  const handleFormat = (command: string, value?: string) => {
+  React.useEffect(() => {
+    if (editorRef.current) {
+        editorRef.current.innerHTML = page.content || "<p>&#8203;</p>";
+    }
+    document.execCommand("defaultParagraphSeparator", false, "p");
+
+    const onSelChange = () => updateToolbarState();
+    const onFocusWindow = () => updateToolbarState();
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') updateToolbarState();
+    };
+
+    document.addEventListener('selectionchange', onSelChange);
+    window.addEventListener('focus', onFocusWindow);
+    document.addEventListener('visibilitychange', onVisibility);
+
+    const handleClickOutside = (event: MouseEvent) => {
+        if (contextMenu.visible) {
+            setContextMenu({ ...contextMenu, visible: false });
+        }
+    };
+    document.addEventListener('click', handleClickOutside);
+
+    return () => {
+        document.removeEventListener('selectionchange', onSelChange);
+        window.removeEventListener('focus', onFocusWindow);
+        document.removeEventListener('visibilitychange', onVisibility);
+        document.removeEventListener('click', handleClickOutside);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page.id]);
+
+  const onToolbarMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
     saveSelection();
-    handleFocusAndRestoreSelection();
-    setTimeout(() => {
-      document.execCommand(command, false, value);
-      updateToolbarState();
-    }, 10);
   };
 
+  const handleFormat = (command: string, value?: string) => {
+    editorRef.current?.focus();
+    restoreSelection();
+  
+    setTimeout(() => {
+      try {
+        document.execCommand(command, false, value);
+      } catch (err) {
+        // console.warn("execCommand failed:", command, err);
+      }
+      setTimeout(updateToolbarState, 0);
+    }, 0);
+  };
+  
   const handleKeyUp = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (event.key === ' ') {
-        const selection = window.getSelection();
-        if (!selection || selection.rangeCount === 0) return;
-        
-        const range = selection.getRangeAt(0);
-        const node = range.startContainer;
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) return;
+      const range = sel.getRangeAt(0);
+  
+      const block = (range.startContainer.nodeType === Node.TEXT_NODE
+        ? (range.startContainer.parentElement?.closest('p,div,li,h1,h2,h3,h4,h5,h6,pre,blockquote'))
+        : (range.startContainer as HTMLElement).closest('p,div,li,h1,h2,h3,h4,h5,h6,pre,blockquote')) as HTMLElement | null;
+  
+      if (!block || !editorRef.current?.contains(block)) {
+        updateToolbarState();
+        return;
+      }
+  
+      const startRange = document.createRange();
+      startRange.setStart(block, 0);
+      startRange.setEnd(range.startContainer, range.startOffset);
+      const prefixText = startRange.toString();
+  
+      const headingMatch = prefixText.match(/^\s*(#{1,6})\s$/);
+      if (headingMatch) {
+        event.preventDefault();
+        const level = headingMatch[1].length;
 
-        if (node.nodeType === Node.TEXT_NODE && node.textContent) {
-            const textContent = node.textContent;
-            
-            // Markdown for headings
-            const headingMatch = textContent.match(/^(#{1,6})\s/);
-            if (headingMatch) {
-                const level = headingMatch[1].length;
-                event.preventDefault();
-                node.textContent = textContent.substring(headingMatch[0].length);
-                handleFormat('formatBlock', `h${level}`);
-                return;
-            }
-
-            // Markdown for bold/italic
-            const boldRegex = /\*\*([^\*]+)\*\*(\s)$/;
-            const italicRegex = /\*([^\*]+)\*(\s)$/;
-
-            const boldMatch = textContent.match(boldRegex);
-            if (boldMatch) {
-                event.preventDefault();
-                const boldText = boldMatch[1];
-                node.textContent = textContent.replace(boldMatch[0], '');
-                document.execCommand('insertHTML', false, `<strong>${boldText}</strong>&nbsp;`);
-                return;
-            }
-            
-            const italicMatch = textContent.match(italicRegex);
-            if (italicMatch) {
-                event.preventDefault();
-                const italicText = italicMatch[1];
-                node.textContent = textContent.replace(italicMatch[0], '');
-                document.execCommand('insertHTML', false, `<em>${italicText}</em>&nbsp;`);
-                return;
-            }
+        const firstTextNode = (function findFirstTextNode(node: Node | null): Node | null {
+          if (!node) return null;
+          if (node.nodeType === Node.TEXT_NODE) return node;
+          for (let i = 0; i < node.childNodes.length; i++) {
+            const res = findFirstTextNode(node.childNodes[i]);
+            if (res) return res;
+          }
+          return null;
+        })(block);
+  
+        if (firstTextNode && firstTextNode.nodeType === Node.TEXT_NODE) {
+          const txt = firstTextNode.textContent || "";
+          const removeLen = prefixText.length;
+          firstTextNode.textContent = txt.substring(removeLen);
+        } else {
+          block.innerText = block.innerText.replace(/^\s*(#{1,6})\s/, "");
         }
+  
+        handleFormat('formatBlock', `h${level}`);
+        updateToolbarState();
+        return;
+      }
     }
     updateToolbarState();
-  }
+  };
 
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-      if (event.ctrlKey && event.key.toLowerCase() === 'k') {
-          event.preventDefault();
-          setIsCommandPaletteOpen(true);
+      // Enter inside a checklist -> create new checklist li with checkbox
+      if (event.key === 'Enter') {
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount > 0) {
+          const node = sel.getRangeAt(0).startContainer;
+          const li = (node.nodeType === Node.TEXT_NODE ? node.parentElement?.closest('li') : (node as HTMLElement).closest?.('li'));
+          if (li && li.closest && li.closest('ul[data-type="checklist"]')) {
+            event.preventDefault();
+            const newItem = '<li><label contenteditable="false" class="check-label"><input type="checkbox" /><span contenteditable="true">&#8203;</span></label></li>';
+            const r = sel.getRangeAt(0);
+            r.collapse(false);
+            sel.removeAllRanges();
+            sel.addRange(r);
+            document.execCommand('insertHTML', false, newItem);
+            setTimeout(() => {
+              const nextLi = li.nextElementSibling as HTMLElement | null;
+              if (nextLi) {
+                const span = nextLi.querySelector('[contenteditable="true"]') as HTMLElement | null;
+                if (span) {
+                  const rng = document.createRange();
+                  const s = window.getSelection();
+                  rng.selectNodeContents(span);
+                  rng.collapse(true);
+                  s?.removeAllRanges();
+                  s?.addRange(rng);
+                }
+              }
+              updateToolbarState();
+            }, 0);
+            return;
+          }
+        }
+      }
+
+      if (event.ctrlKey && !event.shiftKey && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setIsCommandPaletteOpen(true);
+        return;
+      }
+      
+      if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount > 0) {
+          const r = sel.getRangeAt(0);
+          if (r.collapsed && r.startContainer.nodeType === Node.TEXT_NODE) {
+            let txt = r.startContainer.textContent || "";
+            let start = r.startOffset, end = r.startOffset;
+            while (start > 0 && /\w/.test(txt[start - 1])) start--;
+            while (end < txt.length && /\w/.test(txt[end])) end++;
+            const newRange = document.createRange();
+            newRange.setStart(r.startContainer, start);
+            newRange.setEnd(r.startContainer, end);
+            sel.removeAllRanges();
+            sel.addRange(newRange);
+          }
+        }
+        saveSelection();
+        setIsLinkPopoverOpen(true);
+        return;
       }
       
       if (event.ctrlKey && event.code === 'Space') {
@@ -268,14 +404,15 @@ export function Editor({ page }: EditorProps) {
         const selection = window.getSelection();
         if (selection && selection.rangeCount > 0) {
             const range = selection.getRangeAt(0);
-            let anchorNode = document.createElement('span');
-            range.insertNode(anchorNode);
-            setAiPopoverAnchor(anchorNode);
+            const anchor = document.createElement('span');
+            range.insertNode(anchor);
+            setAiPopoverAnchor(anchor);
         } else {
             setAiPopoverAnchor(editorRef.current);
         }
         setIsAiPopoverOpen(true);
-    }
+        return;
+      }
 
       if (event.ctrlKey && !event.altKey) {
         let command: string | null = null;
@@ -340,24 +477,29 @@ export function Editor({ page }: EditorProps) {
     }
   };
 
-    const handleContextMenu = (e: React.MouseEvent<HTMLDivElement>) => {
-        if (!editorRef.current) return;
-        e.preventDefault();
-        saveSelection();
-        setContextMenu({ x: e.clientX, y: e.clientY, visible: true });
-    };
+  const handleContextMenu = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!editorRef.current) return;
+    e.preventDefault();
+    saveSelection();
+    setContextMenu({ x: e.clientX, y: e.clientY, visible: true });
+  };
 
   const handleApplyLink = () => {
-    handleFocusAndRestoreSelection();
-    if (linkUrl) {
-      setTimeout(() => document.execCommand("createLink", false, linkUrl), 10);
-    }
-    setLinkUrl("");
-    setIsLinkPopoverOpen(false);
+    restoreSelection();
+    editorRef.current?.focus();
+    setTimeout(() => {
+      if (linkUrl) {
+        document.execCommand("createLink", false, linkUrl);
+      }
+      setLinkUrl("");
+      setIsLinkPopoverOpen(false);
+      updateToolbarState();
+    }, 10);
   };
   
   const handleInsertTable = (rows: number, cols: number) => {
-    handleFocusAndRestoreSelection();
+    restoreSelection();
+    editorRef.current?.focus();
     setTimeout(() => {
       let tableHtml = '<table style="border-collapse: collapse; width: 100%;">';
       for (let i = 0; i < rows; i++) {
@@ -453,8 +595,35 @@ export function Editor({ page }: EditorProps) {
   };
   
    const handleInsertChecklist = () => {
-     handleFocusAndRestoreSelection();
-     setTimeout(() => document.execCommand("insertHTML", false, `<ul data-type="checklist"><li><input type="checkbox"><label contenteditable="true">To-do item</label></li></ul><p>&#8203;</p>`), 10)
+    restoreSelection();
+    editorRef.current?.focus();
+    setTimeout(() => {
+      const html = `<ul data-type="checklist"><li><label contenteditable="false" class="check-label"><input type="checkbox" /><span contenteditable="true">&#8203;To-do item</span></label></li></ul><p>&#8203;</p>`;
+      document.execCommand("insertHTML", false, html);
+      setTimeout(updateToolbarState, 0);
+    }, 0);
+  };
+
+  const handleEditorClick = (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (!target) return;
+  
+    if (target.tagName === 'INPUT' && (target as HTMLInputElement).type === 'checkbox') {
+      e.stopPropagation();
+      const label = target.closest('label');
+      if (label) {
+        const span = label.querySelector('[contenteditable="true"]') as HTMLElement | null;
+        if (span) {
+          const range = document.createRange();
+          const sel = window.getSelection();
+          range.selectNodeContents(span);
+          range.collapse(false); // to end
+          sel?.removeAllRanges();
+          sel?.addRange(range);
+        }
+      }
+      setTimeout(updateToolbarState, 0);
+    }
   };
 
   if (!page) {
@@ -471,13 +640,13 @@ export function Editor({ page }: EditorProps) {
           <CardHeader className="p-2 print-hidden">
               <div className="flex items-center justify-between p-2 mb-2 border-b rounded-t-md bg-secondary/50 flex-wrap">
               <div className="flex items-center gap-1 flex-wrap">
-                  <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("undo")}> <Undo className="h-4 w-4" /> </Button>
-                  <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("redo")}> <Redo className="h-4 w-4" /> </Button>
-                  <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={handlePrint}> <Printer className="h-4 w-4" /> </Button>
-                  <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => setIsCommandPaletteOpen(true) }> <Info className="h-4 w-4" /> </Button>
+                  <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => handleFormat("undo")}> <Undo className="h-4 w-4" /> </Button>
+                  <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => handleFormat("redo")}> <Redo className="h-4 w-4" /> </Button>
+                  <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={handlePrint}> <Printer className="h-4 w-4" /> </Button>
+                  <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => setIsCommandPaletteOpen(true) }> <Info className="h-4 w-4" /> </Button>
                   <Separator orientation="vertical" className="h-6 mx-1" />
                   <Select value={currentBlockStyle} onValueChange={(value) => handleFormat("formatBlock", value)}>
-                    <SelectTrigger className="w-32" onMouseDown={(e) => { e.preventDefault(); saveSelection(); }}> <SelectValue placeholder="Style" /> </SelectTrigger>
+                    <SelectTrigger className="w-32" onMouseDown={onToolbarMouseDown}> <SelectValue placeholder="Style" /> </SelectTrigger>
                     <SelectContent>
                         <SelectItem value="p"><div className="flex items-center gap-2"><Pilcrow className="h-4 w-4" /> Paragraphe</div></SelectItem>
                         <SelectItem value="h1"><div className="flex items-center gap-2"><Heading1 className="h-4 w-4" /> Titre 1</div></SelectItem>
@@ -489,13 +658,13 @@ export function Editor({ page }: EditorProps) {
                     </SelectContent>
                   </Select>
                   <Separator orientation="vertical" className="h-6 mx-1" />
-                  <Button variant={activeStyles.bold ? "secondary" : "ghost"} size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("bold")}> <Bold className="h-4 w-4" /> </Button>
-                  <Button variant={activeStyles.italic ? "secondary" : "ghost"} size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("italic")}> <Italic className="h-4 w-4" /> </Button>
-                  <Button variant={activeStyles.underline ? "secondary" : "ghost"} size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("underline")}> <Underline className="h-4 w-4" /> </Button>
-                  <Button variant={activeStyles.strikethrough ? "secondary" : "ghost"} size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("strikeThrough")}> <Strikethrough className="h-4 w-4" /> </Button>
+                  <Button variant={activeStyles.bold ? "secondary" : "ghost"} size="icon" onMouseDown={onToolbarMouseDown} onClick={() => handleFormat("bold")}> <Bold className="h-4 w-4" /> </Button>
+                  <Button variant={activeStyles.italic ? "secondary" : "ghost"} size="icon" onMouseDown={onToolbarMouseDown} onClick={() => handleFormat("italic")}> <Italic className="h-4 w-4" /> </Button>
+                  <Button variant={activeStyles.underline ? "secondary" : "ghost"} size="icon" onMouseDown={onToolbarMouseDown} onClick={() => handleFormat("underline")}> <Underline className="h-4 w-4" /> </Button>
+                  <Button variant={activeStyles.strikethrough ? "secondary" : "ghost"} size="icon" onMouseDown={onToolbarMouseDown} onClick={() => handleFormat("strikeThrough")}> <Strikethrough className="h-4 w-4" /> </Button>
                   <Popover open={isLinkPopoverOpen} onOpenChange={setIsLinkPopoverOpen}>
                       <PopoverTrigger asChild>
-                          <Button variant="ghost" size="icon" onMouseDown={(e) => {e.preventDefault(); saveSelection();}}>
+                          <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown}>
                               <Link className="h-4 w-4" />
                           </Button>
                       </PopoverTrigger>
@@ -515,19 +684,19 @@ export function Editor({ page }: EditorProps) {
                       </PopoverContent>
                   </Popover>
                   <Separator orientation="vertical" className="h-6 mx-1" />
-                   <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("justifyLeft")}> <AlignLeft className="h-4 w-4" /> </Button>
-                  <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("justifyCenter")}> <AlignCenter className="h-4 w-4" /> </Button>
-                  <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("justifyRight")}> <AlignRight className="h-4 w-4" /> </Button>
-                  <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("justifyFull")}> <AlignJustify className="h-4 w-4" /> </Button>
+                   <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => handleFormat("justifyLeft")}> <AlignLeft className="h-4 w-4" /> </Button>
+                  <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => handleFormat("justifyCenter")}> <AlignCenter className="h-4 w-4" /> </Button>
+                  <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => handleFormat("justifyRight")}> <AlignRight className="h-4 w-4" /> </Button>
+                  <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => handleFormat("justifyFull")}> <AlignJustify className="h-4 w-4" /> </Button>
                   <Separator orientation="vertical" className="h-6 mx-1" />
-                  <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("insertUnorderedList")}> <List className="h-4 w-4" /> </Button>
-                  <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("insertOrderedList")}> <ListOrdered className="h-4 w-4" /> </Button>
-                  <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={handleInsertChecklist}> <ListChecks className="h-4 w-4" /> </Button>
-                  <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("formatBlock", "blockquote")}> <Quote className="h-4 w-4" /> </Button>
-                  <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("formatBlock", "pre")}> <Code className="h-4 w-4" /> </Button>
+                  <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => handleFormat("insertUnorderedList")}> <List className="h-4 w-4" /> </Button>
+                  <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => handleFormat("insertOrderedList")}> <ListOrdered className="h-4 w-4" /> </Button>
+                  <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={handleInsertChecklist}> <ListChecks className="h-4 w-4" /> </Button>
+                  <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => handleFormat("formatBlock", "blockquote")}> <Quote className="h-4 w-4" /> </Button>
+                  <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => handleFormat("formatBlock", "pre")}> <Code className="h-4 w-4" /> </Button>
                   <Popover open={isTablePopoverOpen} onOpenChange={(isOpen) => { if(!isOpen) setTableGridSize({rows: 0, cols: 0}); setIsTablePopoverOpen(isOpen)}}>
                       <PopoverTrigger asChild>
-                           <Button variant="ghost" size="icon" onMouseDown={(e) => {e.preventDefault(); saveSelection();}}><Table className="h-4 w-4" /></Button>
+                           <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown}><Table className="h-4 w-4" /></Button>
                       </PopoverTrigger>
                        <PopoverContent className="w-auto p-2" onOpenAutoFocus={(e) => e.preventDefault()}>
                           <div className="flex flex-col gap-1">
@@ -549,10 +718,11 @@ export function Editor({ page }: EditorProps) {
                           <div className="text-center text-sm mt-2">{tableGridSize.rows} x {tableGridSize.cols}</div>
                       </PopoverContent>
                   </Popover>
-                   <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("insertHorizontalRule")}> <Minus className="h-4 w-4" /> </Button>
+                   <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => handleFormat("insertHorizontalRule")}> <Minus className="h-4 w-4" /> </Button>
                   <Separator orientation="vertical" className="h-6 mx-1" />
                   <SpeechToText onTranscriptionComplete={(text) => {
-                    handleFocusAndRestoreSelection();
+                    restoreSelection();
+                    editorRef.current?.focus();
                      setTimeout(() => {
                       document.execCommand('insertHTML', false, ` ${text}`);
                     }, 10);
@@ -603,7 +773,7 @@ export function Editor({ page }: EditorProps) {
                                   <Textarea id="diagram-text" value={diagramText} onChange={(e) => setDiagramText(e.target.value)} placeholder="Enter text to turn into a diagram..." />
                               </div>
                               <div className="grid gap-2">
-                                  <Label htmlFor="diagram-format">Format</Label>                                  <Select onValueChange={(value: "markdown" | "latex" | "txt") => setDiagramFormat(value)} defaultValue={diagramFormat}>
+                                  <Label htmlFor="diagram-format">Format</Label>                                  <Select onValuechange={(value: "markdown" | "latex" | "txt") => setDiagramFormat(value)} defaultValue={diagramFormat}>
                                   <SelectTrigger><SelectValue placeholder="Select a format" /></SelectTrigger>
                                   <SelectContent>
                                       <SelectItem value="txt">TXT + ASCII</SelectItem>
@@ -622,7 +792,8 @@ export function Editor({ page }: EditorProps) {
                           </div>
                            <DialogFooter>
                              <Button onClick={() => {
-                                handleFocusAndRestoreSelection();
+                                restoreSelection();
+                                editorRef.current?.focus();
                                  setTimeout(() => {
                                 const sanitizedDiagram = generatedDiagram.replace(/</g, "&lt;").replace(/>/g, "&gt;");
                                 document.execCommand('insertHTML', false, `<pre><code>${sanitizedDiagram}</code></pre>`);
@@ -648,56 +819,122 @@ export function Editor({ page }: EditorProps) {
               </div>
           </CardHeader>
           <CardContent className="flex-1 overflow-y-auto p-0 printable-area">
-          <Popover open={isAiPopoverOpen} onOpenChange={setIsAiPopoverOpen} modal={false}>
-                <PopoverTrigger asChild>
-                    {/* The Popover is triggered programmatically */}
-                    {aiPopoverAnchor && <div style={{ position: 'absolute', top: 0, left: 0, width: 0, height: 0 }} ref={node => { if(node) aiPopoverAnchor.parentElement?.replaceChild(node, aiPopoverAnchor)}}></div>}
-                </PopoverTrigger>
-                <PopoverContent className="w-96" onOpenAutoFocus={(e) => e.preventDefault()} align="center">
-                     <div className="grid gap-4">
-                        <div className="space-y-2">
-                          <h4 className="font-medium leading-none">AI Assistant</h4>
-                          <p className="text-sm text-muted-foreground">
-                            What do you want to do with the selected text?
-                          </p>
-                        </div>
-                        <Textarea placeholder="e.g., Summarize the text above, or write a conclusion..." />
-                        <Button>Generate</Button>
+          <Popover open={isAiPopoverOpen} onOpenChange={setIsAiPopoverOpen} modal={true}>
+              <PopoverTrigger asChild>
+                  {aiPopoverAnchor && <div style={{ position: 'absolute', top: 0, left: 0, width: 0, height: 0 }} ref={node => { if(node && aiPopoverAnchor.parentElement) aiPopoverAnchor.parentElement.replaceChild(node, aiPopoverAnchor)}}></div>}
+              </PopoverTrigger>
+              <PopoverContent className="w-96" onOpenAutoFocus={(e) => e.preventDefault()} align="center">
+                   <div className="grid gap-4">
+                      <div className="space-y-2">
+                        <h4 className="font-medium leading-none">AI Assistant</h4>
+                        <p className="text-sm text-muted-foreground">
+                          What do you want to do with the selected text?
+                        </p>
                       </div>
-                </PopoverContent>
-            </Popover>
-              <div
-                  ref={editorRef}
-                  contentEditable
-                  suppressContentEditableWarning
-                  onKeyDown={handleKeyDown}
-                  onKeyUp={handleKeyUp}
-                  onMouseUp={updateToolbarState}
-                  onFocus={updateToolbarState}
-                  onBlur={saveSelection}
-                  onContextMenu={handleContextMenu}
-                  className="prose dark:prose-invert max-w-none w-full h-full bg-card p-4 sm:p-6 md:p-8 lg:p-12 focus:outline-none focus:ring-2 focus:ring-ring"
-                  style={{ direction: 'ltr' }}
-              />
+                      <Textarea placeholder="e.g., Summarize the text above, or write a conclusion..." />
+                      <Button>Generate</Button>
+                    </div>
+              </PopoverContent>
+          </Popover>
+            <div
+                ref={editorRef}
+                contentEditable
+                suppressContentEditableWarning
+                onKeyDown={handleKeyDown}
+                onKeyUp={handleKeyUp}
+                onFocus={updateToolbarState}
+                onBlur={saveSelection}
+                onClick={handleEditorClick}
+                onContextMenu={handleContextMenu}
+                className="prose dark:prose-invert max-w-none w-full h-full bg-card p-4 sm:p-6 md:p-8 lg:p-12 focus:outline-none focus:ring-2 focus:ring-ring"
+                style={{ direction: 'ltr' }}
+            />
           </CardContent>
         </Card>
 
         {contextMenu.visible && (
             <div
-                style={{
-                position: 'fixed',
-                left: contextMenu.x,
-                top: contextMenu.y,
-                }}
-                className="z-50 min-w-[150px] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95"
+                role="menu"
+                aria-label="Editor context menu"
+                style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y }}
+                className="z-50 min-w-[160px] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95"
                 onMouseLeave={() => setContextMenu({ ...contextMenu, visible: false })}
             >
-                <button className="flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent focus:bg-accent" onClick={() => { handleFormat('bold'); setContextMenu({ ...contextMenu, visible: false }); }}><Bold className="h-4 w-4" /> Bold</button>
-                <button className="flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent focus:bg-accent" onClick={() => { handleFormat('italic'); setContextMenu({ ...contextMenu, visible: false }); }}><Italic className="h-4 w-4" /> Italic</button>
-                <button className="flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent focus:bg-accent" onClick={() => { setIsLinkPopoverOpen(true); setContextMenu({ ...contextMenu, visible: false }); }}><Link className="h-4 w-4"/> Add link</button>
+                <button
+                role="menuitem"
+                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => { restoreSelection(); handleFormat('bold'); setContextMenu({ ...contextMenu, visible: false }); }}
+                >
+                <Bold className="h-4 w-4" /> Bold
+                </button>
+            
+                <button
+                role="menuitem"
+                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => { restoreSelection(); handleFormat('italic'); setContextMenu({ ...contextMenu, visible: false }); }}
+                >
+                <Italic className="h-4 w-4" /> Italic
+                </button>
+            
+                <button
+                role="menuitem"
+                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => { restoreSelection(); handleFormat('underline'); setContextMenu({ ...contextMenu, visible: false }); }}
+                >
+                <Underline className="h-4 w-4" /> Underline
+                </button>
+            
+                <button
+                role="menuitem"
+                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => { saveSelection(); setIsLinkPopoverOpen(true); setContextMenu({ ...contextMenu, visible: false }); }}
+                >
+                <Link className="h-4 w-4" /> Add link
+                </button>
+            
                 <Separator className="my-1"/>
-                <button className="flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent focus:bg-accent" onClick={() => { handleFormat('formatBlock', 'blockquote'); setContextMenu({ ...contextMenu, visible: false }); }}><Quote className="h-4 w-4"/> Blockquote</button>
-                <button className="flex w-full cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent focus:bg-accent" onClick={() => { handleFormat('insertHorizontalRule'); setContextMenu({ ...contextMenu, visible: false }); }}><Minus className="h-4 w-4"/> Insert HR</button>
+            
+                <button
+                role="menuitem"
+                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => { restoreSelection(); handleFormat('formatBlock', 'blockquote'); setContextMenu({ ...contextMenu, visible: false }); }}
+                >
+                <Quote className="h-4 w-4" /> Blockquote
+                </button>
+            
+                <button
+                role="menuitem"
+                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => { restoreSelection(); handleFormat('insertHorizontalRule'); setContextMenu({ ...contextMenu, visible: false }); }}
+                >
+                <Minus className="h-4 w-4" /> Insert HR
+                </button>
+            
+                <Separator className="my-1"/>
+            
+                <button
+                role="menuitem"
+                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => { restoreSelection(); handleFormat('insertUnorderedList'); setContextMenu({ ...contextMenu, visible: false }); }}
+                >
+                <List className="h-4 w-4" /> Bulleted list
+                </button>
+            
+                <button
+                role="menuitem"
+                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => { restoreSelection(); handleFormat('insertOrderedList'); setContextMenu({ ...contextMenu, visible: false }); }}
+                >
+                <ListOrdered className="h-4 w-4" /> Numbered list
+                </button>
             </div>
         )}
         
@@ -728,6 +965,7 @@ export function Editor({ page }: EditorProps) {
                         <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Y</kbd> - Redo</li>
                         <li><kbd className="p-1 bg-muted rounded-md">Ctrl+K</kbd> - Command Palette</li>
                         <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Space</kbd> - AI Prompt</li>
+                        <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Shift+K</kbd> - Insert Link</li>
                     </ul>
                 </div>
             </DialogContent>
