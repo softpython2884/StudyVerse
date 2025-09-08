@@ -284,11 +284,44 @@ export function Editor({ page }: EditorProps) {
   };
   
   const handleKeyUp = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === ' ') {
+    const urlRegex = /(https?:\/\/[^\s]+|[a-zA-Z0-9-]+\.[a-zA-Z]{2,}[^\s]*)/g;
+
+    const processNode = (node: Node) => {
+        if (node.nodeType === 3 && node.textContent) { // Text node
+            const matches = node.textContent.match(urlRegex);
+            if (matches) {
+                const parent = node.parentNode;
+                if(parent && parent.nodeName !== 'A') {
+                    const fragment = document.createDocumentFragment();
+                    let lastIndex = 0;
+                    node.textContent.replace(urlRegex, (match, offset) => {
+                        if (offset > lastIndex) {
+                            fragment.appendChild(document.createTextNode(node.textContent!.slice(lastIndex, offset)));
+                        }
+                        const a = document.createElement('a');
+                        a.href = match.startsWith('http') ? match : `http://${match}`;
+                        a.textContent = match;
+                        a.target = '_blank';
+                        a.rel = 'noopener noreferrer';
+                        fragment.appendChild(a);
+                        lastIndex = offset + match.length;
+                        return match;
+                    });
+                    if (lastIndex < node.textContent.length) {
+                        fragment.appendChild(document.createTextNode(node.textContent.slice(lastIndex)));
+                    }
+                    parent.replaceChild(fragment, node);
+                }
+            }
+        }
+    };
+
+
+    if (event.key === ' ' || event.key === 'Enter') {
       const sel = window.getSelection();
       if (!sel || sel.rangeCount === 0) return;
       const range = sel.getRangeAt(0);
-  
+
       const block = (range.startContainer.nodeType === Node.TEXT_NODE
         ? (range.startContainer.parentElement?.closest('p,div,li,h1,h2,h3,h4,h5,h6,pre,blockquote'))
         : (range.startContainer as HTMLElement).closest('p,div,li,h1,h2,h3,h4,h5,h6,pre,blockquote')) as HTMLElement | null;
@@ -297,6 +330,8 @@ export function Editor({ page }: EditorProps) {
         updateToolbarState();
         return;
       }
+
+      processNode(range.startContainer);
   
       const startRange = document.createRange();
       startRange.setStart(block, 0);
@@ -358,9 +393,9 @@ export function Editor({ page }: EditorProps) {
                   const rng = document.createRange();
                   const s = window.getSelection();
                   rng.selectNodeContents(span);
-                  rng.collapse(true);
-                  s?.removeAllRanges();
-                  s?.addRange(rng);
+rng.collapse(true);
+s?.removeAllRanges();
+s?.addRange(rng);
                 }
               }
               updateToolbarState();
@@ -463,13 +498,11 @@ export function Editor({ page }: EditorProps) {
                 let node = range.startContainer;
                 let parentElement = node.nodeType === 3 ? node.parentElement : node as HTMLElement;
     
-                const blockElement = parentElement?.closest('pre, h1, h2, h3, h4, h5, h6, blockquote, li');
+                const blockElement = parentElement?.closest('pre, blockquote');
                 
                 if (blockElement && parentElement?.textContent?.trim() === '') {
-                     if (blockElement.tagName !== 'LI') {
-                        event.preventDefault();
-                        handleFormat('formatBlock', 'p');
-                     }
+                    event.preventDefault();
+                    handleFormat('formatBlock', 'p');
                 }
             }
              updateToolbarState();
@@ -773,7 +806,8 @@ export function Editor({ page }: EditorProps) {
                                   <Textarea id="diagram-text" value={diagramText} onChange={(e) => setDiagramText(e.target.value)} placeholder="Enter text to turn into a diagram..." />
                               </div>
                               <div className="grid gap-2">
-                                  <Label htmlFor="diagram-format">Format</Label>                                  <Select onValuechange={(value: "markdown" | "latex" | "txt") => setDiagramFormat(value)} defaultValue={diagramFormat}>
+                                  <Label htmlFor="diagram-format">Format</Label>
+                                  <Select onValueChange={(value: "markdown" | "latex" | "txt") => setDiagramFormat(value)} defaultValue={diagramFormat}>
                                   <SelectTrigger><SelectValue placeholder="Select a format" /></SelectTrigger>
                                   <SelectContent>
                                       <SelectItem value="txt">TXT + ASCII</SelectItem>
