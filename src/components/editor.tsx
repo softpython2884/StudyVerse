@@ -429,7 +429,7 @@ export function Editor({ page }: EditorProps) {
                   <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("undo")}> <Undo className="h-4 w-4" /> </Button>
                   <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => handleFormat("redo")}> <Redo className="h-4 w-4" /> </Button>
                   <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={handlePrint}> <Printer className="h-4 w-4" /> </Button>
-                  <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => { /* Show shortcuts */ }}> <Info className="h-4 w-4" /> </Button>
+                  <Button variant="ghost" size="icon" onMouseDown={(e) => e.preventDefault()} onClick={() => setIsCommandPaletteOpen(true) }> <Info className="h-4 w-4" /> </Button>
                   <Separator orientation="vertical" className="h-6 mx-1" />
                   <Select value={currentBlockStyle} onValueChange={(value) => handleFormat("formatBlock", value)}>
                     <SelectTrigger className="w-32" onMouseDown={(e) => { e.preventDefault(); saveSelection(); }}> <SelectValue placeholder="Style" /> </SelectTrigger>
@@ -624,13 +624,33 @@ export function Editor({ page }: EditorProps) {
                 <DialogHeader>
                     <DialogTitle>Command Palette</DialogTitle>
                     <DialogDescription>
-                        Search for commands, features, and shortcuts.
+                        A list of available commands and their shortcuts.
                     </DialogDescription>
                 </DialogHeader>
-                {/* Content for the command palette will go here */}
-                <p>Command palette is under construction.</p>
+                <div className="space-y-2">
+                    <h3 className="font-semibold">Text Formatting</h3>
+                    <ul className="list-disc list-inside text-sm text-muted-foreground">
+                        <li><kbd className="p-1 bg-muted rounded-md">Ctrl+G</kbd> - Bold</li>
+                        <li><kbd className="p-1 bg-muted rounded-md">Ctrl+I</kbd> - Italic</li>
+                        <li><kbd className="p-1 bg-muted rounded-md">Ctrl+U</kbd> - Underline</li>
+                    </ul>
+                    <h3 className="font-semibold">Headings</h3>
+                     <ul className="list-disc list-inside text-sm text-muted-foreground">
+                        <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Alt+1</kbd> - Heading 1</li>
+                        <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Alt+2</kbd> - Heading 2</li>
+                        <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Alt+3</kbd> - Heading 3</li>
+                        <li>...and so on up to 6</li>
+                    </ul>
+                     <h3 className="font-semibold">Editing</h3>
+                     <ul className="list-disc list-inside text-sm text-muted-foreground">
+                        <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Z</kbd> - Undo</li>
+                        <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Y</kbd> - Redo</li>
+                    </ul>
+                </div>
             </DialogContent>
         </Dialog>
     </div>
   );
 }
+
+    
