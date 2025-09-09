@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -33,7 +34,8 @@ import {
   AlignRight,
   AlignJustify,
   Minus,
-  Info
+  Info,
+  PanelRightOpen
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -92,6 +94,7 @@ export function Editor({ page }: EditorProps) {
   const [toc, setToc] = React.useState<TocItem[]>([]);
   const debounceTimerRef = React.useRef<NodeJS.Timeout | null>(null);
   const [activeTocId, setActiveTocId] = React.useState<string | null>(null);
+  const [isTocVisible, setIsTocVisible] = React.useState(true);
 
 
   // --- SELECTION MARKER HELPERS ---
@@ -762,6 +765,14 @@ export function Editor({ page }: EditorProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page.id, page.content]);
 
+  React.useEffect(() => {
+    if (toc.length > 0) {
+      setIsTocVisible(true);
+    } else {
+      setIsTocVisible(false);
+    }
+  }, [toc]);
+
   if (!page) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -776,6 +787,18 @@ export function Editor({ page }: EditorProps) {
       element.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   };
+  
+  const getTocItemClass = (level: number) => {
+    switch (level) {
+        case 1: return 'pl-0';
+        case 2: return 'pl-4';
+        case 3: return 'pl-8';
+        case 4: return 'pl-12';
+        case 5: return 'pl-16';
+        case 6: return 'pl-20';
+        default: return 'pl-0';
+    }
+  };
 
   return (
     <div className="flex flex-row h-full bg-background p-1 sm:p-2 lg:p-4 gap-4">
@@ -787,6 +810,8 @@ export function Editor({ page }: EditorProps) {
               <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => handleFormat("redo")}> <Redo className="h-4 w-4" /> </Button>
               <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={handlePrint}> <Printer className="h-4 w-4" /> </Button>
               <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => setIsCommandPaletteOpen(true)}> <Info className="h-4 w-4" /> </Button>
+              <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => setIsTocVisible(!isTocVisible)}> <PanelRightOpen className="h-4 w-4" /> </Button>
+
               <Separator orientation="vertical" className="h-6 mx-1" />
               <Select value={currentBlockStyle} onValueChange={(value) => handleFormat("formatBlock", value)}>
                 <SelectTrigger className="w-32" onMouseDown={onToolbarMouseDown}> <SelectValue placeholder="Style" /> </SelectTrigger>
@@ -998,6 +1023,7 @@ export function Editor({ page }: EditorProps) {
         </CardContent>
       </Card>
       
+      {isTocVisible && (
       <Card className="w-64 h-full hidden lg:flex flex-col print-hidden">
         <CardHeader>
           <h3 className="font-semibold font-headline">Table of Contents</h3>
@@ -1011,7 +1037,7 @@ export function Editor({ page }: EditorProps) {
                   onClick={() => handleTocClick(item.id)}
                   className={cn(
                     "cursor-pointer text-sm hover:text-accent truncate",
-                    `pl-${(item.level - 1) * 4}`,
+                     getTocItemClass(item.level),
                      activeTocId === item.id ? 'text-accent font-semibold' : 'text-muted-foreground'
                   )}
                 >
@@ -1024,6 +1050,7 @@ export function Editor({ page }: EditorProps) {
           )}
         </CardContent>
       </Card>
+      )}
 
       {contextMenu.visible && (
         <div
@@ -1177,3 +1204,5 @@ export function Editor({ page }: EditorProps) {
     </div>
   );
 }
+
+    
