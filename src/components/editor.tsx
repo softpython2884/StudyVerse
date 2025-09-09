@@ -89,10 +89,12 @@ type TocItem = {
 export function Editor({ page }: EditorProps) {
   const [isSaving, setIsSaving] = React.useState(false);
   const editorRef = React.useRef<HTMLDivElement>(null);
+  const scrollContainerRef = React.useRef<HTMLDivElement>(null);
   const [currentBlockStyle, setCurrentBlockStyle] = React.useState("p");
   const pasteInProgress = React.useRef(false);
   const [toc, setToc] = React.useState<TocItem[]>([]);
   const debounceTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+  const scrollDebounceTimerRef = React.useRef<NodeJS.Timeout | null>(null);
   const [activeTocId, setActiveTocId] = React.useState<string | null>(null);
   const [isTocVisible, setIsTocVisible] = React.useState(true);
 
@@ -248,6 +250,35 @@ export function Editor({ page }: EditorProps) {
       updateToc();
     }, 300); // 300ms debounce delay
   }, [updateToc]);
+  
+  const updateActiveTocOnScroll = React.useCallback(() => {
+        if (!editorRef.current) return;
+
+        let lastVisibleHeadingId: string | null = null;
+        const headings = editorRef.current.querySelectorAll('h1, h2, h3, h4, h5, h6');
+        
+        for (let i = 0; i < headings.length; i++) {
+            const heading = headings[i];
+            const rect = heading.getBoundingClientRect();
+            // Check if the heading is at or above the top of the viewport (with a small tolerance)
+            if (rect.top <= 130) { // 130px offset from the top
+                lastVisibleHeadingId = heading.id;
+            } else {
+                // Since headings are ordered, we can break early
+                break;
+            }
+        }
+        setActiveTocId(lastVisibleHeadingId);
+
+  }, []);
+
+  const debouncedScrollHandler = React.useCallback(() => {
+    if (scrollDebounceTimerRef.current) {
+      clearTimeout(scrollDebounceTimerRef.current);
+    }
+    scrollDebounceTimerRef.current = setTimeout(updateActiveTocOnScroll, 100);
+  }, [updateActiveTocOnScroll]);
+
 
   const updateToolbarState = React.useCallback(() => {
     if (typeof window === 'undefined' || !document.queryCommandState) return;
@@ -273,17 +304,14 @@ export function Editor({ page }: EditorProps) {
         if (blockElement) {
             setCurrentBlockStyle(blockElement.tagName.toLowerCase());
 
-            // For active TOC item
+            // For active TOC item, we rely on the scroll handler, but this can set an initial one.
             const headingElement = node.closest('h1, h2, h3, h4, h5, h6');
             if (headingElement) {
                 setActiveTocId(headingElement.id);
-            } else {
-                setActiveTocId(null);
             }
 
         } else {
             setCurrentBlockStyle('p');
-            setActiveTocId(null);
         }
       }
     }
@@ -294,17 +322,22 @@ export function Editor({ page }: EditorProps) {
     const onSelChange = () => updateToolbarState();
     const onMouseUp = () => updateToolbarState();
     const onKeyUp = () => updateToolbarState();
+    
+    const scroller = scrollContainerRef.current;
 
     document.addEventListener('selectionchange', onSelChange);
     document.addEventListener('mouseup', onMouseUp);
     editorRef.current?.addEventListener('keyup', onKeyUp);
+    scroller?.addEventListener('scroll', debouncedScrollHandler);
    
     return () => {
       document.removeEventListener('selectionchange', onSelChange);
       document.removeEventListener('mouseup', onMouseUp);
       editorRef.current?.removeEventListener('keyup', onKeyUp);
+      scroller?.removeEventListener('scroll', debouncedScrollHandler);
+
     };
-  }, [page.id, updateToolbarState]);
+  }, [page.id, updateToolbarState, debouncedScrollHandler]);
 
   const handleFormat = (command: string, value?: string) => {
     if (command === 'formatBlock' && (value === 'blockquote' || value === 'pre')) {
@@ -761,6 +794,7 @@ export function Editor({ page }: EditorProps) {
     if (editorRef.current && page.content !== editorRef.current.innerHTML) {
       editorRef.current.innerHTML = page.content || "<p>&#8203;</p>";
       updateToc();
+      updateActiveTocOnScroll(); // Initial check
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page.id, page.content]);
@@ -987,7 +1021,7 @@ export function Editor({ page }: EditorProps) {
             </div>
           </div>
         </CardHeader>
-        <CardContent className="flex-1 overflow-y-auto p-0 printable-area">
+        <CardContent ref={scrollContainerRef} className="flex-1 overflow-y-auto p-0 printable-area">
           <Popover open={isAiPopoverOpen} onOpenChange={setIsAiPopoverOpen} modal={true}>
             <PopoverTrigger asChild>
               {aiPopoverAnchor && <div style={{ position: 'absolute', top: 0, left: 0, width: 0, height: 0 }} ref={node => { if(node && aiPopoverAnchor.parentElement) aiPopoverAnchor.parentElement.replaceChild(node, aiPopoverAnchor)}}></div>}
@@ -1017,7 +1051,7 @@ export function Editor({ page }: EditorProps) {
             onBlur={saveSelection}
             onClick={handleEditorClick}
             onContextMenu={handleContextMenu}
-            className="prose dark:prose-invert max-w-none w-full h-full bg-card p-4 sm:p-6 md:p-8 lg:p-12 focus:outline-none focus:ring-2 focus:ring-ring"
+            className="prose dark:prose-invert max-w-none w-full h-full bg-card p-4 sm:p-6 md:p-8 lg:p-12 focus:outline-none"
             style={{ direction: 'ltr' }}
           />
         </CardContent>
