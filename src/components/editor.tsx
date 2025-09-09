@@ -39,7 +39,9 @@ import {
   PanelRightOpen,
   MoreVertical,
   Edit,
-  Trash2
+  Trash2,
+  Superscript,
+  Subscript
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -81,6 +83,8 @@ type ActiveStyles = {
   italic: boolean;
   underline: boolean;
   strikethrough: boolean;
+  superscript: boolean;
+  subscript: boolean;
   [key: string]: boolean;
 };
 
@@ -104,115 +108,33 @@ export function Editor({ page }: EditorProps) {
 
 
   // --- SELECTION MARKER HELPERS ---
-  const selectionMarkerId = React.useRef<string | null>(null);
   const savedSelection = React.useRef<Range | null>(null);
-  const makeMarkerId = () => `sel_marker_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
 
   const saveSelection = () => {
-    if (!editorRef.current || typeof window === 'undefined') return;
-    try {
+      if (typeof window === 'undefined') return;
       const sel = window.getSelection();
-      if (!sel || sel.rangeCount === 0 || !editorRef.current.contains(sel.anchorNode)) return;
-      const range = sel.getRangeAt(0).cloneRange();
-
-      // cleanup previous markers
-      if (selectionMarkerId.current) {
-        const oldStart = editorRef.current.querySelector(`[data-sel-start="${selectionMarkerId.current}"]`);
-        const oldEnd = editorRef.current.querySelector(`[data-sel-end="${selectionMarkerId.current}"]`);
-        oldStart?.remove();
-        oldEnd?.remove();
-        selectionMarkerId.current = null;
+      if (sel && sel.rangeCount > 0) {
+          savedSelection.current = sel.getRangeAt(0).cloneRange();
       }
-
-      const id = makeMarkerId();
-      selectionMarkerId.current = id;
-
-      const startMarker = document.createElement("span");
-      startMarker.setAttribute("data-sel-start", id);
-      startMarker.style.opacity = "0";
-      startMarker.style.pointerEvents = "none";
-      startMarker.appendChild(document.createTextNode("\uFEFF"));
-
-      const endMarker = document.createElement("span");
-      endMarker.setAttribute("data-sel-end", id);
-      endMarker.style.opacity = "0";
-      endMarker.style.pointerEvents = "none";
-      endMarker.appendChild(document.createTextNode("\uFEFF"));
-
-      const startRange = range.cloneRange();
-      startRange.collapse(true);
-      startRange.insertNode(startMarker);
-
-      const endRange = range.cloneRange();
-      endRange.collapse(false);
-      endRange.insertNode(endMarker);
-
-      const newRange = document.createRange();
-      newRange.setStartAfter(startMarker);
-      newRange.setEndBefore(endMarker);
-
-      sel.removeAllRanges();
-      sel.addRange(newRange);
-    } catch (err) {
-      // fallback
-      const sel = window.getSelection();
-      if (sel && sel.rangeCount > 0) savedSelection.current = sel.getRangeAt(0).cloneRange();
-    }
   };
 
   const restoreSelection = () => {
-    if (!editorRef.current || typeof window === 'undefined') return;
-    const id = selectionMarkerId.current;
-    
-    // Fallback logic
-    const setCursorAtEnd = () => {
-        const sel = window.getSelection();
-        const lastElement = editorRef.current?.lastElementChild;
-        if (sel && lastElement) {
-            const range = document.createRange();
-            range.selectNodeContents(lastElement);
-            range.collapse(false); // false to collapse to the end
-            sel.removeAllRanges();
-            sel.addRange(range);
-        }
-    };
-    
-    if (!id) {
-      if (savedSelection.current) {
-        const sel = window.getSelection();
-        sel?.removeAllRanges();
-        sel?.addRange(savedSelection.current);
-        savedSelection.current = null;
-      } else {
-        setCursorAtEnd();
+      if (typeof window === 'undefined' || !savedSelection.current) {
+          const editor = editorRef.current;
+          if (editor) {
+              const range = document.createRange();
+              const sel = window.getSelection();
+              const lastElement = editor.lastElementChild || editor;
+              range.selectNodeContents(lastElement);
+              range.collapse(false); // Go to the end
+              sel?.removeAllRanges();
+              sel?.addRange(range);
+          }
+          return;
       }
-      return;
-    }
-
-    const startMarker = editorRef.current.querySelector(`[data-sel-start="${id}"]`);
-    const endMarker = editorRef.current.querySelector(`[data-sel-end="${id}"]`);
-    if (!startMarker || !endMarker) {
-        setCursorAtEnd();
-        return;
-    }
-
-    const sel = window.getSelection();
-    const range = document.createRange();
-    try {
-      range.setStartAfter(startMarker);
-      range.setEndBefore(endMarker);
-
+      const sel = window.getSelection();
       sel?.removeAllRanges();
-      sel?.addRange(range);
-
-      startMarker.remove();
-      endMarker.remove();
-    } catch(e) {
-        console.error("Failed to restore selection", e)
-        setCursorAtEnd();
-    }
-    selectionMarkerId.current = null;
-    savedSelection.current = null;
+      sel?.addRange(savedSelection.current);
   };
   
   const onToolbarMouseDown = (e: React.MouseEvent) => {
@@ -244,6 +166,8 @@ export function Editor({ page }: EditorProps) {
     italic: false,
     underline: false,
     strikethrough: false,
+    superscript: false,
+    subscript: false,
   });
 
   const { toast } = useToast();
@@ -252,7 +176,7 @@ export function Editor({ page }: EditorProps) {
     if (!editorRef.current) return;
     const headings = editorRef.current.querySelectorAll('h1, h2, h3, h4, h5, h6');
     const newToc: TocItem[] = [];
-    headings.forEach(heading => {
+    headings.forEach((heading, index) => {
       const id = heading.id || `toc-heading-${Date.now()}-${Math.random()}`;
       if (!heading.id) {
         heading.id = id;
@@ -312,6 +236,8 @@ export function Editor({ page }: EditorProps) {
       italic: document.queryCommandState('italic'),
       underline: document.queryCommandState('underline'),
       strikethrough: document.queryCommandState('strikeThrough'),
+      superscript: document.queryCommandState('superscript'),
+      subscript: document.queryCommandState('subscript'),
     };
     setActiveStyles(newActiveStyles);
 
@@ -509,6 +435,29 @@ export function Editor({ page }: EditorProps) {
           handleFormat('formatBlock', 'p');
           return;
       }
+
+      // Case 4: Horizontal Rule
+      const currentBlock = (range.startContainer.nodeType === Node.TEXT_NODE
+          ? range.startContainer.parentElement?.closest('p,div,li')
+          : (range.startContainer as HTMLElement).closest?.('p,div,li')) as HTMLElement | null;
+      if (currentBlock && currentBlock.textContent?.trim() === '---') {
+        event.preventDefault();
+        currentBlock.innerHTML = '';
+        handleFormat('insertHorizontalRule');
+        
+        // Add new paragraph after the HR
+        const p = document.createElement('p');
+        p.innerHTML = '&#8203;';
+        currentBlock.after(p);
+        const newRange = document.createRange();
+        newRange.setStart(p, 0);
+        newRange.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(newRange);
+        
+        setTimeout(updateToolbarState, 0);
+        return;
+      }
     }
 
     if (event.ctrlKey && !event.shiftKey && event.key.toLowerCase() === 'k') {
@@ -585,27 +534,6 @@ export function Editor({ page }: EditorProps) {
         }
         setTimeout(updateToolbarState, 0);
         return;
-      }
-    }
-
-    if (event.key === 'Enter') {
-      const selection = window.getSelection();
-      if (selection && selection.rangeCount > 0) {
-        const range = selection.getRangeAt(0);
-        const block = (range.startContainer.nodeType === Node.TEXT_NODE
-          ? range.startContainer.parentElement?.closest('p,div,li')
-          : (range.startContainer as HTMLElement).closest?.('p,div,li')) as HTMLElement | null;
-        if (block) {
-          const txt = (block.textContent || '').trim();
-          if (txt === '---') {
-            event.preventDefault();
-            block.innerHTML = '';
-            handleFormat('insertHorizontalRule');
-            document.execCommand('insertHTML', false, '<p>&#8203;</p>');
-            setTimeout(updateToolbarState, 0);
-            return;
-          }
-        }
       }
     }
 
@@ -898,6 +826,8 @@ export function Editor({ page }: EditorProps) {
               <Button variant={activeStyles.italic ? "secondary" : "ghost"} size="icon" onMouseDown={onToolbarMouseDown} onClick={() => handleFormat("italic")}> <Italic className="h-4 w-4" /> </Button>
               <Button variant={activeStyles.underline ? "secondary" : "ghost"} size="icon" onMouseDown={onToolbarMouseDown} onClick={() => handleFormat("underline")}> <Underline className="h-4 w-4" /> </Button>
               <Button variant={activeStyles.strikethrough ? "secondary" : "ghost"} size="icon" onMouseDown={onToolbarMouseDown} onClick={() => handleFormat("strikeThrough")}> <Strikethrough className="h-4 w-4" /> </Button>
+              <Button variant={activeStyles.superscript ? "secondary" : "ghost"} size="icon" onMouseDown={onToolbarMouseDown} onClick={() => handleFormat("superscript")}> <Superscript className="h-4 w-4" /> </Button>
+              <Button variant={activeStyles.subscript ? "secondary" : "ghost"} size="icon" onMouseDown={onToolbarMouseDown} onClick={() => handleFormat("subscript")}> <Subscript className="h-4 w-4" /> </Button>
               <Popover open={isLinkPopoverOpen} onOpenChange={setIsLinkPopoverOpen}>
                 <PopoverTrigger asChild>
                   <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown}>
