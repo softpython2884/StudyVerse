@@ -533,11 +533,11 @@ export function Editor({ page }: EditorProps) {
 
     if (event.ctrlKey && !event.altKey) {
       const key = event.key.toLowerCase();
-      if (['g', 'i', 'u', 'z', 'y'].includes(key)) {
+      if (['b', 'i', 'u', 'z', 'y'].includes(key)) {
         event.preventDefault();
         restoreSelection();
         switch (key) {
-          case 'g': document.execCommand('bold'); break;
+          case 'b': document.execCommand('bold'); break;
           case 'i': document.execCommand('italic'); break;
           case 'u': document.execCommand('underline'); break;
           case 'z': document.execCommand('undo'); break;
@@ -1214,7 +1214,7 @@ export function Editor({ page }: EditorProps) {
           <div className="space-y-2">
             <h3 className="font-semibold">Text Formatting</h3>
             <ul className="list-disc list-inside text-sm text-muted-foreground">
-              <li><kbd className="p-1 bg-muted rounded-md">Ctrl+G</kbd> - Bold</li>
+              <li><kbd className="p-1 bg-muted rounded-md">Ctrl+B</kbd> - Bold</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+I</kbd> - Italic</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+U</kbd> - Underline</li>
             </ul>
@@ -1238,6 +1238,3 @@ export function Editor({ page }: EditorProps) {
     </div>
   );
 }
-
-    
-    

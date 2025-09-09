@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -15,6 +16,9 @@ import {
   StickyNote,
   User,
   PlusCircle,
+  MoreVertical,
+  Edit,
+  Trash2,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -53,6 +57,17 @@ import {
   DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import type { Binder, Notebook, Page, User as UserType } from "@/lib/types";
 import { useParams, useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
@@ -61,7 +76,7 @@ import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Badge } from "./ui/badge";
 import { cn } from "@/lib/utils";
-import { createBinder, createNotebook, createPage } from "@/lib/actions";
+import { createBinder, createNotebook, createPage, deleteBinder, deleteNotebook, deletePage, renameBinder, renameNotebook, renamePage } from "@/lib/actions";
 
 const icons: { [key: string]: LucideIcon } = {
   FolderKanban,
@@ -88,19 +103,21 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
   const [data, setData] = React.useState(initialData);
   const [searchQuery, setSearchQuery] = React.useState("");
 
-  // Update data when initialData changes
-  React.useEffect(() => {
-    setData(initialData);
-  }, [initialData]);
-
-
   // --- State for dialogs ---
   const [isBinderDialogOpen, setIsBinderDialogOpen] = React.useState(false);
   const [isNotebookDialogOpen, setIsNotebookDialogOpen] = React.useState(false);
   const [isPageDialogOpen, setIsPageDialogOpen] = React.useState(false);
-  
+  const [isRenameDialogOpen, setIsRenameDialogOpen] = React.useState(false);
+
   const [activeBinderId, setActiveBinderId] = React.useState<string | null>(null);
   const [activeNotebookId, setActiveNotebookId] = React.useState<string | null>(null);
+
+  const [renameTarget, setRenameTarget] = React.useState<{ id: string; title: string; type: 'binder' | 'notebook' | 'page' } | null>(null);
+  const [newTitle, setNewTitle] = React.useState("");
+
+  React.useEffect(() => {
+    setData(initialData);
+  }, [initialData]);
 
   // --- Form State ---
   const [newItem, setNewItem] = React.useState({
@@ -199,7 +216,55 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
     
     setIsPageDialogOpen(false);
     resetNewItem();
-};
+  };
+
+  const handleRename = async () => {
+      if (!renameTarget || !newTitle) {
+          toast({ title: "Error", description: "New title is required.", variant: "destructive" });
+          return;
+      }
+      let result;
+      switch (renameTarget.type) {
+          case 'binder': result = await renameBinder({ id: renameTarget.id, newTitle }); break;
+          case 'notebook': result = await renameNotebook({ id: renameTarget.id, newTitle }); break;
+          case 'page': result = await renamePage({ id: renameTarget.id, newTitle }); break;
+      }
+
+      if (result.success) {
+          toast({ title: "Success", description: `${renameTarget.type} renamed.` });
+          router.refresh();
+      } else {
+          toast({ title: "Error", description: result.message, variant: "destructive" });
+      }
+      setIsRenameDialogOpen(false);
+      setRenameTarget(null);
+      setNewTitle("");
+  };
+
+  const handleDelete = async (id: string, type: 'binder' | 'notebook' | 'page') => {
+      let result;
+      switch (type) {
+          case 'binder': result = await deleteBinder({ id }); break;
+          case 'notebook': result = await deleteNotebook({ id }); break;
+          case 'page': result = await deletePage({ id }); break;
+      }
+
+      if (result.success) {
+          toast({ title: "Success", description: `${type} deleted.` });
+          if (type === 'page' && params.pageId === id) {
+              router.push('/dashboard');
+          }
+          router.refresh();
+      } else {
+          toast({ title: "Error", description: result.message, variant: "destructive" });
+      }
+  };
+
+  const openRenameDialog = (id: string, title: string, type: 'binder' | 'notebook' | 'page') => {
+    setRenameTarget({ id, title, type });
+    setNewTitle(title);
+    setIsRenameDialogOpen(true);
+  };
 
   const filteredData = React.useMemo(() => {
     if (!searchQuery) {
@@ -223,6 +288,40 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
       return null;
     }).filter(Boolean) as Binder[];
   }, [searchQuery, data]);
+
+  const ItemMenu = ({ id, title, type }: { id: string, title: string, type: 'binder' | 'notebook' | 'page' }) => (
+    <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100" onClick={e => e.stopPropagation()}>
+                <MoreVertical className="h-4 w-4" />
+            </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent onClick={e => e.stopPropagation()}>
+            <DropdownMenuItem onClick={() => openRenameDialog(id, title, type)}>
+                <Edit className="mr-2 h-4 w-4" /> Rename
+            </DropdownMenuItem>
+            <AlertDialog>
+                <AlertDialogTrigger asChild>
+                    <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                        <Trash2 className="mr-2 h-4 w-4" /> Delete
+                    </DropdownMenuItem>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This action cannot be undone. This will permanently delete the {type} and all its contents.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => handleDelete(id, type)}>Continue</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        </DropdownMenuContent>
+    </DropdownMenu>
+  );
 
   return (
     <SidebarProvider>
@@ -276,31 +375,34 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
               {filteredData.map((binder: Binder) => (
                 <Collapsible key={binder.id} className="w-full" defaultOpen={false}>
                   <div className="flex items-center justify-between group">
-                      <SidebarMenuItem className="w-full">
+                      <SidebarMenuItem className="flex-1">
                           <CollapsibleTrigger asChild>
-                              <SidebarMenuButton className="font-semibold w-full" isActive={false}>
+                              <SidebarMenuButton className="font-semibold w-full pr-0" isActive={false}>
                                   <Icon name={binder.icon} />
-                                  <span>{binder.title}</span>
+                                  <span className="flex-1 truncate">{binder.title}</span>
                                   <ChevronDown className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]:rotate-180" />
                               </SidebarMenuButton>
                           </CollapsibleTrigger>
                       </SidebarMenuItem>
-                       <Dialog open={isNotebookDialogOpen} onOpenChange={setIsNotebookDialogOpen}>
-                          <DialogTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-6 w-6 mr-2 opacity-0 group-hover:opacity-100" onClick={(e) => { e.stopPropagation(); setActiveBinderId(binder.id); }}>
-                                  <PlusCircle className="h-4 w-4" />
-                              </Button>
-                          </DialogTrigger>
-                      </Dialog>
+                       <div className="flex items-center pr-2">
+                           <Dialog open={isNotebookDialogOpen} onOpenChange={setIsNotebookDialogOpen}>
+                              <DialogTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100" onClick={(e) => { e.stopPropagation(); setActiveBinderId(binder.id); }}>
+                                      <PlusCircle className="h-4 w-4" />
+                                  </Button>
+                              </DialogTrigger>
+                          </Dialog>
+                          <ItemMenu id={binder.id} title={binder.title} type="binder" />
+                       </div>
                   </div>
                   <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
                     <div className="pl-4">
                       {binder.notebooks.map((notebook: Notebook) => (
                         <Collapsible key={notebook.id} className="w-full" defaultOpen={false}>
                             <div className="flex items-center justify-between group">
-                                <SidebarMenuItem className="w-full">
+                                <SidebarMenuItem className="flex-1">
                                     <CollapsibleTrigger asChild>
-                                        <SidebarMenuButton isActive={false} className="w-full">
+                                        <SidebarMenuButton isActive={false} className="w-full pr-0">
                                             <div className="flex items-center gap-2 w-full">
                                                 <span className={cn("h-3 w-3 mt-1 rounded-full flex-shrink-0", notebook.color)}></span>
                                                 <div className="flex-1 flex items-center justify-between overflow-hidden">
@@ -314,26 +416,34 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
                                         </SidebarMenuButton>
                                     </CollapsibleTrigger>
                                 </SidebarMenuItem>
-                                 <Dialog open={isPageDialogOpen} onOpenChange={setIsPageDialogOpen}>
-                                    <DialogTrigger asChild>
-                                         <Button variant="ghost" size="icon" className="h-6 w-6 mr-2 opacity-0 group-hover:opacity-100" onClick={(e) => { e.stopPropagation(); setActiveBinderId(binder.id); setActiveNotebookId(notebook.id); }}>
-                                            <PlusCircle className="h-4 w-4" />
-                                        </Button>
-                                    </DialogTrigger>
-                                </Dialog>
+                                <div className="flex items-center pr-2">
+                                     <Dialog open={isPageDialogOpen} onOpenChange={setIsPageDialogOpen}>
+                                        <DialogTrigger asChild>
+                                             <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100" onClick={(e) => { e.stopPropagation(); setActiveBinderId(binder.id); setActiveNotebookId(notebook.id); }}>
+                                                <PlusCircle className="h-4 w-4" />
+                                            </Button>
+                                        </DialogTrigger>
+                                    </Dialog>
+                                    <ItemMenu id={notebook.id} title={notebook.title} type="notebook" />
+                                </div>
                             </div>
                           <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
                             <div className="pl-6">
                               {notebook.pages.map((page: Page) => (
                                 <SidebarMenuItem key={page.id}>
-                                  <Link href={`/dashboard/${binder.id}/${notebook.id}/${page.id}`}>
-                                    <SidebarMenuButton
-                                      isActive={params.pageId === page.id}
-                                    >
-                                      <Icon name={page.icon} />
-                                      <span>{page.title}</span>
-                                    </SidebarMenuButton>
-                                  </Link>
+                                   <div className="flex items-center group">
+                                      <Link href={`/dashboard/${binder.id}/${notebook.id}/${page.id}`} className="flex-1">
+                                        <SidebarMenuButton
+                                          isActive={params.pageId === page.id}
+                                        >
+                                          <Icon name={page.icon} />
+                                          <span className="truncate">{page.title}</span>
+                                        </SidebarMenuButton>
+                                      </Link>
+                                      <div className="pr-2">
+                                        <ItemMenu id={page.id} title={page.title} type="page" />
+                                      </div>
+                                  </div>
                                 </SidebarMenuItem>
                               ))}
                             </div>
@@ -470,6 +580,25 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
                 <DialogFooter>
                     <Button variant="outline" onClick={() => setIsPageDialogOpen(false)}>Cancel</Button>
                     <Button onClick={handleCreatePage}>Create Page</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+        
+        {/* Rename Dialog */}
+        <Dialog open={isRenameDialogOpen} onOpenChange={setIsRenameDialogOpen}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Rename {renameTarget?.type}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                    <div>
+                        <Label htmlFor="new-title">New Title</Label>
+                        <Input id="new-title" value={newTitle} onChange={e => setNewTitle(e.target.value)} />
+                    </div>
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsRenameDialogOpen(false)}>Cancel</Button>
+                    <Button onClick={handleRename}>Rename</Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>

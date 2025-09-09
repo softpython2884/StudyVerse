@@ -1,3 +1,4 @@
+
 export const DDL_STATEMENTS = [
   `
     CREATE TABLE IF NOT EXISTS users (

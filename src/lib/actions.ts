@@ -1,3 +1,4 @@
+
 'use server'
 
 import { z } from 'zod';
@@ -29,6 +30,41 @@ export async function createBinder(values: z.infer<typeof CreateBinderSchema>) {
         return { success: true, message: 'Binder created.' };
     } catch (error) {
         console.error("Failed to create binder:", error);
+        return { success: false, message: 'Database error.' };
+    }
+}
+
+const RenameBinderSchema = z.object({
+    id: z.string(),
+    newTitle: z.string().min(1, "Title is required."),
+});
+
+export async function renameBinder(values: z.infer<typeof RenameBinderSchema>) {
+    await protectedRoute();
+    const { id, newTitle } = values;
+    const db = await getDb();
+    try {
+        await db.run('UPDATE binders SET title = ? WHERE id = ?', newTitle, id);
+        revalidatePath('/dashboard');
+        return { success: true, message: 'Binder renamed.' };
+    } catch (error) {
+        console.error("Failed to rename binder:", error);
+        return { success: false, message: 'Database error.' };
+    }
+}
+
+const DeleteBinderSchema = z.object({ id: z.string() });
+
+export async function deleteBinder(values: z.infer<typeof DeleteBinderSchema>) {
+    await protectedRoute();
+    const { id } = values;
+    const db = await getDb();
+    try {
+        await db.run('DELETE FROM binders WHERE id = ?', id);
+        revalidatePath('/dashboard');
+        return { success: true, message: 'Binder deleted.' };
+    } catch (error) {
+        console.error("Failed to delete binder:", error);
         return { success: false, message: 'Database error.' };
     }
 }
@@ -68,6 +104,41 @@ export async function createNotebook(values: z.infer<typeof CreateNotebookSchema
     }
 }
 
+const RenameNotebookSchema = z.object({
+    id: z.string(),
+    newTitle: z.string().min(1, "Title is required."),
+});
+
+export async function renameNotebook(values: z.infer<typeof RenameNotebookSchema>) {
+    await protectedRoute();
+    const { id, newTitle } = values;
+    const db = await getDb();
+    try {
+        await db.run('UPDATE notebooks SET title = ? WHERE id = ?', newTitle, id);
+        revalidatePath('/dashboard');
+        return { success: true, message: 'Notebook renamed.' };
+    } catch (error) {
+        console.error("Failed to rename notebook:", error);
+        return { success: false, message: 'Database error.' };
+    }
+}
+
+const DeleteNotebookSchema = z.object({ id: z.string() });
+
+export async function deleteNotebook(values: z.infer<typeof DeleteNotebookSchema>) {
+    await protectedRoute();
+    const { id } = values;
+    const db = await getDb();
+    try {
+        await db.run('DELETE FROM notebooks WHERE id = ?', id);
+        revalidatePath('/dashboard');
+        return { success: true, message: 'Notebook deleted.' };
+    } catch (error) {
+        console.error("Failed to delete notebook:", error);
+        return { success: false, message: 'Database error.' };
+    }
+}
+
 
 // --- Page Actions ---
 const CreatePageSchema = z.object({
@@ -95,6 +166,41 @@ export async function createPage(values: z.infer<typeof CreatePageSchema>) {
         return { success: true, message: 'Page created.', pageId: id };
     } catch (error) {
         console.error("Failed to create page:", error);
+        return { success: false, message: 'Database error.' };
+    }
+}
+
+const RenamePageSchema = z.object({
+    id: z.string(),
+    newTitle: z.string().min(1, "Title is required."),
+});
+
+export async function renamePage(values: z.infer<typeof RenamePageSchema>) {
+    await protectedRoute();
+    const { id, newTitle } = values;
+    const db = await getDb();
+    try {
+        await db.run('UPDATE pages SET title = ? WHERE id = ?', newTitle, id);
+        revalidatePath('/dashboard');
+        return { success: true, message: 'Page renamed.' };
+    } catch (error) {
+        console.error("Failed to rename page:", error);
+        return { success: false, message: 'Database error.' };
+    }
+}
+
+const DeletePageSchema = z.object({ id: z.string() });
+
+export async function deletePage(values: z.infer<typeof DeletePageSchema>) {
+    await protectedRoute();
+    const { id } = values;
+    const db = await getDb();
+    try {
+        await db.run('DELETE FROM pages WHERE id = ?', id);
+        revalidatePath('/dashboard');
+        return { success: true, message: 'Page deleted.' };
+    } catch (error) {
+        console.error("Failed to delete page:", error);
         return { success: false, message: 'Database error.' };
     }
 }
