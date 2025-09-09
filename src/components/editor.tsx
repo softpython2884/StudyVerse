@@ -795,13 +795,15 @@ export function Editor({ page }: EditorProps) {
 
   // Set initial content
   React.useEffect(() => {
-    if (editorRef.current && page.content) {
-      editorRef.current.innerHTML = page.content;
-    } else if (editorRef.current) {
-      editorRef.current.innerHTML = "<p>&#8203;</p>";
+    if (editorRef.current) {
+        if (page.content) {
+            editorRef.current.innerHTML = page.content;
+        } else {
+            editorRef.current.innerHTML = "<p>&#8203;</p>";
+        }
+        updateToc();
+        updateActiveTocOnScroll(); // Initial check
     }
-    updateToc();
-    updateActiveTocOnScroll(); // Initial check
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page.id]);
 
@@ -1244,3 +1246,5 @@ export function Editor({ page }: EditorProps) {
     </div>
   );
 }
+
+    
