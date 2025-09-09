@@ -278,8 +278,13 @@ export function Editor({ page }: EditorProps) {
         setContextMenu({ x: 0, y: 0, visible: false });
       }
     };
+    
+    const onMouseUp = () => updateToolbarState();
+    const onKeyUp = () => updateToolbarState();
 
     document.addEventListener('selectionchange', onSelChange);
+    document.addEventListener('mouseup', onMouseUp);
+    document.addEventListener('keyup', onKeyUp);
     window.addEventListener('focus', onFocusWindow);
     document.addEventListener('visibilitychange', onVisibility);
     document.addEventListener('click', handleClickOutside);
@@ -287,13 +292,15 @@ export function Editor({ page }: EditorProps) {
 
     return () => {
       document.removeEventListener('selectionchange', onSelChange);
+      document.removeEventListener('mouseup', onMouseUp);
+      document.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('focus', onFocusWindow);
       document.removeEventListener('visibilitychange', onVisibility);
       document.removeEventListener('click', handleClickOutside);
       document.removeEventListener('paste', onPaste);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page.id]);
+  }, [page.id, updateToolbarState]);
 
   // MutationObserver: cleanup & toolbar update
   React.useEffect(() => {
@@ -497,12 +504,16 @@ export function Editor({ page }: EditorProps) {
       }
     }
 
-    if (event.ctrlKey && event.altKey) {
+    if (event.ctrlKey && event.shiftKey) {
       const keyNumber = parseInt(event.key, 10);
-      if (keyNumber >= 1 && keyNumber <= 6) {
+      if (keyNumber >= 0 && keyNumber <= 6) {
         event.preventDefault();
         restoreSelection();
-        document.execCommand('formatBlock', false, `h${keyNumber}`);
+        if (keyNumber === 0) {
+            handleFormat('formatBlock', 'p');
+        } else {
+            handleFormat('formatBlock', `h${keyNumber}`);
+        }
         setTimeout(updateToolbarState, 0);
         return;
       }
@@ -931,6 +942,7 @@ export function Editor({ page }: EditorProps) {
             ref={editorRef}
             contentEditable
             suppressContentEditableWarning
+            onInput={() => saveSelection()}
             onKeyDown={handleKeyDown}
             onKeyUp={handleKeyUp}
             onFocus={updateToolbarState}
@@ -1077,8 +1089,8 @@ export function Editor({ page }: EditorProps) {
             </ul>
             <h3 className="font-semibold">Headings</h3>
             <ul className="list-disc list-inside text-sm text-muted-foreground">
-              <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Alt+1</kbd> - Heading 1</li>
-              <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Alt+2</kbd> - Heading 2</li>
+              <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Shift+1</kbd> - Heading 1</li>
+              <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Shift+2</kbd> - Heading 2</li>
               <li>...and so on up to 6</li>
             </ul>
             <h3 className="font-semibold">Editing</h3>
