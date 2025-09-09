@@ -124,6 +124,11 @@ body {
     li {
       @apply my-1;
     }
+    
+    [contenteditable="true"] {
+      caret-color: hsl(var(--accent));
+      animation: none;
+    }
   }
 }
 
@@ -151,5 +156,6 @@ body {
     }
 }
     
+
 
 

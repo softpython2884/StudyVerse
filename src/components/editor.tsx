@@ -91,6 +91,8 @@ export function Editor({ page }: EditorProps) {
   const pasteInProgress = React.useRef(false);
   const [toc, setToc] = React.useState<TocItem[]>([]);
   const debounceTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+  const [activeTocId, setActiveTocId] = React.useState<string | null>(null);
+
 
   // --- SELECTION MARKER HELPERS ---
   const selectionMarkerId = React.useRef<string | null>(null);
@@ -266,9 +268,19 @@ export function Editor({ page }: EditorProps) {
       if (node && node instanceof HTMLElement && editorRef.current?.contains(node)) {
         const blockElement = node.closest('p, h1, h2, h3, h4, h5, h6, pre, blockquote, li');
         if (blockElement) {
-          setCurrentBlockStyle(blockElement.tagName.toLowerCase());
+            setCurrentBlockStyle(blockElement.tagName.toLowerCase());
+
+            // For active TOC item
+            const headingElement = node.closest('h1, h2, h3, h4, h5, h6');
+            if (headingElement) {
+                setActiveTocId(headingElement.id);
+            } else {
+                setActiveTocId(null);
+            }
+
         } else {
-          setCurrentBlockStyle('p');
+            setCurrentBlockStyle('p');
+            setActiveTocId(null);
         }
       }
     }
@@ -998,8 +1010,9 @@ export function Editor({ page }: EditorProps) {
                   key={item.id}
                   onClick={() => handleTocClick(item.id)}
                   className={cn(
-                    "cursor-pointer text-sm hover:text-primary truncate",
-                    `pl-${(item.level - 1) * 4}`
+                    "cursor-pointer text-sm hover:text-accent truncate",
+                    `pl-${(item.level - 1) * 4}`,
+                     activeTocId === item.id ? 'text-accent font-semibold' : 'text-muted-foreground'
                   )}
                 >
                   {item.text}
