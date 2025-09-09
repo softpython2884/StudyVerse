@@ -112,7 +112,7 @@ export function Editor({ page }: EditorProps) {
     if (!editorRef.current || typeof window === 'undefined') return;
     try {
       const sel = window.getSelection();
-      if (!sel || sel.rangeCount === 0) return;
+      if (!sel || sel.rangeCount === 0 || !editorRef.current.contains(sel.anchorNode)) return;
       const range = sel.getRangeAt(0).cloneRange();
 
       // cleanup previous markers
@@ -163,19 +163,38 @@ export function Editor({ page }: EditorProps) {
   const restoreSelection = () => {
     if (!editorRef.current || typeof window === 'undefined') return;
     const id = selectionMarkerId.current;
+    
+    // Fallback logic
+    const setCursorAtEnd = () => {
+        const sel = window.getSelection();
+        const lastElement = editorRef.current?.lastElementChild;
+        if (sel && lastElement) {
+            const range = document.createRange();
+            range.selectNodeContents(lastElement);
+            range.collapse(false); // false to collapse to the end
+            sel.removeAllRanges();
+            sel.addRange(range);
+        }
+    };
+    
     if (!id) {
       if (savedSelection.current) {
         const sel = window.getSelection();
         sel?.removeAllRanges();
         sel?.addRange(savedSelection.current);
         savedSelection.current = null;
+      } else {
+        setCursorAtEnd();
       }
       return;
     }
 
     const startMarker = editorRef.current.querySelector(`[data-sel-start="${id}"]`);
     const endMarker = editorRef.current.querySelector(`[data-sel-end="${id}"]`);
-    if (!startMarker || !endMarker) return;
+    if (!startMarker || !endMarker) {
+        setCursorAtEnd();
+        return;
+    }
 
     const sel = window.getSelection();
     const range = document.createRange();
@@ -190,6 +209,7 @@ export function Editor({ page }: EditorProps) {
       endMarker.remove();
     } catch(e) {
         console.error("Failed to restore selection", e)
+        setCursorAtEnd();
     }
     selectionMarkerId.current = null;
     savedSelection.current = null;
@@ -794,6 +814,11 @@ export function Editor({ page }: EditorProps) {
     if (contextMenu.visible) setContextMenu({ x: 0, y: 0, visible: false });
   };
 
+  const handleFocus = () => {
+    restoreSelection();
+    updateToolbarState();
+  };
+
   // Set initial content
   React.useEffect(() => {
     if (editorRef.current) {
@@ -1056,7 +1081,7 @@ export function Editor({ page }: EditorProps) {
             suppressContentEditableWarning
             onKeyDown={handleKeyDown}
             onKeyUp={handleKeyUp}
-            onFocus={updateToolbarState}
+            onFocus={handleFocus}
             onBlur={saveSelection}
             onClick={handleEditorClick}
             onContextMenu={handleContextMenu}
