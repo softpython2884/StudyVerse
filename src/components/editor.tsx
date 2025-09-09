@@ -237,11 +237,6 @@ export function Editor({ page }: EditorProps) {
 
   // init + listeners
   React.useEffect(() => {
-    if (editorRef.current) {
-        editorRef.current.innerHTML = page.content || "<p>&#8203;</p>";
-    }
-    try { document.execCommand("defaultParagraphSeparator", false, "p"); } catch {}
-
     const onSelChange = () => updateToolbarState();
     const onMouseUp = () => updateToolbarState();
     const onKeyUp = () => updateToolbarState();
@@ -256,7 +251,7 @@ export function Editor({ page }: EditorProps) {
       document.removeEventListener('keyup', onKeyUp);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page.id]);
+  }, [page.id, updateToolbarState]);
 
   const handleFormat = (command: string, value?: string) => {
     if (command === 'formatBlock' && (value === 'blockquote' || value === 'pre')) {
@@ -341,45 +336,63 @@ export function Editor({ page }: EditorProps) {
 
   // KeyDown handles shortcuts + Enter special behavior + checklist/tab navigation + headings via Ctrl+Shift+N
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    // Enter inside a checklist -> create new checklist li with checkbox
+    // Enter key logic
     if (event.key === 'Enter') {
       const sel = window.getSelection();
-      if (sel && sel.rangeCount > 0) {
-        const node = sel.getRangeAt(0).startContainer;
-        const li = (node.nodeType === Node.TEXT_NODE ? node.parentElement?.closest('li') : (node as HTMLElement).closest?.('li'));
-        if (li && li.closest && li.closest('ul[data-type="checklist"]')) {
-          event.preventDefault();
-          const newItem = '<li><label contenteditable="false" class="check-label"><input type="checkbox" /><span contenteditable="true">&#8203;</span></label></li>';
-          const r = sel.getRangeAt(0);
-          r.collapse(false);
-          sel.removeAllRanges();
-          sel.addRange(r);
-          document.execCommand('insertHTML', false, newItem);
-          setTimeout(() => {
-            const nextLi = li.nextElementSibling as HTMLElement | null;
-            if (nextLi) {
-              const span = nextLi.querySelector('[contenteditable="true"]') as HTMLElement | null;
-              if (span) {
-                const rng = document.createRange();
-                const s = window.getSelection();
-                rng.selectNodeContents(span);
-                rng.collapse(true);
-                s?.removeAllRanges();
-                s?.addRange(rng);
-              }
-            }
-            updateToolbarState();
-          }, 0);
-          return;
-        }
+      if (!sel || !sel.rangeCount) return;
 
-        // Exit from blockquote or code block if it's empty
-        const block = (node.nodeType === Node.TEXT_NODE ? node.parentElement?.closest('blockquote, pre') : (node as HTMLElement).closest?.('blockquote, pre'));
-        if (block && block.textContent?.trim() === '') {
-            event.preventDefault();
-            handleFormat('formatBlock', 'p');
-            return;
-        }
+      const range = sel.getRangeAt(0);
+      const node = range.startContainer;
+      
+      // Case 1: In a checklist
+      const li = (node.nodeType === Node.TEXT_NODE ? node.parentElement?.closest('li') : (node as HTMLElement).closest?.('li'));
+      if (li && li.closest('ul[data-type="checklist"]')) {
+        event.preventDefault();
+        const newItem = '<li><label contenteditable="false" class="check-label"><input type="checkbox" /><span contenteditable="true">&#8203;</span></label></li>';
+        const r = sel.getRangeAt(0);
+        r.collapse(false);
+        sel.removeAllRanges();
+        sel.addRange(r);
+        document.execCommand('insertHTML', false, newItem);
+        setTimeout(() => {
+          const nextLi = li.nextElementSibling as HTMLElement | null;
+          if (nextLi) {
+            const span = nextLi.querySelector('[contenteditable="true"]') as HTMLElement | null;
+            if (span) {
+              const rng = document.createRange();
+              const s = window.getSelection();
+              rng.selectNodeContents(span);
+              rng.collapse(true);
+              s?.removeAllRanges();
+              s?.addRange(rng);
+            }
+          }
+          updateToolbarState();
+        }, 0);
+        return;
+      }
+      
+      // Case 2: In a heading
+      const heading = (node.nodeType === Node.TEXT_NODE ? node.parentElement?.closest('h1, h2, h3, h4, h5, h6') : (node as HTMLElement).closest?.('h1, h2, h3, h4, h5, h6'));
+      if (heading) {
+        event.preventDefault();
+        const p = document.createElement('p');
+        p.innerHTML = '&#8203;'; // Zero-width space for caret
+        heading.after(p);
+        const newRange = document.createRange();
+        newRange.setStart(p, 0);
+        newRange.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(newRange);
+        return;
+      }
+
+      // Case 3: Exit from blockquote or code block if it's empty
+      const block = (node.nodeType === Node.TEXT_NODE ? node.parentElement?.closest('blockquote, pre') : (node as HTMLElement).closest?.('blockquote, pre'));
+      if (block && block.textContent?.trim() === '') {
+          event.preventDefault();
+          handleFormat('formatBlock', 'p');
+          return;
       }
     }
 
@@ -666,6 +679,14 @@ export function Editor({ page }: EditorProps) {
     if (contextMenu.visible) setContextMenu({ x: 0, y: 0, visible: false });
   };
 
+  // Set initial content
+  React.useEffect(() => {
+    if (editorRef.current && page.content !== editorRef.current.innerHTML) {
+      editorRef.current.innerHTML = page.content || "<p>&#8203;</p>";
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page.id, page.content]);
+
   if (!page) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -732,8 +753,8 @@ export function Editor({ page }: EditorProps) {
               <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => handleFormat("insertUnorderedList")}> <List className="h-4 w-4" /> </Button>
               <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => handleFormat("insertOrderedList")}> <ListOrdered className="h-4 w-4" /> </Button>
               <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={handleInsertChecklist}> <ListChecks className="h-4 w-4" /> </Button>
-              <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => handleFormat("formatBlock", "blockquote")}> <Quote className="h-4 w-4" /> </Button>
-              <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => handleFormat("formatBlock", "pre")}> <Code className="h-4 w-4" /> </Button>
+              <Button variant={currentBlockStyle === 'blockquote' ? "secondary" : "ghost"} size="icon" onMouseDown={onToolbarMouseDown} onClick={() => handleFormat("formatBlock", "blockquote")}> <Quote className="h-4 w-4" /> </Button>
+              <Button variant={currentBlockStyle === 'pre' ? "secondary" : "ghost"} size="icon" onMouseDown={onToolbarMouseDown} onClick={() => handleFormat("formatBlock", "pre")}> <Code className="h-4 w-4" /> </Button>
               <Popover open={isTablePopoverOpen} onOpenChange={(isOpen) => { if(!isOpen) setTableGridSize({rows: 0, cols: 0}); setIsTablePopoverOpen(isOpen)}}>
                 <PopoverTrigger asChild>
                   <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown}><Table className="h-4 w-4" /></Button>
@@ -880,6 +901,7 @@ export function Editor({ page }: EditorProps) {
 
           <div
             ref={editorRef}
+            key={page.id}
             contentEditable
             suppressContentEditableWarning
             onKeyDown={handleKeyDown}
@@ -1046,3 +1068,5 @@ export function Editor({ page }: EditorProps) {
     </div>
   );
 }
+
+    

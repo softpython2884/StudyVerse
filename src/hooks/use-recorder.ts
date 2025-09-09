@@ -49,23 +49,20 @@ export const useRecorder = ({ onTranscript }: UseRecorderProps) => {
     }
 
     const recognition = new SpeechRecognition();
-    recognition.continuous = true; // Keep listening
-    recognition.interimResults = true; // Get results as they come in
-    recognition.lang = 'en-US'; // Set language
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
       let final_transcript = '';
-      let interim_transcript = '';
-
       for (let i = event.resultIndex; i < event.results.length; ++i) {
         if (event.results[i].isFinal) {
           final_transcript += event.results[i][0].transcript;
-        } else {
-          interim_transcript += event.results[i][0].transcript;
         }
       }
-      // For this implementation, we only care about the final transcript when the recording stops.
-      // If you want real-time updates, you would call a different handler here for interim results.
+      if (final_transcript) {
+          handleTranscript(final_transcript.trim() + ' ');
+      }
     };
 
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
@@ -74,21 +71,7 @@ export const useRecorder = ({ onTranscript }: UseRecorderProps) => {
     };
 
     recognition.onend = () => {
-      if (recognitionRef.current) {
-        let final_transcript = '';
-        // In some browsers, the last result is available on 'end'
-        // This is a simplified approach; a more robust solution would aggregate results
-        // For now, we'll rely on the onresult handler to build the final string.
-        // We'll call the passed onTranscript function here.
-        // A more complex implementation could store the full result list.
-        
-        // This is a simplification. To get the full text, you need to aggregate it in onresult.
-        // Let's assume the final result is what we need.
-        // Let's get the final transcript from the last result.
-        // This is not robust, a better implementation is needed.
-        // For now, we'll just pass a placeholder.
-      }
-       if (isRecording) { // If it ends unexpectedly, update state
+       if (isRecording) {
            setIsRecording(false);
        }
     };
@@ -96,9 +79,12 @@ export const useRecorder = ({ onTranscript }: UseRecorderProps) => {
     recognitionRef.current = recognition;
 
     return () => {
-      recognition.stop();
+      if(recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
     };
-  }, [isRecording]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [handleTranscript]);
   
   const startRecording = () => {
     if (recognitionRef.current && !isRecording) {
@@ -109,17 +95,6 @@ export const useRecorder = ({ onTranscript }: UseRecorderProps) => {
 
   const stopRecording = () => {
     if (recognitionRef.current && isRecording) {
-        recognitionRef.current.onresult = (event: SpeechRecognitionEvent) => {
-            let final_transcript = '';
-            for (let i = event.resultIndex; i < event.results.length; ++i) {
-                 if (event.results[i].isFinal) {
-                    final_transcript += event.results[i][0].transcript;
-                 }
-            }
-            if(final_transcript) {
-                handleTranscript(final_transcript);
-            }
-        };
       recognitionRef.current.stop();
       setIsRecording(false);
     }
@@ -128,3 +103,4 @@ export const useRecorder = ({ onTranscript }: UseRecorderProps) => {
   return { isRecording, startRecording, stopRecording };
 };
 
+    
