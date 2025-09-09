@@ -78,11 +78,19 @@ type ActiveStyles = {
   [key: string]: boolean;
 };
 
+type TocItem = {
+  id: string;
+  level: number;
+  text: string;
+};
+
 export function Editor({ page }: EditorProps) {
   const [isSaving, setIsSaving] = React.useState(false);
   const editorRef = React.useRef<HTMLDivElement>(null);
   const [currentBlockStyle, setCurrentBlockStyle] = React.useState("p");
   const pasteInProgress = React.useRef(false);
+  const [toc, setToc] = React.useState<TocItem[]>([]);
+  const debounceTimerRef = React.useRef<NodeJS.Timeout | null>(null);
 
   // --- SELECTION MARKER HELPERS ---
   const selectionMarkerId = React.useRef<string | null>(null);
@@ -90,7 +98,7 @@ export function Editor({ page }: EditorProps) {
   const makeMarkerId = () => `sel_marker_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
 
   const saveSelection = () => {
-    if (!editorRef.current) return;
+    if (!editorRef.current || typeof window === 'undefined') return;
     try {
       const sel = window.getSelection();
       if (!sel || sel.rangeCount === 0) return;
@@ -142,7 +150,7 @@ export function Editor({ page }: EditorProps) {
   };
 
   const restoreSelection = () => {
-    if (!editorRef.current) return;
+    if (!editorRef.current || typeof window === 'undefined') return;
     const id = selectionMarkerId.current;
     if (!id) {
       if (savedSelection.current) {
@@ -160,14 +168,18 @@ export function Editor({ page }: EditorProps) {
 
     const sel = window.getSelection();
     const range = document.createRange();
-    range.setStartAfter(startMarker);
-    range.setEndBefore(endMarker);
+    try {
+      range.setStartAfter(startMarker);
+      range.setEndBefore(endMarker);
 
-    sel?.removeAllRanges();
-    sel?.addRange(range);
+      sel?.removeAllRanges();
+      sel?.addRange(range);
 
-    startMarker.remove();
-    endMarker.remove();
+      startMarker.remove();
+      endMarker.remove();
+    } catch(e) {
+        console.error("Failed to restore selection", e)
+    }
     selectionMarkerId.current = null;
     savedSelection.current = null;
   };
@@ -204,6 +216,33 @@ export function Editor({ page }: EditorProps) {
   });
 
   const { toast } = useToast();
+
+  const updateToc = React.useCallback(() => {
+    if (!editorRef.current) return;
+    const headings = editorRef.current.querySelectorAll('h1, h2, h3, h4, h5, h6');
+    const newToc: TocItem[] = [];
+    headings.forEach((heading, index) => {
+      const id = heading.id || `toc-heading-${index}`;
+      if (!heading.id) {
+        heading.id = id;
+      }
+      newToc.push({
+        id: id,
+        level: parseInt(heading.tagName.substring(1), 10),
+        text: heading.textContent || '',
+      });
+    });
+    setToc(newToc);
+  }, []);
+
+  const debouncedUpdateToc = React.useCallback(() => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    debounceTimerRef.current = setTimeout(() => {
+      updateToc();
+    }, 300); // 300ms debounce delay
+  }, [updateToc]);
 
   const updateToolbarState = React.useCallback(() => {
     if (typeof window === 'undefined' || !document.queryCommandState) return;
@@ -243,14 +282,13 @@ export function Editor({ page }: EditorProps) {
 
     document.addEventListener('selectionchange', onSelChange);
     document.addEventListener('mouseup', onMouseUp);
-    document.addEventListener('keyup', onKeyUp);
+    editorRef.current?.addEventListener('keyup', onKeyUp);
    
     return () => {
       document.removeEventListener('selectionchange', onSelChange);
       document.removeEventListener('mouseup', onMouseUp);
-      document.removeEventListener('keyup', onKeyUp);
+      editorRef.current?.removeEventListener('keyup', onKeyUp);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page.id, updateToolbarState]);
 
   const handleFormat = (command: string, value?: string) => {
@@ -270,6 +308,7 @@ export function Editor({ page }: EditorProps) {
         // ignore execCommand errors
       }
       setTimeout(updateToolbarState, 0);
+      setTimeout(debouncedUpdateToc, 50);
     }, 0);
   };
 
@@ -300,24 +339,21 @@ export function Editor({ page }: EditorProps) {
         event.preventDefault();
         const level = headingMatch[1].length;
 
-        const firstTextNode = (function findFirstTextNode(node: Node | null): Node | null {
-          if (!node) return null;
+        // More robust way to remove the markdown prefix
+        const textNode = (function findFirstTextNode(node: Node): Node | null {
           if (node.nodeType === Node.TEXT_NODE) return node;
           for (let i = 0; i < node.childNodes.length; i++) {
-            const res = findFirstTextNode(node.childNodes[i]);
-            if (res) return res;
+              const result = findFirstTextNode(node.childNodes[i]);
+              if (result) return result;
           }
           return null;
         })(block);
-
-        if (firstTextNode && firstTextNode.nodeType === Node.TEXT_NODE) {
-          const txt = firstTextNode.textContent || "";
-          const removeLen = prefixText.length;
-          firstTextNode.textContent = txt.substring(removeLen);
-        } else {
-          block.innerText = block.innerText.replace(/^\s*(#{1,6})\s/, "");
-        }
         
+        if (textNode && textNode.textContent) {
+            const matchLength = headingMatch[0].length;
+            textNode.textContent = textNode.textContent.slice(matchLength);
+        }
+
         setTimeout(() => {
           handleFormat('formatBlock', `h${level}`);
           // Move cursor to the end of the newly formatted heading
@@ -332,6 +368,7 @@ export function Editor({ page }: EditorProps) {
       }
     }
     updateToolbarState();
+    debouncedUpdateToc();
   };
 
   // KeyDown handles shortcuts + Enter special behavior + checklist/tab navigation + headings via Ctrl+Shift+N
@@ -347,6 +384,12 @@ export function Editor({ page }: EditorProps) {
       // Case 1: In a checklist
       const li = (node.nodeType === Node.TEXT_NODE ? node.parentElement?.closest('li') : (node as HTMLElement).closest?.('li'));
       if (li && li.closest('ul[data-type="checklist"]')) {
+          if (li.textContent?.trim() === '') {
+             event.preventDefault();
+             document.execCommand('outdent');
+             handleFormat('formatBlock', 'p');
+             return;
+          }
         event.preventDefault();
         const newItem = '<li><label contenteditable="false" class="check-label"><input type="checkbox" /><span contenteditable="true">&#8203;</span></label></li>';
         const r = sel.getRangeAt(0);
@@ -374,7 +417,7 @@ export function Editor({ page }: EditorProps) {
       
       // Case 2: In a heading
       const heading = (node.nodeType === Node.TEXT_NODE ? node.parentElement?.closest('h1, h2, h3, h4, h5, h6') : (node as HTMLElement).closest?.('h1, h2, h3, h4, h5, h6'));
-      if (heading) {
+      if (heading && !event.shiftKey) {
         event.preventDefault();
         const p = document.createElement('p');
         p.innerHTML = '&#8203;'; // Zero-width space for caret
@@ -442,11 +485,11 @@ export function Editor({ page }: EditorProps) {
 
     if (event.ctrlKey && !event.altKey) {
       const key = event.key.toLowerCase();
-      if (['g', 'i', 'u', 'z', 'y'].includes(key)) {
+      if (['b', 'i', 'u', 'z', 'y'].includes(key)) {
         event.preventDefault();
         restoreSelection();
         switch (key) {
-          case 'g': document.execCommand('bold'); break;
+          case 'b': document.execCommand('bold'); break;
           case 'i': document.execCommand('italic'); break;
           case 'u': document.execCommand('underline'); break;
           case 'z': document.execCommand('undo'); break;
@@ -486,7 +529,7 @@ export function Editor({ page }: EditorProps) {
             block.innerHTML = '';
             handleFormat('insertHorizontalRule');
             document.execCommand('insertHTML', false, '<p>&#8203;</p>');
-            setTimeout(() => updateToolbarState(), 0);
+            setTimeout(updateToolbarState, 0);
             return;
           }
         }
@@ -513,7 +556,15 @@ export function Editor({ page }: EditorProps) {
     if (!editorRef.current) return;
     e.preventDefault();
     saveSelection();
-    setContextMenu({ x: e.clientX, y: e.clientY, visible: true });
+    const menuWidth = 180;
+    const menuHeight = 250;
+    let posX = e.clientX;
+    let posY = e.clientY;
+
+    if (posX + menuWidth > window.innerWidth) posX = window.innerWidth - menuWidth - 10;
+    if (posY + menuHeight > window.innerHeight) posY = window.innerHeight - menuHeight - 10;
+    
+    setContextMenu({ x: posX, y: posY, visible: true });
   };
 
   const handleApplyLink = () => {
@@ -675,6 +726,17 @@ export function Editor({ page }: EditorProps) {
       setTimeout(updateToolbarState, 0);
       return;
     }
+    if (target.closest('td')) {
+        const p = target.closest('td')?.querySelector('p');
+        if (p) {
+            const range = document.createRange();
+            const sel = window.getSelection();
+            range.selectNodeContents(p);
+            range.collapse(true);
+            sel?.removeAllRanges();
+            sel?.addRange(range);
+        }
+    }
 
     if (contextMenu.visible) setContextMenu({ x: 0, y: 0, visible: false });
   };
@@ -683,6 +745,7 @@ export function Editor({ page }: EditorProps) {
   React.useEffect(() => {
     if (editorRef.current && page.content !== editorRef.current.innerHTML) {
       editorRef.current.innerHTML = page.content || "<p>&#8203;</p>";
+      updateToc();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page.id, page.content]);
@@ -695,10 +758,17 @@ export function Editor({ page }: EditorProps) {
     );
   }
 
+  const handleTocClick = (id: string) => {
+    const element = editorRef.current?.querySelector(`#${id}`);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
   return (
-    <div className="flex flex-col h-full bg-background p-1 sm:p-2 lg:p-4">
+    <div className="flex flex-row h-full bg-background p-1 sm:p-2 lg:p-4 gap-4">
       <Card className="w-full flex-1 flex flex-col overflow-hidden">
-        <CardHeader className="p-2 print-hidden">
+        <CardHeader className="p-2 print-hidden sticky top-0 bg-background z-10">
           <div className="flex items-center justify-between p-2 mb-2 border-b rounded-t-md bg-secondary/50 flex-wrap">
             <div className="flex items-center gap-1 flex-wrap">
               <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => handleFormat("undo")}> <Undo className="h-4 w-4" /> </Button>
@@ -915,6 +985,32 @@ export function Editor({ page }: EditorProps) {
           />
         </CardContent>
       </Card>
+      
+      <Card className="w-64 h-full hidden lg:flex flex-col print-hidden">
+        <CardHeader>
+          <h3 className="font-semibold font-headline">Table of Contents</h3>
+        </CardHeader>
+        <CardContent className="flex-1 overflow-y-auto">
+          {toc.length > 0 ? (
+            <ul className="space-y-2">
+              {toc.map((item) => (
+                <li
+                  key={item.id}
+                  onClick={() => handleTocClick(item.id)}
+                  className={cn(
+                    "cursor-pointer text-sm hover:text-primary truncate",
+                    `pl-${(item.level - 1) * 4}`
+                  )}
+                >
+                  {item.text}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-muted-foreground">Add headings (e.g., # Title) to create a table of contents.</p>
+          )}
+        </CardContent>
+      </Card>
 
       {contextMenu.visible && (
         <div
@@ -1044,7 +1140,7 @@ export function Editor({ page }: EditorProps) {
           <div className="space-y-2">
             <h3 className="font-semibold">Text Formatting</h3>
             <ul className="list-disc list-inside text-sm text-muted-foreground">
-              <li><kbd className="p-1 bg-muted rounded-md">Ctrl+G</kbd> - Bold</li>
+              <li><kbd className="p-1 bg-muted rounded-md">Ctrl+B</kbd> - Bold</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+I</kbd> - Italic</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+U</kbd> - Underline</li>
             </ul>
@@ -1068,5 +1164,3 @@ export function Editor({ page }: EditorProps) {
     </div>
   );
 }
-
-    
