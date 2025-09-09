@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import * as React from "react";
@@ -231,8 +232,8 @@ export function Editor({ page }: EditorProps) {
     if (!editorRef.current) return;
     const headings = editorRef.current.querySelectorAll('h1, h2, h3, h4, h5, h6');
     const newToc: TocItem[] = [];
-    headings.forEach((heading, index) => {
-      const id = heading.id || `toc-heading-${index}`;
+    headings.forEach(heading => {
+      const id = heading.id || `toc-heading-${Date.now()}-${Math.random()}`;
       if (!heading.id) {
         heading.id = id;
       }
