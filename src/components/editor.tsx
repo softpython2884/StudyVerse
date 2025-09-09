@@ -238,85 +238,25 @@ export function Editor({ page }: EditorProps) {
   // init + listeners
   React.useEffect(() => {
     if (editorRef.current) {
-      editorRef.current.innerHTML = page.content || "<p>&#8203;</p>";
+        editorRef.current.innerHTML = page.content || "<p>&#8203;</p>";
     }
-    // ensure paragraph default
     try { document.execCommand("defaultParagraphSeparator", false, "p"); } catch {}
 
     const onSelChange = () => updateToolbarState();
-    const onFocusWindow = () => updateToolbarState();
-    const onVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        // cleanup leftover markers if any (they can cause invisible caret)
-        if (selectionMarkerId.current && editorRef.current) {
-          const s = editorRef.current.querySelector(`[data-sel-start="${selectionMarkerId.current}"]`);
-          const e = editorRef.current.querySelector(`[data-sel-end="${selectionMarkerId.current}"]`);
-          s?.remove(); e?.remove(); selectionMarkerId.current = null;
-        }
-        updateToolbarState();
-      }
-    };
-     const onPaste = (ev: ClipboardEvent) => {
-      if (!editorRef.current || pasteInProgress.current) return;
-      pasteInProgress.current = true;
-      setTimeout(() => { 
-        if (!editorRef.current) { pasteInProgress.current = false; return; }
-        const elements = editorRef.current.querySelectorAll('[style],[onpaste],[oncopy],[onsubmit]');
-        elements.forEach(el => el.removeAttribute('style'));
-        Array.from(editorRef.current.querySelectorAll('*')).forEach(node => {
-          Array.from((node as HTMLElement).attributes || []).forEach(attr => {
-            if (/^on/i.test(attr.name)) (node as HTMLElement).removeAttribute(attr.name);
-          });
-        });
-        pasteInProgress.current = false;
-        updateToolbarState();
-      }, 50);
-    };
-
-    const handleClickOutside = (event: MouseEvent) => {
-      if (contextMenu.visible) {
-        setContextMenu({ x: 0, y: 0, visible: false });
-      }
-    };
-    
     const onMouseUp = () => updateToolbarState();
     const onKeyUp = () => updateToolbarState();
 
     document.addEventListener('selectionchange', onSelChange);
     document.addEventListener('mouseup', onMouseUp);
     document.addEventListener('keyup', onKeyUp);
-    window.addEventListener('focus', onFocusWindow);
-    document.addEventListener('visibilitychange', onVisibility);
-    document.addEventListener('click', handleClickOutside);
-    document.addEventListener('paste', onPaste);
-
+   
     return () => {
       document.removeEventListener('selectionchange', onSelChange);
       document.removeEventListener('mouseup', onMouseUp);
       document.removeEventListener('keyup', onKeyUp);
-      window.removeEventListener('focus', onFocusWindow);
-      document.removeEventListener('visibilitychange', onVisibility);
-      document.removeEventListener('click', handleClickOutside);
-      document.removeEventListener('paste', onPaste);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page.id, updateToolbarState]);
-
-  // MutationObserver: cleanup & toolbar update
-  React.useEffect(() => {
-    if (!editorRef.current) return;
-    const mo = new MutationObserver(() => {
-      // cleanup orphan markers
-      if (selectionMarkerId.current) {
-        const s = editorRef.current!.querySelector(`[data-sel-start="${selectionMarkerId.current}"]`);
-        const e = editorRef.current!.querySelector(`[data-sel-end="${selectionMarkerId.current}"]`);
-        if (!s || !e) selectionMarkerId.current = null;
-      }
-      updateToolbarState();
-    });
-    mo.observe(editorRef.current, { childList: true, subtree: true, characterData: true });
-    return () => mo.disconnect();
-  }, [updateToolbarState]);
+  }, [page.id]);
 
   const handleFormat = (command: string, value?: string) => {
     if (command === 'formatBlock' && (value === 'blockquote' || value === 'pre')) {
@@ -399,7 +339,7 @@ export function Editor({ page }: EditorProps) {
     updateToolbarState();
   };
 
-  // KeyDown handles shortcuts + Enter special behavior + checklist/tab navigation + headings via Ctrl+Alt+N
+  // KeyDown handles shortcuts + Enter special behavior + checklist/tab navigation + headings via Ctrl+Shift+N
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     // Enter inside a checklist -> create new checklist li with checkbox
     if (event.key === 'Enter') {
@@ -942,7 +882,6 @@ export function Editor({ page }: EditorProps) {
             ref={editorRef}
             contentEditable
             suppressContentEditableWarning
-            onInput={() => saveSelection()}
             onKeyDown={handleKeyDown}
             onKeyUp={handleKeyUp}
             onFocus={updateToolbarState}
