@@ -1247,5 +1247,3 @@ export function Editor({ page }: EditorProps) {
     </div>
   );
 }
-
-    
