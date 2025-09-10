@@ -522,9 +522,18 @@ export function Editor({ page }: EditorProps) {
       }
     }
     
-    if (event.ctrlKey && event.key === '-') {
+    if (event.ctrlKey && (event.key === '-' || event.key === '_')) {
         event.preventDefault();
         document.execCommand('insertHTML', false, '<hr><p>&#8203;</p>');
+        const newRange = document.createRange();
+        const p = editorRef.current?.lastElementChild;
+        if (p) {
+            newRange.setStart(p, 0);
+            newRange.collapse(true);
+            const sel = window.getSelection();
+            sel?.removeAllRanges();
+            sel?.addRange(newRange);
+        }
         updateToolbarState();
         return;
     }
@@ -815,7 +824,6 @@ export function Editor({ page }: EditorProps) {
   };
 
   const handleFocus = () => {
-    restoreSelection();
     updateToolbarState();
   };
 
