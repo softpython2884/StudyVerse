@@ -1,5 +1,4 @@
 
-
       "use client";
 
 import * as React from "react";
@@ -87,6 +86,7 @@ type ActiveStyles = {
   strikethrough: boolean;
   superscript: boolean;
   subscript: boolean;
+  code: boolean;
   [key: string]: boolean;
 };
 
@@ -173,6 +173,7 @@ export function Editor({ page }: EditorProps) {
     strikethrough: false,
     superscript: false,
     subscript: false,
+    code: false,
   });
 
   const { toast } = useToast();
@@ -234,19 +235,33 @@ export function Editor({ page }: EditorProps) {
 
 
   const updateToolbarState = React.useCallback(() => {
-    if (typeof window === 'undefined' || !document.queryCommandState) return;
+    if (typeof window === 'undefined') return;
 
-    const newActiveStyles: ActiveStyles = {
-      bold: document.queryCommandState('bold'),
-      italic: document.queryCommandState('italic'),
-      underline: document.queryCommandState('underline'),
-      strikethrough: document.queryCommandState('strikeThrough'),
-      superscript: document.queryCommandState('superscript'),
-      subscript: document.queryCommandState('subscript'),
+    const queryCommandState = (command: string) => document.queryCommandState(command);
+
+    const isNodeIn = (node: Node | null, tagName: string): boolean => {
+        if (!node || !editorRef.current?.contains(node)) return false;
+        if (node.nodeName.toLowerCase() === tagName.toLowerCase()) return true;
+        return isNodeIn(node.parentNode, tagName);
     };
-    setActiveStyles(newActiveStyles);
 
     const selection = window.getSelection();
+    let isCode = false;
+    if (selection && selection.rangeCount > 0) {
+        isCode = isNodeIn(selection.getRangeAt(0).commonAncestorContainer, 'code');
+    }
+
+    const newActiveStyles: ActiveStyles = {
+      bold: queryCommandState('bold'),
+      italic: queryCommandState('italic'),
+      underline: queryCommandState('underline'),
+      strikethrough: queryCommandState('strikeThrough'),
+      superscript: queryCommandState('superscript'),
+      subscript: queryCommandState('subscript'),
+      code: isCode,
+    };
+    setActiveStyles(newActiveStyles);
+    
     if (selection && selection.rangeCount > 0) {
       let node = selection.getRangeAt(0).startContainer;
 
@@ -258,7 +273,7 @@ export function Editor({ page }: EditorProps) {
         const blockElement = node.closest('p, h1, h2, h3, h4, h5, h6, pre, blockquote, li');
         if (blockElement) {
             let blockTag = blockElement.tagName.toLowerCase();
-            if (blockTag === 'li' && blockElement.closest('ul[data-type="checklist"]')) {
+             if (blockTag === 'li' && blockElement.closest('ul[data-type="checklist"]')) {
               blockTag = 'checklist';
             } else if (blockTag === 'li') {
               const list = blockElement.closest('ul, ol');
@@ -309,39 +324,45 @@ export function Editor({ page }: EditorProps) {
     editorRef.current?.focus();
     restoreSelection();
   
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return;
+    const range = selection.getRangeAt(0);
+    let node = range.startContainer;
+    if (node.nodeType === Node.TEXT_NODE) node = node.parentNode!;
+    const element = node as HTMLElement;
+    
     if (command === 'formatBlock' && (value === 'blockquote' || value === 'pre')) {
-      const selection = window.getSelection();
-      if (!selection || selection.rangeCount === 0) return;
-  
-      let node = selection.getRangeAt(0).startContainer;
-      if (node.nodeType === Node.TEXT_NODE) node = node.parentNode!;
-      
-      const block = (node as HTMLElement).closest(value === 'pre' ? 'pre' : 'blockquote');
-  
+      const block = element.closest(value);
       if (block) {
-        // Element is already in the specified block, so unwrap it
-        const parent = block.parentNode;
-        if (parent) {
-          while (block.firstChild) {
-            parent.insertBefore(block.firstChild, block);
+          document.execCommand('formatBlock', false, 'p');
+          const p = element.closest('p');
+          if (p && p.parentNode) {
+              const parent = p.parentNode;
+              while(p.firstChild) {
+                  parent.insertBefore(p.firstChild, p);
+              }
+              parent.removeChild(p);
           }
-          parent.removeChild(block);
-        }
       } else {
-        // Not in the block, so apply it
         document.execCommand(command, false, value);
-        // If it's a code block, ensure it's wrapped in pre > code
-        if (value === 'pre') {
-          const newBlock = (selection.getRangeAt(0).startContainer.parentNode as HTMLElement).closest('pre');
-          if (newBlock && !newBlock.querySelector('code')) {
-            const code = document.createElement('code');
-            while(newBlock.firstChild) {
-              code.appendChild(newBlock.firstChild);
-            }
-            newBlock.appendChild(code);
-          }
-        }
       }
+    } else if (command === 'inlineCode') {
+        const codeNode = element.closest('code');
+        if (codeNode) {
+            const parent = codeNode.parentNode;
+            if (parent) {
+                while(codeNode.firstChild) {
+                    parent.insertBefore(codeNode.firstChild, codeNode);
+                }
+                parent.removeChild(codeNode);
+            }
+        } else {
+             const selectedText = range.toString();
+             const code = document.createElement('code');
+             code.textContent = selectedText;
+             document.execCommand('insertHTML', false, code.outerHTML);
+        }
+
     } else {
       document.execCommand(command, false, value);
     }
@@ -969,6 +990,7 @@ export function Editor({ page }: EditorProps) {
               <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => handleFormat("insertOrderedList")}> <ListOrdered className="h-4 w-4" /> </Button>
               <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={handleInsertChecklist}> <ListChecks className="h-4 w-4" /> </Button>
               <Button variant={currentBlockStyle === 'blockquote' ? "secondary" : "ghost"} size="icon" onMouseDown={onToolbarMouseDown} onClick={() => handleFormat("formatBlock", "blockquote")}> <Quote className="h-4 w-4" /> </Button>
+              <Button variant={activeStyles.code ? 'secondary' : 'ghost'} size="icon" onMouseDown={onToolbarMouseDown} onClick={() => handleFormat('inlineCode')}> <Code className="h-4 w-4" /> </Button>
               <Button variant={currentBlockStyle === 'pre' ? "secondary" : "ghost"} size="icon" onMouseDown={onToolbarMouseDown} onClick={() => handleFormat("formatBlock", "pre")}> <Code className="h-4 w-4" /> </Button>
               <Popover open={isTablePopoverOpen} onOpenChange={(isOpen) => { if(!isOpen) setTableGridSize({rows: 0, cols: 0}); setIsTablePopoverOpen(isOpen)}}>
                 <PopoverTrigger asChild>
