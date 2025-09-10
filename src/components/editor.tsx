@@ -83,7 +83,7 @@ import showdown from 'showdown';
 import { spellCheck } from "@/ai/flows/spell-check-flow";
 import { generateTextFromPrompt } from "@/ai/flows/generate-text-from-prompt";
 import { getBriefAnswer } from "@/ai/flows/get-brief-answer";
-import ReactFlow, { Background, Controls, MiniMap, type Node, type Edge } from 'reactflow';
+import ReactFlow, { Background, Controls, type Node, type Edge, ProOptions } from 'reactflow';
 
 
 interface EditorProps {
@@ -115,6 +115,7 @@ type AiSuggestion = {
 
 const diagramTypes = ['MindMap', 'Flowchart', 'OrgChart'];
 
+const proOptions: ProOptions = { hideAttribution: true };
 
 const DiagramRenderer = ({ initialNodes, initialEdges }: { initialNodes: Node[], initialEdges: Edge[] }) => {
     return (
@@ -123,10 +124,10 @@ const DiagramRenderer = ({ initialNodes, initialEdges }: { initialNodes: Node[],
                 defaultNodes={initialNodes}
                 defaultEdges={initialEdges}
                 fitView
+                proOptions={proOptions}
             >
                 <Background />
                 <Controls />
-                <MiniMap />
             </ReactFlow>
         </div>
     );

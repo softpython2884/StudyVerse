@@ -1,6 +1,6 @@
 'use server';
 /**
- * @fileOverview AI agent that generates diagram data from text.
+ * @fileOverview AI agent that generates diagram data from text for React Flow.
  *
  * - generateDiagram - A function that generates diagrams from text.
  * - GenerateDiagramInput - The input type for the generateDiagram function.
@@ -13,7 +13,7 @@ import {z} from 'genkit';
 const GenerateDiagramInputSchema = z.object({
   text: z.string().describe('The text to generate a diagram from.'),
   diagramType: z
-    .enum(['MindMap', 'Flowchart', 'OrgChart']) // Venn and Timeline might need different structures
+    .enum(['MindMap', 'Flowchart', 'OrgChart'])
     .describe('The desired type of diagram to generate.'),
 });
 export type GenerateDiagramInput = z.infer<typeof GenerateDiagramInputSchema>;
@@ -22,7 +22,7 @@ const GenerateDiagramOutputSchema = z.object({
   diagramData: z
     .string()
     .describe(
-      'A JSON string representing the diagram data (nodes, edges, etc.), compatible with the React Flow library.'
+      'A JSON string representing the diagram data, compatible with the React Flow library. It must contain "nodes" and "edges" arrays.'
     ),
 });
 export type GenerateDiagramOutput = z.infer<typeof GenerateDiagramOutputSchema>;
@@ -53,26 +53,28 @@ CRITICAL INSTRUCTIONS:
     - Each node MUST have a \`data.description\` (string) containing a detailed, researched explanation of that concept.
     - Each node MUST have a \`position\` object with \`x\` and \`y\` coordinates. You must calculate logical positions to create a clean, readable, and non-overlapping layout. For a mind map, this is typically a radial layout. For a flowchart or org chart, this is typically top-down.
     - For OrgChart, you can also add a \`data.parent\` field with the parent node ID.
+    - Advanced: You can add a 'type' for nodes (e.g., 'input', 'output', 'default') and a 'style' object for custom appearances (e.g., backgroundColor, borderColor).
 4.  **Generate \`edges\` array:**
     - Each edge MUST have a unique \`id\` (e.g., "e1-2").
     - Each edge MUST have a \`source\` (the parent node's id).
     - Each edge MUST have a \`target\` (the child node's id).
     - Edges should have \`type: 'smoothstep'\` for better curves.
+    - Advanced: You can add a \`label\` to an edge to describe the relationship.
 
 The output MUST be a single, valid JSON string, with no additional text, explanations, or markdown.
 
-Example JSON structure for React Flow:
+Example React Flow JSON:
 {
   "nodes": [
-    { "id": "1", "type": "default", "data": { "label": "Central Idea", "description": "This is the core concept..." }, "position": { "x": 250, "y": 5 } },
+    { "id": "1", "type": "default", "data": { "label": "Central Idea", "description": "This is the core concept..." }, "position": { "x": 250, "y": 5 }, "style": { "backgroundColor": "#ffcc00" } },
     { "id": "2", "type": "default", "data": { "label": "Branch 1", "description": "Explanation for branch 1..." }, "position": { "x": 100, "y": 100 } }
   ],
   "edges": [
-    { "id": "e1-2", "source": "1", "target": "2", "type": "smoothstep" }
+    { "id": "e1-2", "source": "1", "target": "2", "type": "smoothstep", "label": "leads to" }
   ]
 }
 
-Analyze the text and produce the corresponding JSON string.
+Now, analyze the user's text and produce the corresponding JSON string.
 `,
 });
 
@@ -83,7 +85,12 @@ const generateDiagramFlow = ai.defineFlow(
     outputSchema: GenerateDiagramOutputSchema,
   },
   async input => {
-    const {output} = await prompt(input);
-    return output!;
+    try {
+      const {output} = await prompt(input);
+      return output!;
+    } catch (e: any) {
+        console.error("Error in generateDiagramFlow", e);
+        throw new Error("Failed to generate diagram: " + e.message);
+    }
   }
 );
