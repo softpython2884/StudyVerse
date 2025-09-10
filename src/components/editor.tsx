@@ -45,6 +45,8 @@ import {
   ClipboardPaste,
   Sparkles,
   LoaderCircle,
+  MessageCircleQuestion,
+  Book,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -78,6 +80,8 @@ import { generateDiagram } from "@/ai/flows/generate-diagrams-from-text";
 import { cn } from "@/lib/utils";
 import showdown from 'showdown';
 import { spellCheck } from "@/ai/flows/spell-check-flow";
+import { generateTextFromPrompt } from "@/ai/flows/generate-text-from-prompt";
+import { getBriefAnswer } from "@/ai/flows/get-brief-answer";
 
 
 interface EditorProps {
@@ -164,6 +168,7 @@ export function Editor({ page }: EditorProps) {
 
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [htmlToInsert, setHtmlToInsert] = React.useState("");
+  const [promptToGenerate, setPromptToGenerate] = React.useState("");
 
 
   const [isLinkPopoverOpen, setIsLinkPopoverOpen] = React.useState(false);
@@ -171,6 +176,8 @@ export function Editor({ page }: EditorProps) {
   const [isTablePopoverOpen, setIsTablePopoverOpen] = React.useState(false);
   const [tableGridSize, setTableGridSize] = React.useState({ rows: 0, cols: 0 });
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = React.useState(false);
+  const [isPromptDialogOpen, setIsPromptDialogOpen] = React.useState(false);
+
   
   const [contextMenu, setContextMenu] = React.useState<{ x: number; y: number; visible: boolean; isTextSelected: boolean }>({
     x: 0, y: 0, visible: false, isTextSelected: false
@@ -464,7 +471,6 @@ export function Editor({ page }: EditorProps) {
                   const a = document.createElement('a');
                   a.href = url;
                   a.textContent = url;
-                  a.title = url;
                   newElement = a;
               }
               
@@ -537,6 +543,71 @@ export function Editor({ page }: EditorProps) {
     updateToolbarState();
     debouncedUpdateToc();
   };
+
+  const handleAiAction = async (action: 'spellcheck' | 'refine' | 'brief-answer' | 'generate', promptValue?: string) => {
+    restoreSelection();
+    const selection = window.getSelection();
+    let originalRange: Range | undefined;
+    let selectedText: string | undefined;
+
+    if (selection && selection.rangeCount > 0) {
+        originalRange = selection.getRangeAt(0).cloneRange();
+        selectedText = selection.toString();
+    }
+    
+    if (action !== 'generate' && (!selectedText || !originalRange)) {
+        toast({ title: "Error", description: "Please select text to use this AI action.", variant: "destructive"});
+        return;
+    }
+
+    setIsAiLoading(true);
+    setContextMenu({ ...contextMenu, visible: false });
+
+    try {
+        let resultText: string | undefined;
+
+        if (action === 'spellcheck' && selectedText) {
+            const result = await spellCheck({ text: selectedText });
+            if (result.correctedText && result.correctedText.trim() !== selectedText.trim()) {
+                resultText = result.correctedText;
+            } else {
+                toast({ title: "No corrections", description: "The AI found no issues." });
+            }
+        } else if (action === 'refine' && selectedText) {
+            const result = await refineAndStructureNotes({ rawNotes: selectedText });
+            resultText = result.refinedNotes;
+        } else if (action === 'brief-answer' && selectedText) {
+            const result = await getBriefAnswer({ question: selectedText });
+            resultText = result.answer;
+        } else if (action === 'generate' && promptValue) {
+            const result = await generateTextFromPrompt({ prompt: promptValue });
+            resultText = result.response;
+        }
+        
+        if (resultText && originalRange) {
+             if (action === 'generate') {
+                document.execCommand('insertHTML', false, resultText);
+             } else {
+                const rangeRect = originalRange.getBoundingClientRect();
+                const scrollContainerRect = scrollContainerRef.current!.getBoundingClientRect();
+                setAiSuggestion({
+                    originalRange: originalRange,
+                    suggestionText: resultText,
+                    position: {
+                        top: rangeRect.bottom - scrollContainerRect.top + scrollContainerRef.current!.scrollTop,
+                        left: rangeRect.left - scrollContainerRect.left,
+                    }
+                });
+            }
+        }
+        
+    } catch (e) {
+        console.error(`AI action '${action}' failed:`, e);
+        toast({title: "AI Error", description: "The AI action failed to complete.", variant: "destructive"});
+    } finally {
+        setIsAiLoading(false);
+    }
+};
 
   // KeyDown handles shortcuts + Enter special behavior + checklist/tab navigation + headings via Ctrl+Shift+N
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -652,6 +723,25 @@ export function Editor({ page }: EditorProps) {
       return;
     }
 
+    if (event.ctrlKey && event.key === ' ' && !event.shiftKey) {
+      event.preventDefault();
+      setIsPromptDialogOpen(true);
+      return;
+    }
+
+    if (event.ctrlKey && event.key === ';' && !event.shiftKey) {
+      event.preventDefault();
+      handleAiAction('brief-answer');
+      return;
+    }
+    
+    if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 'c') {
+      event.preventDefault();
+      handleAiAction('spellcheck');
+      return;
+    }
+
+
     if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 'k') {
       event.preventDefault();
       const sel = window.getSelection();
@@ -757,55 +847,6 @@ export function Editor({ page }: EditorProps) {
     setContextMenu({ x: posX, y: posY, visible: true, isTextSelected });
   };
   
-  const handleAiAction = async (action: 'spellcheck' | 'refine') => {
-    restoreSelection();
-    const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
-        toast({ title: "Error", description: "Please select text to use an AI action.", variant: "destructive"});
-        return;
-    }
-    
-    const originalRange = selection.getRangeAt(0).cloneRange();
-    const selectedText = selection.toString();
-    
-    setIsAiLoading(true);
-    setContextMenu({ ...contextMenu, visible: false });
-
-    try {
-        if (action === 'spellcheck') {
-            const result = await spellCheck({ text: selectedText });
-            const correctedText = result.correctedText;
-
-            if (correctedText && correctedText.trim() !== selectedText.trim()) {
-                const rangeRect = originalRange.getBoundingClientRect();
-                const scrollContainerRect = scrollContainerRef.current!.getBoundingClientRect();
-                
-                setAiSuggestion({
-                    originalRange: originalRange,
-                    suggestionText: correctedText,
-                    position: {
-                        top: rangeRect.bottom - scrollContainerRect.top + scrollContainerRef.current!.scrollTop,
-                        left: rangeRect.left - scrollContainerRect.left,
-                    }
-                });
-            } else {
-                toast({ title: "No corrections", description: "The AI found no issues in the selected text."});
-            }
-        } else if (action === 'refine') {
-            // This part can still use a dialog or be adapted to the inline suggestion model later
-            const result = await refineAndStructureNotes({ rawNotes: selectedText });
-            // For now, let's just insert it for simplicity. A dialog is better.
-            originalRange.deleteContents();
-            originalRange.insertNode(document.createTextNode(result.refinedNotes));
-        }
-        
-    } catch (e) {
-        console.error(`AI action '${action}' failed:`, e);
-        toast({title: "AI Error", description: "The AI action failed to complete.", variant: "destructive"});
-    } finally {
-        setIsAiLoading(false);
-    }
-  };
   
   const handleApplyAiSuggestion = () => {
     if (!aiSuggestion) return;
@@ -830,7 +871,7 @@ export function Editor({ page }: EditorProps) {
     editorRef.current?.focus();
     setTimeout(() => {
       if (linkUrl) {
-        const linkHtml = `<a href="${linkUrl}" title="${linkUrl}">${window.getSelection()?.toString() || linkUrl}</a>`;
+        const linkHtml = `<a href="${linkUrl}">${window.getSelection()?.toString() || linkUrl}</a>`;
         document.execCommand("insertHTML", false, linkHtml);
       }
       setLinkUrl("");
@@ -930,6 +971,14 @@ export function Editor({ page }: EditorProps) {
           setHtmlToInsert("");
       }, 0);
   }
+  
+  const handleGenerateFromPrompt = async () => {
+        if (!promptToGenerate) return;
+        setIsPromptDialogOpen(false);
+        await handleAiAction('generate', promptToGenerate);
+        setPromptToGenerate("");
+  };
+
 
   const handleEditorClick = (e: React.MouseEvent) => {
     const editor = editorRef.current;
@@ -1427,12 +1476,10 @@ export function Editor({ page }: EditorProps) {
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={async () => {
                     try {
-                        const text = await navigator.clipboard.readText();
-                        restoreSelection();
-                        document.execCommand('insertText', false, text);
+                        document.execCommand('paste');
                     } catch (err) {
-                        toast({ title: "Paste failed", description: "Could not read from clipboard. Please use Ctrl+V.", variant: "destructive" });
-                        console.error('Failed to read clipboard contents: ', err);
+                        toast({ title: "Paste failed", description: "Could not paste from clipboard.", variant: "destructive" });
+                        console.error('Failed to paste from clipboard: ', err);
                     }
                     setContextMenu({ ...contextMenu, visible: false });
                 }}
@@ -1463,6 +1510,24 @@ export function Editor({ page }: EditorProps) {
                 >
                     <Bot className="h-4 w-4" /> Refine Text
                 </button>
+                <button
+                    role="menuitem"
+                    className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent disabled:opacity-50"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => handleAiAction('brief-answer')}
+                    disabled={!contextMenu.isTextSelected || isAiLoading}
+                >
+                    <MessageCircleQuestion className="h-4 w-4" /> Brief Answer
+                </button>
+                 <button
+                    role="menuitem"
+                    className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent disabled:opacity-50"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => setIsPromptDialogOpen(true)}
+                    disabled={isAiLoading}
+                >
+                    <Book className="h-4 w-4" /> Ask AI to Write...
+                </button>
             </div>
 
             </div>
@@ -1476,29 +1541,55 @@ export function Editor({ page }: EditorProps) {
               A list of available commands and their shortcuts.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2">
+          <div className="space-y-2 text-sm">
             <h3 className="font-semibold">Text Formatting</h3>
-            <ul className="list-disc list-inside text-sm text-muted-foreground">
-              <li><kbd className="p-1 bg-muted rounded-md">Ctrl+G/B</kbd> - Bold</li>
+            <ul className="list-disc list-inside text-muted-foreground">
+              <li><kbd className="p-1 bg-muted rounded-md">Ctrl+G</kbd> - Bold</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+I</kbd> - Italic</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+U</kbd> - Underline</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Shift+X</kbd> - Inline Code</li>
             </ul>
             <h3 className="font-semibold">Headings</h3>
-            <ul className="list-disc list-inside text-sm text-muted-foreground">
-              <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Shift+1</kbd> - Heading 1</li>
-              <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Shift+2</kbd> - Heading 2</li>
-              <li>...and so on up to 6</li>
+            <ul className="list-disc list-inside text-muted-foreground">
+              <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Shift+1</kbd> - Heading 1 (and so on up to 6)</li>
+            </ul>
+             <h3 className="font-semibold">AI Tools</h3>
+            <ul className="list-disc list-inside text-muted-foreground">
+              <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Space</kbd> - Ask AI to write...</li>
+              <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Shift+C</kbd> - Spell check selection</li>
+              <li><kbd className="p-1 bg-muted rounded-md">Ctrl+;</kbd> - Get a brief answer for selection</li>
             </ul>
             <h3 className="font-semibold">Editing</h3>
-            <ul className="list-disc list-inside text-sm text-muted-foreground">
+            <ul className="list-disc list-inside text-muted-foreground">
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Z</kbd> - Undo</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Y</kbd> - Redo</li>
-              <li><kbd className="p-1 bg-muted rounded-md">Ctrl+K</kbd> - Command Palette</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Shift+K</kbd> - Insert Link</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+-</kbd> - Horizontal Rule</li>
             </ul>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isPromptDialogOpen} onOpenChange={setIsPromptDialogOpen}>
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Ask AI to write</DialogTitle>
+                <DialogDescription>Enter a prompt and the AI will generate text at your cursor's position.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+                <Textarea 
+                    placeholder="e.g., Write a short paragraph about the French Revolution"
+                    value={promptToGenerate}
+                    onChange={(e) => setPromptToGenerate(e.target.value)}
+                    className="min-h-[100px]"
+                />
+            </div>
+            <DialogFooter>
+                <Button variant="outline" onClick={() => setIsPromptDialogOpen(false)}>Cancel</Button>
+                <Button onClick={handleGenerateFromPrompt} disabled={isAiLoading}>
+                    {isAiLoading ? <LoaderCircle className="animate-spin" /> : 'Generate'}
+                </Button>
+            </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
