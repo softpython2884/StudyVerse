@@ -40,6 +40,8 @@ import {
   Superscript,
   Subscript,
   MessageSquarePlus,
+  Languages,
+  LoaderCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -72,6 +74,7 @@ import { refineAndStructureNotes } from "@/ai/flows/refine-and-structure-notes";
 import { generateDiagram } from "@/ai/flows/generate-diagrams-from-text";
 import { cn } from "@/lib/utils";
 import showdown from 'showdown';
+import { spellCheck } from "@/ai/flows/spell-check-flow";
 
 
 interface EditorProps {
@@ -162,9 +165,14 @@ export function Editor({ page }: EditorProps) {
   const [isAiPopoverOpen, setIsAiPopoverOpen] = React.useState(false);
   const [aiPopoverAnchor, setAiPopoverAnchor] = React.useState<HTMLElement | null>(null);
 
-  const [contextMenu, setContextMenu] = React.useState<{ x: number; y: number; visible: boolean }>({
-    x: 0, y: 0, visible: false,
+  const [contextMenu, setContextMenu] = React.useState<{ x: number; y: number; visible: boolean; isTextSelected: boolean }>({
+    x: 0, y: 0, visible: false, isTextSelected: false
   });
+  const [isSpellCheckPopoverOpen, setIsSpellCheckPopoverOpen] = React.useState(false);
+  const [spellCheckAnchor, setSpellCheckAnchor] = React.useState<{ x: number; y: number } | null>(null);
+  const [isCheckingSpelling, setIsCheckingSpelling] = React.useState(false);
+  const [spellCheckSuggestion, setSpellCheckSuggestion] = React.useState("");
+  const [originalText, setOriginalText] = React.useState("");
 
   const [activeStyles, setActiveStyles] = React.useState<ActiveStyles>({
     bold: false,
@@ -248,7 +256,10 @@ export function Editor({ page }: EditorProps) {
     const selection = window.getSelection();
     let isCode = false;
     if (selection && selection.rangeCount > 0) {
-        isCode = isNodeIn(selection.getRangeAt(0).commonAncestorContainer, 'code');
+        const range = selection.getRangeAt(0);
+        if (range.commonAncestorContainer) {
+            isCode = isNodeIn(range.commonAncestorContainer, 'code');
+        }
     }
 
     const newActiveStyles: ActiveStyles = {
@@ -351,7 +362,10 @@ export function Editor({ page }: EditorProps) {
         }
 
     } else if (command === 'inlineCode') {
-        const codeNode = element.closest('code');
+        const isAlreadyCode = document.queryCommandState('insertHTML', false, '<code>');
+        const commonAncestor = range.commonAncestorContainer;
+        const codeNode = (commonAncestor.nodeType === Node.ELEMENT_NODE ? commonAncestor : commonAncestor.parentElement)?.closest('code');
+
         if (codeNode && !codeNode.closest('pre')) {
             const parent = codeNode.parentNode;
             if (parent) {
@@ -359,10 +373,13 @@ export function Editor({ page }: EditorProps) {
                     parent.insertBefore(codeNode.firstChild, codeNode);
                 }
                 parent.removeChild(codeNode);
-                (parent as HTMLElement).normalize();
+                parent.normalize();
             }
         } else {
-             document.execCommand('insertHTML', false, `<code>${selection.toString()}</code>`);
+            const selectionText = selection.toString();
+            if (selectionText) {
+                document.execCommand('insertHTML', false, `<code>${selectionText}</code>`);
+            }
         }
 
     } else {
@@ -439,7 +456,6 @@ export function Editor({ page }: EditorProps) {
               } else {
                   const a = document.createElement('a');
                   a.href = url;
-                  a.title = url;
                   a.textContent = url;
                   newElement = a;
               }
@@ -647,16 +663,6 @@ export function Editor({ page }: EditorProps) {
         return;
     }
     
-    if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 'h') {
-        event.preventDefault();
-        const html = prompt("Enter HTML to insert:");
-        if (html) {
-            restoreSelection();
-            editorRef.current?.focus();
-            document.execCommand('insertHTML', false, html);
-        }
-        return;
-    }
 
     if (event.ctrlKey && event.code === 'Space') {
       event.preventDefault();
@@ -676,10 +682,10 @@ export function Editor({ page }: EditorProps) {
 
     if (event.ctrlKey && !event.altKey) {
       const key = event.key.toLowerCase();
-      if (['g', 'i', 'u'].includes(key)) {
+      if (['b', 'i', 'u'].includes(key)) {
         event.preventDefault();
         editorRef.current?.focus();
-        document.execCommand(key === 'g' ? 'bold' : key === 'i' ? 'italic' : 'underline');
+        document.execCommand(key === 'b' ? 'bold' : key === 'i' ? 'italic' : 'underline');
         setTimeout(updateToolbarState, 0);
         return;
       }
@@ -728,7 +734,11 @@ export function Editor({ page }: EditorProps) {
     if (!editorRef.current) return;
     e.preventDefault();
     saveSelection();
-    const menuWidth = 180;
+    
+    const sel = window.getSelection();
+    const isTextSelected = !!sel && !sel.isCollapsed;
+
+    const menuWidth = 200;
     const menuHeight = 250;
     let posX = e.clientX;
     let posY = e.clientY;
@@ -736,7 +746,7 @@ export function Editor({ page }: EditorProps) {
     if (posX + menuWidth > window.innerWidth) posX = window.innerWidth - menuWidth - 10;
     if (posY + menuHeight > window.innerHeight) posY = window.innerHeight - menuHeight - 10;
     
-    setContextMenu({ x: posX, y: posY, visible: true });
+    setContextMenu({ x: posX, y: posY, visible: true, isTextSelected });
   };
 
   const handleApplyLink = () => {
@@ -744,7 +754,7 @@ export function Editor({ page }: EditorProps) {
     editorRef.current?.focus();
     setTimeout(() => {
       if (linkUrl) {
-        const linkHtml = `<a href="${linkUrl}" title="${linkUrl}">${window.getSelection()?.toString() || linkUrl}</a>`;
+        const linkHtml = `<a href="${linkUrl}">${window.getSelection()?.toString() || linkUrl}</a>`;
         document.execCommand("insertHTML", false, linkHtml);
       }
       setLinkUrl("");
@@ -939,7 +949,8 @@ export function Editor({ page }: EditorProps) {
         }
     }
 
-    if (contextMenu.visible) setContextMenu({ x: 0, y: 0, visible: false });
+    if (contextMenu.visible) setContextMenu({ ...contextMenu, visible: false });
+    if (isSpellCheckPopoverOpen) setIsSpellCheckPopoverOpen(false);
   };
 
   const handleFocus = () => {
@@ -1002,6 +1013,47 @@ export function Editor({ page }: EditorProps) {
       document.execCommand('insertHTML', false, paste);
     }
   };
+
+  const handleSpellCheck = async (lang: 'en' | 'fr') => {
+      const selection = window.getSelection();
+      if (!selection || selection.isCollapsed) return;
+
+      const text = selection.toString();
+      setOriginalText(text);
+      setIsCheckingSpelling(true);
+      setSpellCheckSuggestion("");
+
+      try {
+        const result = await spellCheck({ text, language: lang });
+        setSpellCheckSuggestion(result.correctedText);
+      } catch (e) {
+        console.error("Spell check failed", e);
+        toast({ title: "Error", description: "Spell check failed.", variant: "destructive" });
+      } finally {
+        setIsCheckingSpelling(false);
+      }
+  }
+
+  const handleApplySuggestion = () => {
+    restoreSelection();
+    editorRef.current?.focus();
+    setTimeout(() => {
+        document.execCommand('insertText', false, spellCheckSuggestion);
+        setIsSpellCheckPopoverOpen(false);
+    }, 10);
+  }
+
+  const openSpellCheckPopover = () => {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+    
+    const range = sel.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+    
+    setSpellCheckAnchor({ x: rect.left, y: rect.bottom + 4 });
+    setIsSpellCheckPopoverOpen(true);
+    setContextMenu({ ...contextMenu, visible: false });
+  }
 
   // Set initial content
   React.useEffect(() => {
@@ -1350,91 +1402,107 @@ export function Editor({ page }: EditorProps) {
       )}
 
       {contextMenu.visible && (
-        <div
-          role="menu"
-          aria-label="Editor context menu"
-          style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y }}
-          className="z-50 min-w-[160px] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95"
-          onMouseLeave={() => setContextMenu({ x: 0, y: 0, visible: false })}
-        >
-          <button
-            role="menuitem"
-            className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => { restoreSelection(); document.execCommand('copy'); setContextMenu({ x: 0, y: 0, visible: false }); }}
-          >
-            Copy
-          </button>
+        <Popover open={isSpellCheckPopoverOpen} onOpenChange={setIsSpellCheckPopoverOpen}>
+            <PopoverTrigger asChild>
+                 <div
+                    role="menu"
+                    aria-label="Editor context menu"
+                    style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y }}
+                    className="z-50 min-w-[180px] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95"
+                    onContextMenu={(e) => e.preventDefault()} // prevent chained context menus
+                    >
+                    <button
+                        role="menuitem"
+                        className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent disabled:opacity-50"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => { restoreSelection(); document.execCommand('copy'); setContextMenu({ ...contextMenu, visible: false }); }}
+                        disabled={!contextMenu.isTextSelected}
+                    >
+                        Copy
+                    </button>
 
-          <button
-            role="menuitem"
-            className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => { restoreSelection(); document.execCommand('cut'); setContextMenu({ x: 0, y: 0, visible: false }); }}
-          >
-            Cut
-          </button>
-          
-          <Separator className="my-1" />
-          
-          <button
-            role="menuitem"
-            className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => { handleFormat('inlineCode'); setContextMenu({ x: 0, y: 0, visible: false }); }}
-          >
-            <Code className="h-4 w-4" /> Inline Code
-          </button>
+                    <button
+                        role="menuitem"
+                        className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent disabled:opacity-50"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => { restoreSelection(); document.execCommand('cut'); setContextMenu({ ...contextMenu, visible: false }); }}
+                        disabled={!contextMenu.isTextSelected}
+                    >
+                        Cut
+                    </button>
 
-          <button
-            role="menuitem"
-            className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => { saveSelection(); setIsLinkPopoverOpen(true); setContextMenu({ x: 0, y: 0, visible: false }); }}
-          >
-            <Link className="h-4 w-4" /> Add link
-          </button>
+                    <button
+                        role="menuitem"
+                        className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => { 
+                            navigator.clipboard.readText().then(text => {
+                                restoreSelection();
+                                document.execCommand('insertText', false, text);
+                            });
+                            setContextMenu({ ...contextMenu, visible: false }); 
+                        }}
+                    >
+                        Paste
+                    </button>
+                    
+                    <Separator className="my-1" />
+                    
+                    <button
+                        role="menuitem"
+                        className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent disabled:opacity-50"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => { handleFormat('inlineCode'); setContextMenu({ ...contextMenu, visible: false }); }}
+                        disabled={!contextMenu.isTextSelected}
+                    >
+                        <Code className="h-4 w-4" /> Inline Code
+                    </button>
 
-          <Separator className="my-1" />
+                    <button
+                        role="menuitem"
+                        className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent disabled:opacity-50"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => { openSpellCheckPopover(); }}
+                        disabled={!contextMenu.isTextSelected}
+                    >
+                        <Languages className="h-4 w-4" /> Spell Check
+                    </button>
+                    </div>
+            </PopoverTrigger>
+            <PopoverContent className="w-80" onOpenAutoFocus={(e) => e.preventDefault()}>
+                <div className="grid gap-4">
+                    <div className="space-y-2">
+                        <h4 className="font-medium leading-none">Spell & Grammar Check</h4>
+                        <p className="text-sm text-muted-foreground">
+                        Correct the selected text with AI.
+                        </p>
+                    </div>
+                    {isCheckingSpelling && (
+                        <div className="flex items-center justify-center p-4">
+                            <LoaderCircle className="h-6 w-6 animate-spin" />
+                        </div>
+                    )}
 
-          <button
-            role="menuitem"
-            className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => { restoreSelection(); handleFormat('formatBlock', 'blockquote'); setContextMenu({ x: 0, y: 0, visible: false }); }}
-          >
-            <Quote className="h-4 w-4" /> Blockquote
-          </button>
-
-          <button
-            role="menuitem"
-            className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => { restoreSelection(); document.execCommand('insertHTML', false, '<hr><p>&#8203;</p>'); setContextMenu({ x: 0, y: 0, visible: false }); }}
-          >
-            <Minus className="h-4 w-4" /> Insert HR
-          </button>
-
-          <Separator className="my-1" />
-
-          <button
-            role="menuitem"
-            className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => { restoreSelection(); handleFormat('insertUnorderedList'); setContextMenu({ x: 0, y: 0, visible: false }); }}
-          >
-            <List className="h-4 w-4" /> Bulleted list
-          </button>
-
-          <button
-            role="menuitem"
-            className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => { restoreSelection(); handleFormat('insertOrderedList'); setContextMenu({ x: 0, y: 0, visible: false }); }}
-          >
-            <ListOrdered className="h-4 w-4" /> Numbered list
-          </button>
-        </div>
+                    {!isCheckingSpelling && spellCheckSuggestion && (
+                         <div className="space-y-2">
+                            <Label>Suggestion</Label>
+                            <div className="rounded-md border bg-muted p-2 text-sm">
+                                {spellCheckSuggestion}
+                            </div>
+                         </div>
+                    )}
+                    <div className="flex justify-between">
+                         <div className="flex gap-2">
+                            <Button variant="outline" size="sm" onClick={() => handleSpellCheck('fr')} disabled={isCheckingSpelling}>Français</Button>
+                            <Button variant="outline" size="sm" onClick={() => handleSpellCheck('en')} disabled={isCheckingSpelling}>English</Button>
+                        </div>
+                        {spellCheckSuggestion && (
+                             <Button size="sm" onClick={handleApplySuggestion}>Apply</Button>
+                        )}
+                    </div>
+                </div>
+            </PopoverContent>
+        </Popover>
       )}
       
       <Dialog open={isCommandPaletteOpen} onOpenChange={setIsCommandPaletteOpen}>
@@ -1448,7 +1516,7 @@ export function Editor({ page }: EditorProps) {
           <div className="space-y-2">
             <h3 className="font-semibold">Text Formatting</h3>
             <ul className="list-disc list-inside text-sm text-muted-foreground">
-              <li><kbd className="p-1 bg-muted rounded-md">Ctrl+G</kbd> - Bold</li>
+              <li><kbd className="p-1 bg-muted rounded-md">Ctrl+B</kbd> - Bold</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+I</kbd> - Italic</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+U</kbd> - Underline</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Shift+X</kbd> - Inline Code</li>
@@ -1466,7 +1534,6 @@ export function Editor({ page }: EditorProps) {
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+K</kbd> - Command Palette</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Space</kbd> - AI Prompt</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Shift+K</kbd> - Insert Link</li>
-              <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Shift+H</kbd> - Insert HTML</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+-</kbd> - Horizontal Rule</li>
             </ul>
           </div>
