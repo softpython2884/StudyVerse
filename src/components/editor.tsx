@@ -118,22 +118,21 @@ export function Editor({ page }: EditorProps) {
   };
 
   const restoreSelection = () => {
-      if (typeof window === 'undefined' || !savedSelection.current) {
+      if (typeof window === 'undefined') return;
+      const sel = window.getSelection();
+      if (savedSelection.current && sel) {
+          sel.removeAllRanges();
+          sel.addRange(savedSelection.current);
+      } else {
           const editor = editorRef.current;
           if (editor) {
               const range = document.createRange();
-              const sel = window.getSelection();
-              const lastElement = editor.lastElementChild || editor;
-              range.selectNodeContents(lastElement);
+              range.selectNodeContents(editor);
               range.collapse(false); // Go to the end
               sel?.removeAllRanges();
               sel?.addRange(range);
           }
-          return;
       }
-      const sel = window.getSelection();
-      sel?.removeAllRanges();
-      sel?.addRange(savedSelection.current);
   };
   
   const onToolbarMouseDown = (e: React.MouseEvent) => {
@@ -437,25 +436,29 @@ export function Editor({ page }: EditorProps) {
 
       // Case 4: Horizontal Rule
       const currentBlock = (range.startContainer.nodeType === Node.TEXT_NODE
-          ? range.startContainer.parentElement?.closest('p,div,li')
-          : (range.startContainer as HTMLElement).closest?.('p,div,li')) as HTMLElement | null;
-      if (currentBlock && currentBlock.textContent?.trim() === '---') {
-        event.preventDefault();
-        currentBlock.innerHTML = '';
-        handleFormat('insertHorizontalRule');
-        
-        // Add new paragraph after the HR
-        const p = document.createElement('p');
-        p.innerHTML = '&#8203;';
-        currentBlock.after(p);
-        const newRange = document.createRange();
-        newRange.setStart(p, 0);
-        newRange.collapse(true);
-        sel.removeAllRanges();
-        sel.addRange(newRange);
-        
-        setTimeout(updateToolbarState, 0);
-        return;
+          ? range.startContainer.parentElement
+          : range.startContainer) as HTMLElement | null;
+
+      if (currentBlock && currentBlock.closest && currentBlock.closest('p,div,li') && currentBlock.textContent?.trim() === '---') {
+        const blockToReplace = currentBlock.closest('p,div,li');
+        if (blockToReplace) {
+          event.preventDefault();
+          const hr = document.createElement('hr');
+          blockToReplace.replaceWith(hr);
+          
+          const p = document.createElement('p');
+          p.innerHTML = '&#8203;';
+          hr.after(p);
+          
+          const newRange = document.createRange();
+          newRange.setStart(p, 0);
+          newRange.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(newRange);
+          
+          setTimeout(updateToolbarState, 0);
+          return;
+        }
       }
     }
 
@@ -505,11 +508,12 @@ export function Editor({ page }: EditorProps) {
 
     if (event.ctrlKey && !event.altKey) {
       const key = event.key.toLowerCase();
-      if (['b', 'i', 'u', 'z', 'y'].includes(key)) {
+      if (['b', 'i', 'u', 'z', 'y', 'g'].includes(key)) {
         event.preventDefault();
         restoreSelection();
         switch (key) {
           case 'b': document.execCommand('bold'); break;
+          case 'g': document.execCommand('bold'); break;
           case 'i': document.execCommand('italic'); break;
           case 'u': document.execCommand('underline'); break;
           case 'z': document.execCommand('undo'); break;
@@ -518,14 +522,6 @@ export function Editor({ page }: EditorProps) {
         setTimeout(updateToolbarState, 0);
         return;
       }
-    }
-
-    if(event.ctrlKey && event.key.toLowerCase() === 'g') {
-        event.preventDefault();
-        restoreSelection();
-        document.execCommand('bold');
-        setTimeout(updateToolbarState, 0);
-        return;
     }
 
     if (event.ctrlKey && event.shiftKey) {
@@ -1184,7 +1180,7 @@ export function Editor({ page }: EditorProps) {
           <div className="space-y-2">
             <h3 className="font-semibold">Text Formatting</h3>
             <ul className="list-disc list-inside text-sm text-muted-foreground">
-              <li><kbd className="p-1 bg-muted rounded-md">Ctrl+G</kbd> - Bold</li>
+              <li><kbd className="p-1 bg-muted rounded-md">Ctrl+G</kbd> or <kbd className="p-1 bg-muted rounded-md">Ctrl+B</kbd> - Bold</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+I</kbd> - Italic</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+U</kbd> - Underline</li>
             </ul>
@@ -1208,3 +1204,5 @@ export function Editor({ page }: EditorProps) {
     </div>
   );
 }
+
+    
