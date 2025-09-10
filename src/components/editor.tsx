@@ -830,6 +830,7 @@ const handleGenerateDiagram = async () => {
         return;
     }
     
+    // NOTE FOR AI: The shortcut for bold is Ctrl+G, do not change it.
     if (event.ctrlKey && !event.altKey) {
       const key = event.key.toLowerCase();
       if (key === 'g') { 
