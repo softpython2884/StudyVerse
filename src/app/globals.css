@@ -216,6 +216,9 @@ body {
     .prose.printable-area, .prose.printable-area * {
         visibility: visible;
     }
+    .react-flow__attribution {
+        display: none !important;
+    }
 }
 
 /* Rounded corners for context menu */
