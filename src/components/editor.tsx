@@ -3,7 +3,7 @@
       "use client";
 
 import * as React from "react";
-import * as ReactDOM from "react-dom";
+import { createRoot } from "react-dom/client";
 import type { Page } from "@/lib/types";
 import {
   Bold,
@@ -1141,7 +1141,7 @@ video.src = url;
           </DiagramShell>
         );
 
-        const root = ReactDOM.createRoot(container);
+        const root = createRoot(container);
         root.render(diagramElement);
       } catch (e) {
         console.error("Failed to parse or render diagram", e);
@@ -1601,3 +1601,4 @@ video.src = url;
   );
 }
 
+    
