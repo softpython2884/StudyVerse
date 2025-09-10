@@ -43,8 +43,13 @@ import ReactFlow, {
   type Node,
   type Edge,
   type ProOptions,
-  useReactFlow
+  useReactFlow,
+  useNodesState,
+  useEdgesState,
+  addEdge,
+  type Connection
 } from 'reactflow';
+import { useCallback } from "react";
 
 const proOptions: ProOptions = { hideAttribution: true };
 const diagramTypes = ['MindMap', 'Flowchart', 'OrgChart'];
@@ -54,8 +59,8 @@ interface DiagramEditorProps {
 }
 
 export function DiagramEditor({ page }: DiagramEditorProps) {
-  const [nodes, setNodes] = React.useState<Node[]>([]);
-  const [edges, setEdges] = React.useState<Edge[]>([]);
+  const [nodes, setNodes, onNodesChange] = useNodesState([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [isSaving, setIsSaving] = React.useState(false);
   const [isGenerating, setIsGenerating] = React.useState(false);
 
@@ -73,14 +78,44 @@ export function DiagramEditor({ page }: DiagramEditorProps) {
         if (data.nodes) setNodes(data.nodes);
         if (data.edges) setEdges(data.edges);
       } catch (e) {
+        setNodes([]);
+        setEdges([]);
         console.error("Failed to parse page content as diagram data", e);
       }
+    } else {
+        setNodes([]);
+        setEdges([]);
     }
-  }, [page]);
+  }, [page, setNodes, setEdges]);
   
+  const onConnect = useCallback(
+    (params: Edge | Connection) => setEdges((eds) => addEdge(params, eds)),
+    [setEdges]
+  );
+  
+  const onNodeDoubleClick = useCallback((event: React.MouseEvent, node: Node) => {
+    const newLabel = prompt("Enter new label:", node.data.label);
+    if (newLabel !== null) {
+      setNodes((nds) =>
+        nds.map((n) => {
+          if (n.id === node.id) {
+            return {
+              ...n,
+              data: {
+                ...n.data,
+                label: newLabel,
+              },
+            };
+          }
+          return n;
+        })
+      );
+    }
+  }, [setNodes]);
+
   const handleSaveContent = async () => {
     setIsSaving(true);
-    const diagramData = { nodes, edges };
+    const diagramData = { nodes: reactFlowInstance.getNodes(), edges: reactFlowInstance.getEdges() };
     const result = await updatePageContent({
       pageId: page.id,
       content: JSON.stringify(diagramData, null, 2),
@@ -206,8 +241,11 @@ export function DiagramEditor({ page }: DiagramEditorProps) {
         <ReactFlow
             nodes={nodes}
             edges={edges}
-            onNodesChange={(changes) => setNodes((nds) => ReactFlow.applyNodeChanges(changes, nds))}
-            onEdgesChange={(changes) => setEdges((eds) => ReactFlow.applyEdgeChanges(changes, eds))}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            onNodeDoubleClick={onNodeDoubleClick}
+            deleteKeyCode={['Backspace', 'Delete']}
             fitView
             proOptions={proOptions}
         >
@@ -219,5 +257,3 @@ export function DiagramEditor({ page }: DiagramEditorProps) {
     </div>
   );
 }
-
-    
