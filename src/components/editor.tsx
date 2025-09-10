@@ -63,7 +63,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
-import { Input } from "@/components/ui/input";
+import { Input } from "./ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { updatePageContent } from "@/lib/actions";
 import { SpeechToText } from "./speech-to-text";
@@ -309,7 +309,14 @@ export function Editor({ page }: EditorProps) {
         const blockElement = node.closest('p, h1, h2, h3, h4, h5, h6, pre, blockquote, li');
         if (blockElement) {
             let blockTag = blockElement.tagName.toLowerCase();
-            if (blockTag === 'code' && blockElement.parentElement?.tagName.toLowerCase() === 'pre') {
+            if (blockTag === 'li' && blockElement.closest('ul[data-type="checklist"]')) {
+              blockTag = 'checklist';
+            } else if (blockTag === 'li') {
+              const list = blockElement.closest('ul, ol');
+              if (list) {
+                blockTag = list.tagName.toLowerCase();
+              }
+            } else if (blockTag === 'code' && blockElement.parentElement?.tagName.toLowerCase() === 'pre') {
               blockTag = 'pre';
             }
             setCurrentBlockStyle(blockTag);
@@ -350,7 +357,6 @@ export function Editor({ page }: EditorProps) {
   }, [page.id, updateToolbarState, debouncedScrollHandler]);
 
   const handleFormat = (command: string, value?: string) => {
-    
     editorRef.current?.focus();
     restoreSelection();
 
@@ -606,10 +612,10 @@ export function Editor({ page }: EditorProps) {
 
     if (event.ctrlKey && !event.altKey) {
       const key = event.key.toLowerCase();
-      if (['g', 'i', 'u'].includes(key)) {
+      if (['b', 'i', 'u'].includes(key)) {
         event.preventDefault();
         editorRef.current?.focus();
-        document.execCommand(key === 'g' ? 'bold' : key === 'i' ? 'italic' : 'underline');
+        document.execCommand(key === 'b' ? 'bold' : key === 'i' ? 'italic' : 'underline');
         setTimeout(updateToolbarState, 0);
         return;
       }
@@ -1290,7 +1296,7 @@ export function Editor({ page }: EditorProps) {
           <div className="space-y-2">
             <h3 className="font-semibold">Text Formatting</h3>
             <ul className="list-disc list-inside text-sm text-muted-foreground">
-              <li><kbd className="p-1 bg-muted rounded-md">Ctrl+G</kbd> - Bold</li>
+              <li><kbd className="p-1 bg-muted rounded-md">Ctrl+B</kbd> - Bold</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+I</kbd> - Italic</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+U</kbd> - Underline</li>
             </ul>
@@ -1315,5 +1321,3 @@ export function Editor({ page }: EditorProps) {
     </div>
   );
 }
-
-    
