@@ -464,7 +464,7 @@ export function Editor({ page }: EditorProps) {
                   const a = document.createElement('a');
                   a.href = url;
                   a.textContent = url;
-                  a.title = `Lien vers ${url}`;
+                  a.title = url;
                   newElement = a;
               }
               
@@ -682,7 +682,7 @@ export function Editor({ page }: EditorProps) {
     
     if (event.ctrlKey && !event.altKey) {
       const key = event.key.toLowerCase();
-      if (['g'].includes(key)) {
+      if (['b', 'g'].includes(key)) {
         event.preventDefault();
         editorRef.current?.focus();
         document.execCommand('bold');
@@ -945,12 +945,12 @@ export function Editor({ page }: EditorProps) {
         }
     }
     
-     if (target.classList.contains('code-expander')) {
-        const pre = target.closest('pre');
-        if (pre) {
-            pre.classList.toggle('collapsed');
-            target.textContent = pre.classList.contains('collapsed') ? 'Voir plus...' : 'Voir moins...';
-        }
+    if (target.classList.contains('code-expander')) {
+      const pre = target.previousElementSibling;
+      if (pre && pre.tagName === 'PRE') {
+          pre.classList.toggle('collapsed');
+          target.textContent = pre.classList.contains('collapsed') ? 'Voir plus...' : 'Voir moins...';
+      }
     }
 
 
@@ -1076,12 +1076,12 @@ export function Editor({ page }: EditorProps) {
         // Add code expanders to existing long code blocks
         const pres = editorRef.current.querySelectorAll('pre');
         pres.forEach(pre => {
-             if (pre.scrollHeight > 100 && !pre.querySelector('.code-expander')) {
+             if (pre.scrollHeight > 100 && !pre.nextElementSibling?.classList.contains('code-expander')) {
                 pre.classList.add('collapsed');
                 const expander = document.createElement('span');
                 expander.className = 'code-expander';
                 expander.textContent = 'Voir plus...';
-                pre.appendChild(expander);
+                pre.after(expander);
             }
         });
 
@@ -1479,7 +1479,7 @@ export function Editor({ page }: EditorProps) {
           <div className="space-y-2">
             <h3 className="font-semibold">Text Formatting</h3>
             <ul className="list-disc list-inside text-sm text-muted-foreground">
-              <li><kbd className="p-1 bg-muted rounded-md">Ctrl+G</kbd> - Bold</li>
+              <li><kbd className="p-1 bg-muted rounded-md">Ctrl+G/B</kbd> - Bold</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+I</kbd> - Italic</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+U</kbd> - Underline</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Shift+X</kbd> - Inline Code</li>
