@@ -437,11 +437,11 @@ export function Editor({ page }: EditorProps) {
           return;
       }
 
-      // Case 4: Horizontal Rule
+      // Case 4: Horizontal Rule with '---'
       const rangeStartNode = range.startContainer;
-      const currentBlock = (rangeStartNode.nodeType === 3 
+      const currentBlock = (rangeStartNode.nodeType === Node.TEXT_NODE 
           ? rangeStartNode.parentElement 
-          : rangeStartNode as HTMLElement)?.closest('p, div, li');
+          : (rangeStartNode as HTMLElement))?.closest('p, div, li, h1, h2, h3, h4, h5, h6');
 
       if (currentBlock && currentBlock.textContent?.trim() === '---') {
           event.preventDefault();
@@ -450,7 +450,11 @@ export function Editor({ page }: EditorProps) {
           const p = document.createElement('p');
           p.innerHTML = '&#8203;'; // Zero-width space to place the cursor
           
-          currentBlock.replaceWith(hr);
+          // Replace the current block with the HR
+          currentBlock.parentElement?.insertBefore(hr, currentBlock);
+          currentBlock.parentElement?.removeChild(currentBlock);
+          
+          // Add a new paragraph after the HR and move the cursor
           hr.after(p);
           
           const newRange = document.createRange();
@@ -748,6 +752,7 @@ export function Editor({ page }: EditorProps) {
   };
 
   const handleFocus = () => {
+    restoreSelection();
     updateToolbarState();
   };
 
