@@ -43,16 +43,6 @@ import {
   Superscript,
   Subscript
 } from "lucide-react";
-import hljs from 'highlight.js/lib/core';
-import javascript from 'highlight.js/lib/languages/javascript';
-import python from 'highlight.js/lib/languages/python';
-import xml from 'highlight.js/lib/languages/xml'; // For HTML
-import css from 'highlight.js/lib/languages/css';
-import typescript from 'highlight.js/lib/languages/typescript';
-import json from 'highlight.js/lib/languages/json';
-import bash from 'highlight.js/lib/languages/bash';
-import javaLang from 'highlight.js/lib/languages/java';
-import 'highlight.js/styles/github.css'; 
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -85,15 +75,6 @@ import { generateDiagram } from "@/ai/flows/generate-diagrams-from-text";
 import { cn } from "@/lib/utils";
 
 
-hljs.registerLanguage('javascript', javascript);
-hljs.registerLanguage('python', python);
-hljs.registerLanguage('xml', xml);
-hljs.registerLanguage('css', css);
-hljs.registerLanguage('typescript', typescript);
-hljs.registerLanguage('json', json);
-hljs.registerLanguage('bash', bash);
-hljs.registerLanguage('java', javaLang);
-
 interface EditorProps {
   page: Page;
 }
@@ -123,7 +104,6 @@ export function Editor({ page }: EditorProps) {
   const [toc, setToc] = React.useState<TocItem[]>([]);
   const debounceTimerRef = React.useRef<NodeJS.Timeout | null>(null);
   const scrollDebounceTimerRef = React.useRef<NodeJS.Timeout | null>(null);
-  const highlightDebounceTimerRef = React.useRef<NodeJS.Timeout | null>(null);
 
   const [activeTocId, setActiveTocId] = React.useState<string | null>(null);
   const [isTocVisible, setIsTocVisible] = React.useState(true);
@@ -195,38 +175,6 @@ export function Editor({ page }: EditorProps) {
   });
 
   const { toast } = useToast();
-
-    const debouncedHighlight = React.useCallback(() => {
-        if (highlightDebounceTimerRef.current) {
-            clearTimeout(highlightDebounceTimerRef.current);
-        }
-        highlightDebounceTimerRef.current = setTimeout(() => {
-            if (!editorRef.current) return;
-            const codeBlocks = editorRef.current.querySelectorAll('pre');
-            codeBlocks.forEach((preBlock) => {
-                const codeElement = preBlock.querySelector('code');
-                if (codeElement) {
-                    // Remove any existing language badge
-                    preBlock.querySelector('.language-badge')?.remove();
-
-                    // Highlight the code block
-                    hljs.highlightElement(codeElement as HTMLElement);
-                    
-                    // After highlighting, 'highlight.js' adds a class like 'language-python'
-                    const languageClass = Array.from(codeElement.classList).find(cls => cls.startsWith('language-'));
-                    if (languageClass) {
-                        const languageName = languageClass.replace('language-', '');
-                        
-                        // Create and prepend the badge
-                        const badge = document.createElement('div');
-                        badge.className = 'language-badge';
-                        badge.textContent = languageName;
-                        preBlock.prepend(badge);
-                    }
-                }
-            });
-        }, 300);
-    }, []);
 
   const updateToc = React.useCallback(() => {
     if (!editorRef.current) return;
@@ -360,50 +308,19 @@ export function Editor({ page }: EditorProps) {
     editorRef.current?.focus();
     restoreSelection();
 
-    if (command === 'formatBlock' && (value === 'blockquote' || value === 'pre')) {
+    if (command === 'formatBlock' && value && ['blockquote', 'pre'].includes(value)) {
         if (currentBlockStyle === value) {
             document.execCommand('formatBlock', false, 'p');
-            setTimeout(updateToolbarState, 0);
-            return;
-        }
-    }
-
-    setTimeout(() => {
-      try {
-        if (command === 'formatBlock' && value === 'pre') {
-          // Special handling for code blocks to ensure proper structure
-          document.execCommand('formatBlock', false, 'p'); // First, make it a paragraph
-          const sel = window.getSelection();
-          if (sel && sel.rangeCount > 0) {
-            const range = sel.getRangeAt(0);
-            const p = range.commonAncestorContainer.parentElement?.closest('p');
-            if (p) {
-              const pre = document.createElement('pre');
-              const code = document.createElement('code');
-              code.innerHTML = p.innerHTML || '&#8203;'; // Move content
-              pre.appendChild(code);
-              p.replaceWith(pre);
-              // Restore cursor inside the new code block
-              const newRange = document.createRange();
-              newRange.selectNodeContents(code);
-              newRange.collapse(false);
-              sel.removeAllRanges();
-              sel.addRange(newRange);
-            }
-          }
         } else {
-          document.execCommand(command, false, value);
+            document.execCommand(command, false, value);
         }
-      } catch (err) {
-        // ignore execCommand errors
-      }
-      setTimeout(() => {
+    } else {
+      document.execCommand(command, false, value);
+    }
+    
+    setTimeout(() => {
         updateToolbarState();
         debouncedUpdateToc();
-        if (value === 'pre') {
-          debouncedHighlight();
-        }
-      }, 0);
     }, 0);
   };
 
@@ -464,7 +381,6 @@ export function Editor({ page }: EditorProps) {
     }
     updateToolbarState();
     debouncedUpdateToc();
-    debouncedHighlight();
   };
 
   // KeyDown handles shortcuts + Enter special behavior + checklist/tab navigation + headings via Ctrl+Shift+N
@@ -484,12 +400,13 @@ export function Editor({ page }: EditorProps) {
             block = node.closest('blockquote, pre');
         }
 
-        // Exit from blockquote or code block
-        if (block) {
+        // Exit from blockquote or code block if the line is empty
+        if (block && block.textContent?.trim() === '') {
             event.preventDefault();
             const p = document.createElement('p');
             p.innerHTML = '&#8203;'; // Zero-width space for caret
             block.after(p);
+            block.remove(); // Remove the empty block
             
             const newRange = document.createRange();
             newRange.setStart(p, 0);
@@ -873,7 +790,6 @@ export function Editor({ page }: EditorProps) {
             editorRef.current.innerHTML = "<p>&#8203;</p>";
         }
         updateToc();
-        debouncedHighlight();
         updateActiveTocOnScroll(); // Initial check
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
