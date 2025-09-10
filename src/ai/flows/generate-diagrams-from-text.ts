@@ -38,12 +38,17 @@ const prompt = ai.definePrompt({
   input: {schema: GenerateDiagramInputSchema},
   output: {schema: GenerateDiagramOutputSchema},
   prompt: `You are an expert data structure generator for diagrams.
-Your task is to convert a natural language description into a valid JSON string that represents the data for a specified diagram type. The JSON must be compatible with a React component that will render the diagram.
+Your task is to convert a natural language description into a valid JSON string that represents the data for a specified diagram type.
+The JSON must be compatible with a React component that will render the diagram.
 
 The output MUST be a single JSON string, with no additional text, explanations, or markdown.
 
 Generate the data for a {{{diagramType}}} based on the following text:
 Text: {{{text}}}
+
+CRITICAL INSTRUCTIONS:
+- For MindMap and OrgChart, you MUST create a deep, hierarchical structure. Identify the central idea, then create main branches, then sub-branches, and sub-sub-branches. Go at least 3-4 levels deep to provide a comprehensive overview.
+- For MindMap and Flowchart, you MUST calculate logical 'x' and 'y' percentage coordinates (0-100) for each node to ensure a clean, readable layout. For a mind map, this is typically a radial layout. For a flowchart, this is typically top-down or left-to-right.
 
 Follow these schemas for the JSON output:
 
@@ -55,7 +60,7 @@ Follow these schemas for the JSON output:
 
 - For "OrgChart":
   {
-    "nodes": [{ "id": "string", "label": "string", "parent": "string (optional parent id)" }]
+    "nodes": [{ "id": "string", "label": "string", "parent": "string (optional parent id, null for the root)" }]
   }
 
 - For "VennDiagram":
