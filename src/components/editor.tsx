@@ -73,11 +73,11 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "./ui/label";
 import { Textarea } from "./ui/textarea";
-import { refineAndStructureNotes, RefineAndStructureNotesOutput } from "@/ai/flows/refine-and-structure-notes";
+import { refineAndStructureNotes } from "@/ai/flows/refine-and-structure-notes";
 import { generateDiagram } from "@/ai/flows/generate-diagrams-from-text";
 import { cn } from "@/lib/utils";
 import showdown from 'showdown';
-import { spellCheck, SpellCheckOutput } from "@/ai/flows/spell-check-flow";
+import { spellCheck } from "@/ai/flows/spell-check-flow";
 
 
 interface EditorProps {
@@ -101,11 +101,12 @@ type TocItem = {
   text: string;
 };
 
-type AiActionResult = {
-    title: string;
-    description: string;
-    content: string;
-}
+type AiSuggestion = {
+    originalRange: Range;
+    suggestionText: string;
+    position: { top: number; left: number };
+};
+
 
 export function Editor({ page }: EditorProps) {
   const [isSaving, setIsSaving] = React.useState(false);
@@ -175,9 +176,8 @@ export function Editor({ page }: EditorProps) {
     x: 0, y: 0, visible: false, isTextSelected: false
   });
   
-  const [isAiResultDialog, setIsAiResultDialog] = React.useState(false);
-  const [aiActionResult, setAiActionResult] = React.useState<AiActionResult | null>(null);
   const [isAiLoading, setIsAiLoading] = React.useState(false);
+  const [aiSuggestion, setAiSuggestion] = React.useState<AiSuggestion | null>(null);
 
 
   const [activeStyles, setActiveStyles] = React.useState<ActiveStyles>({
@@ -338,6 +338,7 @@ export function Editor({ page }: EditorProps) {
   }, [page.id, updateToolbarState, debouncedScrollHandler]);
 
   const handleFormat = (command: string, value?: string) => {
+    if (aiSuggestion) setAiSuggestion(null);
     editorRef.current?.focus();
     restoreSelection();
 
@@ -539,6 +540,15 @@ export function Editor({ page }: EditorProps) {
 
   // KeyDown handles shortcuts + Enter special behavior + checklist/tab navigation + headings via Ctrl+Shift+N
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (aiSuggestion) {
+        if (event.key === 'Tab') {
+            event.preventDefault();
+            handleApplyAiSuggestion();
+            return;
+        }
+        setAiSuggestion(null); // Dismiss on any other key
+    }
+
     // Enter key logic
     if (event.key === 'Enter' && !event.shiftKey) {
         const sel = window.getSelection();
@@ -729,6 +739,7 @@ export function Editor({ page }: EditorProps) {
 
   const handleContextMenu = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!editorRef.current) return;
+    if (aiSuggestion) setAiSuggestion(null);
     e.preventDefault();
     saveSelection();
     
@@ -749,37 +760,44 @@ export function Editor({ page }: EditorProps) {
   const handleAiAction = async (action: 'spellcheck' | 'refine') => {
     restoreSelection();
     const selection = window.getSelection();
-    if (!selection || selection.isCollapsed) {
+    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
         toast({ title: "Error", description: "Please select text to use an AI action.", variant: "destructive"});
         return;
     }
-
+    
+    const originalRange = selection.getRangeAt(0).cloneRange();
     const selectedText = selection.toString();
+    
     setIsAiLoading(true);
     setContextMenu({ ...contextMenu, visible: false });
 
     try {
-        let result: SpellCheckOutput | RefineAndStructureNotesOutput;
-        let resultTitle = "", resultDescription = "", resultContent = "";
-
         if (action === 'spellcheck') {
-            result = await spellCheck({ text: selectedText });
-            resultTitle = "Correction by AI";
-            resultDescription = "The AI has corrected the selected text. You can insert it below.";
-            resultContent = result.correctedText;
+            const result = await spellCheck({ text: selectedText });
+            const correctedText = result.correctedText;
+
+            if (correctedText && correctedText.trim() !== selectedText.trim()) {
+                const rangeRect = originalRange.getBoundingClientRect();
+                const scrollContainerRect = scrollContainerRef.current!.getBoundingClientRect();
+                
+                setAiSuggestion({
+                    originalRange: originalRange,
+                    suggestionText: correctedText,
+                    position: {
+                        top: rangeRect.bottom - scrollContainerRect.top + scrollContainerRef.current!.scrollTop,
+                        left: rangeRect.left - scrollContainerRect.left,
+                    }
+                });
+            } else {
+                toast({ title: "No corrections", description: "The AI found no issues in the selected text."});
+            }
         } else if (action === 'refine') {
-            result = await refineAndStructureNotes({ rawNotes: selectedText });
-             resultTitle = "Refined by AI";
-            resultDescription = "The AI has refined the selected text. You can insert it below.";
-            resultContent = result.refinedNotes;
+            // This part can still use a dialog or be adapted to the inline suggestion model later
+            const result = await refineAndStructureNotes({ rawNotes: selectedText });
+            // For now, let's just insert it for simplicity. A dialog is better.
+            originalRange.deleteContents();
+            originalRange.insertNode(document.createTextNode(result.refinedNotes));
         }
-        
-        setAiActionResult({
-            title: resultTitle,
-            description: resultDescription,
-            content: resultContent
-        });
-        setIsAiResultDialog(true);
         
     } catch (e) {
         console.error(`AI action '${action}' failed:`, e);
@@ -789,14 +807,21 @@ export function Editor({ page }: EditorProps) {
     }
   };
   
-  const handleApplyAiResult = () => {
-    restoreSelection();
-    editorRef.current?.focus();
-    if (aiActionResult) {
-        document.execCommand('insertHTML', false, aiActionResult.content.replace(/\n/g, '<br>'));
+  const handleApplyAiSuggestion = () => {
+    if (!aiSuggestion) return;
+    const { originalRange, suggestionText } = aiSuggestion;
+    
+    // Restore selection to the original range to be replaced
+    const sel = window.getSelection();
+    if(sel){
+        sel.removeAllRanges();
+        sel.addRange(originalRange);
     }
-    setIsAiResultDialog(false);
-    setAiActionResult(null);
+
+    // Replace the content
+    document.execCommand('insertText', false, suggestionText);
+
+    setAiSuggestion(null);
   }
 
 
@@ -975,6 +1000,7 @@ export function Editor({ page }: EditorProps) {
     }
 
     if (contextMenu.visible) setContextMenu({ ...contextMenu, visible: false });
+    if (aiSuggestion) setAiSuggestion(null);
   };
 
   const handleFocus = () => {
@@ -1324,6 +1350,17 @@ export function Editor({ page }: EditorProps) {
             className="prose dark:prose-invert max-w-none w-full h-full bg-card p-4 sm:p-6 md:p-8 lg:p-12 focus:outline-none"
             style={{ direction: 'ltr' }}
           />
+        {aiSuggestion && (
+            <div
+                contentEditable={false}
+                style={{ position: 'absolute', top: aiSuggestion.position.top, left: aiSuggestion.position.left }}
+                className="z-10 bg-background border rounded-md shadow-lg px-3 py-1.5 text-sm flex items-center gap-2"
+            >
+                <span className="text-muted-foreground">{aiSuggestion.suggestionText}</span>
+                <Button size="sm" variant="ghost" onClick={handleApplyAiSuggestion} className="p-1 h-auto">Apply</Button>
+                <span className="text-xs text-muted-foreground border rounded-sm px-1 py-0.5">Tab</span>
+            </div>
+        )}
         </CardContent>
       </Card>
       
@@ -1388,9 +1425,16 @@ export function Editor({ page }: EditorProps) {
                 role="menuitem"
                 className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
                 onMouseDown={(e) => e.preventDefault()}
-                onClick={() => {
-                    document.execCommand('paste');
-                    setContextMenu({ ...contextMenu, visible: false }); 
+                onClick={async () => {
+                    try {
+                        const text = await navigator.clipboard.readText();
+                        restoreSelection();
+                        document.execCommand('insertText', false, text);
+                    } catch (err) {
+                        toast({ title: "Paste failed", description: "Could not read from clipboard. Please use Ctrl+V.", variant: "destructive" });
+                        console.error('Failed to read clipboard contents: ', err);
+                    }
+                    setContextMenu({ ...contextMenu, visible: false });
                 }}
             >
                 <ClipboardPaste className="h-4 w-4" /> Paste
@@ -1407,7 +1451,8 @@ export function Editor({ page }: EditorProps) {
                     onClick={() => handleAiAction('spellcheck')}
                     disabled={!contextMenu.isTextSelected || isAiLoading}
                 >
-                    <Sparkles className="h-4 w-4" /> Spell Check
+                    {isAiLoading ? <LoaderCircle className="h-4 w-4 animate-spin"/> : <Sparkles className="h-4 w-4" />}
+                     Spell Check
                 </button>
                  <button
                     role="menuitem"
@@ -1422,22 +1467,6 @@ export function Editor({ page }: EditorProps) {
 
             </div>
       )}
-      
-      <Dialog open={isAiResultDialog} onOpenChange={setIsAiResultDialog}>
-          <DialogContent>
-            <DialogHeader>
-                <DialogTitle>{aiActionResult?.title || "AI Result"}</DialogTitle>
-                <DialogDescription>{aiActionResult?.description || ""}</DialogDescription>
-            </DialogHeader>
-             <div className="max-h-[50vh] overflow-y-auto rounded-md border p-4">
-                <p className="text-sm">{aiActionResult?.content}</p>
-            </div>
-             <DialogFooter>
-                <Button variant="outline" onClick={() => setIsAiResultDialog(false)}>Cancel</Button>
-                <Button onClick={handleApplyAiResult}>Insert</Button>
-            </DialogFooter>
-          </DialogContent>
-      </Dialog>
       
       <Dialog open={isCommandPaletteOpen} onOpenChange={setIsCommandPaletteOpen}>
         <DialogContent>
@@ -1475,3 +1504,5 @@ export function Editor({ page }: EditorProps) {
     </div>
   );
 }
+
+    
