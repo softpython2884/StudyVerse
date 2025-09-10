@@ -30,10 +30,10 @@ const refineAndStructureNotesPrompt = ai.definePrompt({
   output: {schema: RefineAndStructureNotesOutputSchema},
   prompt: `You are an AI assistant designed to refine and structure student notes into well-organized course documents.
 
-  Please take the following raw notes and organize them into a coherent and structured format, suitable for studying. Use headings, subheadings, bullet points, and numbered lists where appropriate to improve readability and understanding.
+  Please take the following raw notes and organize them into a coherent and structured format, suitable for studying. Use headings, subheadings, bullet points, and numbered lists where appropriate to improve readability and understanding. Only return the refined text, without any preamble or explanation.
 
   Raw Notes:
-  {{rawNotes}}
+  {{{rawNotes}}}
 
   Refined and Structured Notes:`,
 });

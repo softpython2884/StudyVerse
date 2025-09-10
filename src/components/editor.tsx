@@ -73,11 +73,11 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "./ui/label";
 import { Textarea } from "./ui/textarea";
-import { refineAndStructureNotes } from "@/ai/flows/refine-and-structure-notes";
+import { refineAndStructureNotes, RefineAndStructureNotesOutput } from "@/ai/flows/refine-and-structure-notes";
 import { generateDiagram } from "@/ai/flows/generate-diagrams-from-text";
 import { cn } from "@/lib/utils";
 import showdown from 'showdown';
-import { spellCheck } from "@/ai/flows/spell-check-flow";
+import { spellCheck, SpellCheckOutput } from "@/ai/flows/spell-check-flow";
 
 
 interface EditorProps {
@@ -101,11 +101,11 @@ type TocItem = {
   text: string;
 };
 
-type InlineCorrection = {
-  anchor: HTMLElement;
-  original: string;
-  suggestion: string;
-};
+type AiActionResult = {
+    title: string;
+    description: string;
+    content: string;
+}
 
 export function Editor({ page }: EditorProps) {
   const [isSaving, setIsSaving] = React.useState(false);
@@ -157,11 +157,10 @@ export function Editor({ page }: EditorProps) {
     saveSelection();    // mark selection before any popover/dialog steals focus
   };
 
-  const [refinedNotes, setRefinedNotes] = React.useState("");
   const [diagramText, setDiagramText] = React.useState("");
   const [diagramFormat, setDiagramFormat] = React.useState<"markdown" | "latex" | "txt">("txt");
   const [generatedDiagram, setGeneratedDiagram] = React.useState("");
-  const [isRefining, setIsRefining] = React.useState(false);
+
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [htmlToInsert, setHtmlToInsert] = React.useState("");
 
@@ -171,15 +170,14 @@ export function Editor({ page }: EditorProps) {
   const [isTablePopoverOpen, setIsTablePopoverOpen] = React.useState(false);
   const [tableGridSize, setTableGridSize] = React.useState({ rows: 0, cols: 0 });
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = React.useState(false);
-  const [isAiPopoverOpen, setIsAiPopoverOpen] = React.useState(false);
-  const [aiPopoverAnchor, setAiPopoverAnchor] = React.useState<HTMLElement | null>(null);
-
+  
   const [contextMenu, setContextMenu] = React.useState<{ x: number; y: number; visible: boolean; isTextSelected: boolean }>({
     x: 0, y: 0, visible: false, isTextSelected: false
   });
   
-  const [inlineCorrection, setInlineCorrection] = React.useState<InlineCorrection | null>(null);
-  const spellCheckDebounceTimer = React.useRef<NodeJS.Timeout | null>(null);
+  const [isAiResultDialog, setIsAiResultDialog] = React.useState(false);
+  const [aiActionResult, setAiActionResult] = React.useState<AiActionResult | null>(null);
+  const [isAiLoading, setIsAiLoading] = React.useState(false);
 
 
   const [activeStyles, setActiveStyles] = React.useState<ActiveStyles>({
@@ -400,61 +398,9 @@ export function Editor({ page }: EditorProps) {
     }, 0);
   };
   
-  const triggerSpellCheck = async () => {
-    if (spellCheckDebounceTimer.current) {
-        clearTimeout(spellCheckDebounceTimer.current);
-    }
-
-    spellCheckDebounceTimer.current = setTimeout(async () => {
-        const sel = window.getSelection();
-        if (!sel || !sel.rangeCount) return;
-        
-        const range = sel.getRangeAt(0);
-        const node = range.startContainer;
-        
-        // Only trigger on text nodes within the editor
-        if (node.nodeType !== Node.TEXT_NODE || !editorRef.current?.contains(node)) {
-            setInlineCorrection(null);
-            return;
-        }
-
-        const text = node.textContent || "";
-        if (text.trim() === "" || text.endsWith(' ')) return; // Don't check empty or just-ended sentences yet.
-
-        // Get the sentence or a reasonable chunk of text around the cursor
-        const block = (node.parentElement as HTMLElement)?.closest('p,li');
-        if (!block) return;
-        const blockText = block.innerText;
-
-        try {
-            const result = await spellCheck({ text: blockText });
-            if (result.correctedText && result.correctedText !== blockText) {
-                const anchor = document.createElement('span');
-                anchor.className = "correction-anchor";
-                range.insertNode(anchor);
-                
-                // Add a very small delay for the DOM to update with the anchor
-                setTimeout(() => {
-                     setInlineCorrection({
-                        anchor,
-                        original: blockText,
-                        suggestion: result.correctedText,
-                    });
-                }, 10);
-            } else {
-                setInlineCorrection(null);
-            }
-        } catch (e) {
-            console.error("Spell check failed:", e);
-            setInlineCorrection(null);
-        }
-    }, 1500); // Wait 1.5 seconds after user stops typing
-};
-
   // KeyUp handles markdown-like transforms (# headings, urls) and updates toolbar
   const handleKeyUp = (event: React.KeyboardEvent<HTMLDivElement>) => {
-     if (event.key === ' ' || event.key === 'Enter' || event.key === '.') {
-      triggerSpellCheck();
+     if (event.key === ' ' || event.key === 'Enter') {
       
       const sel = window.getSelection();
       if (!sel || sel.rangeCount === 0) return;
@@ -517,6 +463,7 @@ export function Editor({ page }: EditorProps) {
                   const a = document.createElement('a');
                   a.href = url;
                   a.textContent = url;
+                  a.title = `Lien vers ${url}`;
                   newElement = a;
               }
               
@@ -590,40 +537,8 @@ export function Editor({ page }: EditorProps) {
     debouncedUpdateToc();
   };
 
-  const applyCorrection = () => {
-    if (!inlineCorrection) return;
-    
-    const { anchor, suggestion } = inlineCorrection;
-    const block = anchor.closest('p, li');
-    
-    if (block) {
-        block.textContent = suggestion;
-
-        // Restore cursor position at the end of the corrected block
-        const range = document.createRange();
-        const sel = window.getSelection();
-        range.selectNodeContents(block);
-        range.collapse(false); // false to collapse to the end
-        sel?.removeAllRanges();
-        sel?.addRange(range);
-    }
-    
-    setInlineCorrection(null);
-  };
-
-
   // KeyDown handles shortcuts + Enter special behavior + checklist/tab navigation + headings via Ctrl+Shift+N
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === 'Tab' && inlineCorrection) {
-      event.preventDefault();
-      applyCorrection();
-      return;
-    }
-
-    if (event.key !== 'Tab' && inlineCorrection) {
-        setInlineCorrection(null);
-    }
-
     // Enter key logic
     if (event.key === 'Enter' && !event.shiftKey) {
         const sel = window.getSelection();
@@ -755,29 +670,19 @@ export function Editor({ page }: EditorProps) {
         return;
     }
     
-
-    if (event.ctrlKey && event.code === 'Space') {
-      event.preventDefault();
-      saveSelection();
-      const selection = window.getSelection();
-      if (selection && selection.rangeCount > 0) {
-        const range = selection.getRangeAt(0);
-        const anchor = document.createElement('span');
-        range.insertNode(anchor);
-        setAiPopoverAnchor(anchor);
-      } else {
-        setAiPopoverAnchor(editorRef.current);
-      }
-      setIsAiPopoverOpen(true);
-      return;
-    }
-
     if (event.ctrlKey && !event.altKey) {
       const key = event.key.toLowerCase();
-      if (['b', 'i', 'u', 'g'].includes(key)) {
+      if (['g'].includes(key)) {
         event.preventDefault();
         editorRef.current?.focus();
-        document.execCommand(key === 'b' || key === 'g' ? 'bold' : key === 'i' ? 'italic' : 'underline');
+        document.execCommand('bold');
+        setTimeout(updateToolbarState, 0);
+        return;
+      }
+      if (['i', 'u'].includes(key)) {
+        event.preventDefault();
+        editorRef.current?.focus();
+        document.execCommand(key === 'i' ? 'italic' : 'underline');
         setTimeout(updateToolbarState, 0);
         return;
       }
@@ -840,13 +745,67 @@ export function Editor({ page }: EditorProps) {
     
     setContextMenu({ x: posX, y: posY, visible: true, isTextSelected });
   };
+  
+  const handleAiAction = async (action: 'spellcheck' | 'refine') => {
+    restoreSelection();
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed) {
+        toast({ title: "Error", description: "Please select text to use an AI action.", variant: "destructive"});
+        return;
+    }
+
+    const selectedText = selection.toString();
+    setIsAiLoading(true);
+    setContextMenu({ ...contextMenu, visible: false });
+
+    try {
+        let result: SpellCheckOutput | RefineAndStructureNotesOutput;
+        let resultTitle = "", resultDescription = "", resultContent = "";
+
+        if (action === 'spellcheck') {
+            result = await spellCheck({ text: selectedText });
+            resultTitle = "Correction by AI";
+            resultDescription = "The AI has corrected the selected text. You can insert it below.";
+            resultContent = result.correctedText;
+        } else if (action === 'refine') {
+            result = await refineAndStructureNotes({ rawNotes: selectedText });
+             resultTitle = "Refined by AI";
+            resultDescription = "The AI has refined the selected text. You can insert it below.";
+            resultContent = result.refinedNotes;
+        }
+        
+        setAiActionResult({
+            title: resultTitle,
+            description: resultDescription,
+            content: resultContent
+        });
+        setIsAiResultDialog(true);
+        
+    } catch (e) {
+        console.error(`AI action '${action}' failed:`, e);
+        toast({title: "AI Error", description: "The AI action failed to complete.", variant: "destructive"});
+    } finally {
+        setIsAiLoading(false);
+    }
+  };
+  
+  const handleApplyAiResult = () => {
+    restoreSelection();
+    editorRef.current?.focus();
+    if (aiActionResult) {
+        document.execCommand('insertHTML', false, aiActionResult.content.replace(/\n/g, '<br>'));
+    }
+    setIsAiResultDialog(false);
+    setAiActionResult(null);
+  }
+
 
   const handleApplyLink = () => {
     restoreSelection();
     editorRef.current?.focus();
     setTimeout(() => {
       if (linkUrl) {
-        const linkHtml = `<a href="${linkUrl}">${window.getSelection()?.toString() || linkUrl}</a>`;
+        const linkHtml = `<a href="${linkUrl}" title="${linkUrl}">${window.getSelection()?.toString() || linkUrl}</a>`;
         document.execCommand("insertHTML", false, linkHtml);
       }
       setLinkUrl("");
@@ -894,32 +853,6 @@ export function Editor({ page }: EditorProps) {
       });
     }
     setIsSaving(false);
-  };
-
-  const handleRefineNotes = async () => {
-    const currentNotes = editorRef.current?.innerText || "";
-    if (!currentNotes) {
-      toast({
-        title: "Error",
-        description: "There is no content to refine.",
-        variant: "destructive",
-      });
-      return;
-    }
-    setIsRefining(true);
-    try {
-      const result = await refineAndStructureNotes({ rawNotes: currentNotes });
-      setRefinedNotes(result.refinedNotes);
-    } catch (error) {
-      console.error("Error refining notes:", error);
-      toast({
-        title: "Error",
-        description: "Failed to refine notes.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsRefining(false);
-    }
   };
 
   const handleGenerateDiagram = async () => {
@@ -974,10 +907,6 @@ export function Editor({ page }: EditorProps) {
   }
 
   const handleEditorClick = (e: React.MouseEvent) => {
-    if (inlineCorrection) {
-      setInlineCorrection(null);
-    }
-
     const editor = editorRef.current;
     if (!editor) return;
     const target = e.target as HTMLElement;
@@ -1299,30 +1228,19 @@ export function Editor({ page }: EditorProps) {
               }} />
               <Dialog>
                 <DialogTrigger asChild>
-                  <Button variant="ghost" size="sm" onClick={handleRefineNotes}>
+                  <Button variant="ghost" size="sm">
                     <Bot className="mr-2 h-4 w-4" />
-                    Refine
+                    Refine with AI
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-[625px]">
                   <DialogHeader>
-                    <DialogTitle>Refined Note</DialogTitle>
-                    <DialogDescription>Your note, enhanced and structured by AI.</DialogDescription>
+                    <DialogTitle>Refine Note with AI</DialogTitle>
+                    <DialogDescription>Select text in the editor and click "Refine" to enhance it.</DialogDescription>
                   </DialogHeader>
-                  <div className="max-h-[60vh] overflow-y-auto p-4 border rounded-md">
-                    {isRefining ? <p>Refining your notes...</p> : <Textarea className="whitespace-pre-wrap font-body min-h-[30vh]" readOnly value={refinedNotes} />}
-                  </div>
-                  <DialogFooter>
-                    <Button onClick={() => {
-                      if(editorRef.current) {
-                        const refinedHtml = refinedNotes.replace(/\\n/g, '<br />');
-                        editorRef.current.innerHTML = refinedHtml;
-                      }
-                    }}>
-                      Insert
-                    </Button>
-                    <DialogClose asChild><Button type="button" variant="secondary">Close</Button></DialogClose>
-                  </DialogFooter>
+                   <div className="text-center p-8">
+                     <p className="text-muted-foreground"> This dialog is now triggered from the right-click menu for a better workflow. </p>
+                   </div>
                 </DialogContent>
               </Dialog>
               <Dialog>
@@ -1390,56 +1308,6 @@ export function Editor({ page }: EditorProps) {
           </div>
         </CardHeader>
         <CardContent ref={scrollContainerRef} className="flex-1 overflow-y-auto p-0 printable-area relative">
-          <Popover open={isAiPopoverOpen} onOpenChange={setIsAiPopoverOpen} modal={true}>
-            <PopoverTrigger asChild>
-              {aiPopoverAnchor && <div style={{ position: 'absolute', top: 0, left: 0, width: 0, height: 0 }} ref={node => { if(node && aiPopoverAnchor.parentElement) aiPopoverAnchor.parentElement.replaceChild(node, aiPopoverAnchor)}}></div>}
-            </PopoverTrigger>
-            <PopoverContent className="w-96" onOpenAutoFocus={(e) => e.preventDefault()} align="center">
-              <div className="grid gap-4">
-                <div className="space-y-2">
-                  <h4 className="font-medium leading-none">AI Assistant</h4>
-                  <p className="text-sm text-muted-foreground">
-                    What do you want to do with the selected text?
-                  </p>
-                </div>
-                <Textarea placeholder="e.g., Summarize the text above, or write a conclusion..." />
-                <Button>Generate</Button>
-              </div>
-            </PopoverContent>
-          </Popover>
-
-          <Popover open={!!inlineCorrection} onOpenChange={(isOpen) => !isOpen && setInlineCorrection(null)}>
-              <PopoverTrigger asChild>
-                  {inlineCorrection?.anchor && <div />}
-              </PopoverTrigger>
-              <PopoverContent 
-                className="w-auto p-2" 
-                align="start"
-                side="top"
-                sideOffset={4}
-                style={{
-                    // Position the popover based on the anchor's location
-                    position: 'absolute',
-                    top: `${inlineCorrection?.anchor.offsetTop ?? 0}px`,
-                    left: `${inlineCorrection?.anchor.offsetLeft ?? 0}px`,
-                }}
-                onOpenAutoFocus={(e) => e.preventDefault()}
-                onPointerDownOutside={() => setInlineCorrection(null)}
-              >
-                <div className="flex items-center gap-2">
-                    <p className="text-sm">Correction :</p>
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-accent h-auto p-1"
-                        onClick={applyCorrection}
-                    >
-                        {inlineCorrection?.suggestion}
-                    </Button>
-                </div>
-              </PopoverContent>
-          </Popover>
-
           <div
             ref={editorRef}
             key={page.id}
@@ -1521,8 +1389,6 @@ export function Editor({ page }: EditorProps) {
                 className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => {
-                    // Use execCommand for broader compatibility and to avoid permission issues.
-                    // The onPaste handler will clean the content.
                     document.execCommand('paste');
                     setContextMenu({ ...contextMenu, visible: false }); 
                 }}
@@ -1531,45 +1397,47 @@ export function Editor({ page }: EditorProps) {
             </button>
             
             <Separator className="my-1" />
-            
-            <button
-                role="menuitem"
-                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent disabled:opacity-50"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => { handleFormat('inlineCode'); setContextMenu({ ...contextMenu, visible: false }); }}
-                disabled={!contextMenu.isTextSelected}
-            >
-                <Code className="h-4 w-4" /> Inline Code
-            </button>
-            <Separator className="my-1" />
 
-             <button
-                role="menuitem"
-                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => { handleFormat('insertUnorderedList'); setContextMenu({...contextMenu, visible: false});}}
-            >
-                <List className="h-4 w-4" /> Bullet List
-            </button>
-             <button
-                role="menuitem"
-                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => { handleFormat('insertOrderedList'); setContextMenu({...contextMenu, visible: false});}}
-            >
-                <ListOrdered className="h-4 w-4" /> Numbered List
-            </button>
-             <button
-                role="menuitem"
-                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => { handleInsertChecklist(); setContextMenu({...contextMenu, visible: false});}}
-            >
-                <ListChecks className="h-4 w-4" /> Checklist
-            </button>
+            <div className="relative">
+                <p className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">AI Tools</p>
+                <button
+                    role="menuitem"
+                    className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent disabled:opacity-50"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => handleAiAction('spellcheck')}
+                    disabled={!contextMenu.isTextSelected || isAiLoading}
+                >
+                    <Sparkles className="h-4 w-4" /> Spell Check
+                </button>
+                 <button
+                    role="menuitem"
+                    className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent disabled:opacity-50"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => handleAiAction('refine')}
+                    disabled={!contextMenu.isTextSelected || isAiLoading}
+                >
+                    <Bot className="h-4 w-4" /> Refine Text
+                </button>
+            </div>
 
             </div>
       )}
+      
+      <Dialog open={isAiResultDialog} onOpenChange={setIsAiResultDialog}>
+          <DialogContent>
+            <DialogHeader>
+                <DialogTitle>{aiActionResult?.title || "AI Result"}</DialogTitle>
+                <DialogDescription>{aiActionResult?.description || ""}</DialogDescription>
+            </DialogHeader>
+             <div className="max-h-[50vh] overflow-y-auto rounded-md border p-4">
+                <p className="text-sm">{aiActionResult?.content}</p>
+            </div>
+             <DialogFooter>
+                <Button variant="outline" onClick={() => setIsAiResultDialog(false)}>Cancel</Button>
+                <Button onClick={handleApplyAiResult}>Insert</Button>
+            </DialogFooter>
+          </DialogContent>
+      </Dialog>
       
       <Dialog open={isCommandPaletteOpen} onOpenChange={setIsCommandPaletteOpen}>
         <DialogContent>
@@ -1598,7 +1466,6 @@ export function Editor({ page }: EditorProps) {
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Z</kbd> - Undo</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Y</kbd> - Redo</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+K</kbd> - Command Palette</li>
-              <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Space</kbd> - AI Prompt</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Shift+K</kbd> - Insert Link</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+-</kbd> - Horizontal Rule</li>
             </ul>
