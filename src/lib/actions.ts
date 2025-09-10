@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { getDb } from './db';
 import { protectedRoute } from './session';
 import { revalidatePath } from 'next/cache';
+import { generateDiagram } from '@/ai/flows/generate-diagrams-from-text';
 
 // --- Binder Actions ---
 const CreateBinderSchema = z.object({
@@ -169,6 +170,49 @@ export async function createPage(values: z.infer<typeof CreatePageSchema>) {
         return { success: false, message: 'Database error.' };
     }
 }
+
+const CreatePageWithDiagramSchema = z.object({
+    notebookId: z.string(),
+    diagramTitle: z.string().min(1),
+    diagramType: z.enum(['MindMap', 'Flowchart', 'OrgChart']),
+    generationText: z.string(),
+    generationPrompt: z.string().min(1),
+});
+
+export async function createPageWithDiagram(values: z.infer<typeof CreatePageWithDiagramSchema>) {
+    await protectedRoute();
+    const { notebookId, diagramTitle, diagramType, generationText, generationPrompt } = values;
+
+    try {
+        // 1. Generate diagram data from AI
+        const diagramData = await generateDiagram({
+            text: `${generationText}\n\nPROMPT: ${generationPrompt}`,
+            diagramType: diagramType
+        });
+
+        // 2. Create a new page for this diagram
+        const db = await getDb();
+        const pageId = `page-${Date.now()}`;
+        const icon = 'Network';
+        
+        await db.run(
+            'INSERT INTO pages (id, notebook_id, title, icon, type, content) VALUES (?, ?, ?, ?, ?, ?)', 
+            pageId, 
+            notebookId, 
+            diagramTitle, 
+            icon, 
+            'diagram', 
+            diagramData.diagramData
+        );
+
+        revalidatePath('/dashboard');
+        return { success: true, pageId: pageId, message: 'Diagram page created.' };
+    } catch (error: any) {
+        console.error("Failed to create page with diagram:", error);
+        return { success: false, message: error.message || 'An unexpected error occurred.' };
+    }
+}
+
 
 const RenamePageSchema = z.object({
     id: z.string(),

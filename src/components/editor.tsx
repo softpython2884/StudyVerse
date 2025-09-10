@@ -61,7 +61,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { Input } from "./ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { updatePageContent } from "@/lib/actions";
+import { createPageWithDiagram, updatePageContent } from "@/lib/actions";
 import { SpeechToText } from "./speech-to-text";
 import { Card, CardContent, CardHeader } from "./ui/card";
 import {
@@ -82,6 +82,7 @@ import showdown from 'showdown';
 import { spellCheck } from "@/ai/flows/spell-check-flow";
 import { generateTextFromPrompt } from "@/ai/flows/generate-text-from-prompt";
 import { getBriefAnswer } from "@/ai/flows/get-brief-answer";
+import { useParams, useRouter } from "next/navigation";
 
 interface EditorProps {
   page: Page;
@@ -110,6 +111,8 @@ type AiSuggestion = {
     position: { top: number; left: number };
 };
 
+const diagramTypes = ['MindMap', 'Flowchart', 'OrgChart'];
+
 export function Editor({ page }: EditorProps) {
   const [isSaving, setIsSaving] = React.useState(false);
   const editorRef = React.useRef<HTMLDivElement>(null);
@@ -121,6 +124,8 @@ export function Editor({ page }: EditorProps) {
 
   const [activeTocId, setActiveTocId] = React.useState<string | null>(null);
   const [isTocVisible, setIsTocVisible] = React.useState(true);
+  const router = useRouter();
+  const params = useParams();
 
 
   // --- SELECTION MARKER HELPERS ---
@@ -163,6 +168,14 @@ export function Editor({ page }: EditorProps) {
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [htmlToInsert, setHtmlToInsert] = React.useState("");
   const [promptToGenerate, setPromptToGenerate] = React.useState("");
+  
+  const [diagramState, setDiagramState] = React.useState({
+      title: "",
+      prompt: "",
+      context: "",
+      type: "MindMap" as (typeof diagramTypes)[number],
+      isOpen: false
+  });
 
 
   const [isLinkPopoverOpen, setIsLinkPopoverOpen] = React.useState(false);
@@ -607,6 +620,53 @@ video.src = url;
     }
 };
 
+const handleGenerateDiagram = async () => {
+    if (!diagramState.title || !diagramState.prompt) {
+        toast({ title: "Error", description: "Title and prompt are required to generate a diagram.", variant: "destructive" });
+        return;
+    }
+    setIsGenerating(true);
+    try {
+        const result = await createPageWithDiagram({
+            notebookId: params.notebookId as string,
+            diagramTitle: diagramState.title,
+            diagramType: diagramState.type,
+            generationText: diagramState.context,
+            generationPrompt: diagramState.prompt,
+        });
+
+        if (result.success && result.pageId) {
+            const { binderId, notebookId } = params;
+            const diagramUrl = `/dashboard/${binderId}/${notebookId}/${result.pageId}`;
+            const embedHtml = `
+                <p>
+                    <a href="${diagramUrl}" class="diagram-embed" target="_blank" rel="noopener noreferrer">
+                        <span class="diagram-embed-icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-network"><rect x="16" y="16" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"/><path d="M12 12V8"/></svg></span>
+                        <span class="diagram-embed-text">
+                            <span class="diagram-embed-title">Diagram: ${diagramState.title}</span>
+                            <span class="diagram-embed-link">Click to open</span>
+                        </span>
+                    </a>
+                </p>
+            `;
+            restoreSelection();
+            editorRef.current?.focus();
+            document.execCommand('insertHTML', false, embedHtml);
+            toast({ title: "Success", description: `Diagram page "${diagramState.title}" created and linked.` });
+            router.refresh(); // Refresh sidebar
+        } else {
+            throw new Error(result.message || "Failed to create diagram page.");
+        }
+
+    } catch (e: any) {
+        console.error("Failed to generate and embed diagram", e);
+        toast({ title: "Error", description: `Failed to create diagram: ${e.message}`, variant: "destructive" });
+    } finally {
+        setIsGenerating(false);
+        setDiagramState({ ...diagramState, isOpen: false });
+    }
+};
+
   // KeyDown handles shortcuts + Enter special behavior + checklist/tab navigation + headings via Ctrl+Shift+N
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (aiSuggestion) {
@@ -956,12 +1016,15 @@ video.src = url;
     const target = e.target as HTMLElement;
     if (!target) return;
 
-    if (e.ctrlKey && target.tagName === 'A') {
+    // Handle Ctrl+Click on any link, including diagram embeds
+    if (e.ctrlKey && target.closest('a')) {
         e.preventDefault();
-        const href = target.getAttribute('href');
+        const link = target.closest('a');
+        const href = link?.getAttribute('href');
         if (href) {
             window.open(href, '_blank', 'noopener,noreferrer');
         }
+        return;
     }
     
     if (target.classList.contains('code-expander')) {
@@ -1047,10 +1110,14 @@ video.src = url;
       
       // Remove style attributes
       tempDiv.querySelectorAll('[style]').forEach(el => el.removeAttribute('style'));
-      // Remove class attributes
-      tempDiv.querySelectorAll('[class]').forEach(el => el.removeAttribute('class'));
+      // Remove class attributes, except for diagram embeds
+      tempDiv.querySelectorAll('[class]').forEach(el => {
+          if (!el.classList.contains('diagram-embed')) {
+            el.removeAttribute('class');
+          }
+      });
       // Remove other unwanted tags (add more as needed)
-      tempDiv.querySelectorAll('span, font').forEach(el => {
+      tempDiv.querySelectorAll('span:not([class^="diagram-embed-"]), font').forEach(el => {
         const parent = el.parentNode;
         if (parent) {
           while (el.firstChild) {
@@ -1235,6 +1302,9 @@ video.src = url;
                 </PopoverContent>
               </Popover>
               <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => document.execCommand('insertHTML', false, '<hr><p>&#8203;</p>')}> <Minus className="h-4 w-4" /> </Button>
+               <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => setDiagramState({...diagramState, isOpen: true})}>
+                <Network className="h-4 w-4" />
+              </Button>
               <Dialog>
                 <DialogTrigger asChild>
                   <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown}> <MessageSquarePlus className="h-4 w-4" /> </Button>
@@ -1489,6 +1559,46 @@ video.src = url;
                 </Button>
             </DialogFooter>
         </DialogContent>
+      </Dialog>
+
+      <Dialog open={diagramState.isOpen} onOpenChange={(isOpen) => setDiagramState({ ...diagramState, isOpen })}>
+          <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                  <DialogTitle>Insert New Diagram</DialogTitle>
+                  <DialogDescription>A new diagram page will be created and linked in your document.</DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                 <div className="grid gap-2">
+                      <Label htmlFor="diagram-title">Diagram Title</Label>
+                      <Input id="diagram-title" value={diagramState.title} onChange={(e) => setDiagramState({...diagramState, title: e.target.value})} placeholder="e.g., British Royal Family" />
+                  </div>
+                 <div className="grid gap-2">
+                      <Label htmlFor="diagram-prompt">Generation Prompt</Label>
+                      <Input id="diagram-prompt" value={diagramState.prompt} onChange={(e) => setDiagramState({...diagramState, prompt: e.target.value})} placeholder="e.g., An org chart of..." />
+                  </div>
+                  <div className="grid gap-2">
+                      <Label htmlFor="diagram-context">Context (Optional)</Label>
+                      <Textarea id="diagram-context" value={diagramState.context} onChange={(e) => setDiagramState({...diagramState, context: e.target.value})} placeholder="Paste your course notes or any relevant text here..." />
+                  </div>
+                  <div className="grid gap-2">
+                      <Label htmlFor="diagram-type">Diagram Type</Label>
+                      <Select onValueChange={(value: (typeof diagramTypes)[number]) => setDiagramState({...diagramState, type: value})} defaultValue={diagramState.type}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                          {diagramTypes.map(type => (
+                              <SelectItem key={type} value={type}>{type}</SelectItem>
+                          ))}
+                          </SelectContent>
+                      </Select>
+                  </div>
+              </div>
+              <DialogFooter>
+                  <Button type="button" variant="secondary" onClick={() => setDiagramState({...diagramState, isOpen: false})}>Close</Button>
+                  <Button onClick={handleGenerateDiagram} disabled={isGenerating}>
+                      {isGenerating ? <LoaderCircle className="animate-spin" /> : "Generate & Insert Link"}
+                  </Button>
+              </DialogFooter>
+          </DialogContent>
       </Dialog>
     </div>
   );
