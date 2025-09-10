@@ -73,6 +73,7 @@ import { Textarea } from "./ui/textarea";
 import { refineAndStructureNotes } from "@/ai/flows/refine-and-structure-notes";
 import { generateDiagram } from "@/ai/flows/generate-diagrams-from-text";
 import { cn } from "@/lib/utils";
+import showdown from 'showdown';
 
 
 interface EditorProps {
@@ -307,22 +308,40 @@ export function Editor({ page }: EditorProps) {
   const handleFormat = (command: string, value?: string) => {
     editorRef.current?.focus();
     restoreSelection();
-
-     if (command === 'formatBlock' && (value === 'blockquote' || value === 'pre')) {
-        const selection = window.getSelection();
-        if (selection && selection.rangeCount > 0) {
-            let node = selection.getRangeAt(0).startContainer;
-            if (node.nodeType === Node.TEXT_NODE) node = node.parentNode!;
-            const block = (node as HTMLElement).closest(value);
-
-            if (block) {
-                // Element is already in the specified block, convert to paragraph
-                document.execCommand('formatBlock', false, 'p');
-            } else {
-                // Not in the block, so apply it
-                document.execCommand(command, false, value);
-            }
+  
+    if (command === 'formatBlock' && (value === 'blockquote' || value === 'pre')) {
+      const selection = window.getSelection();
+      if (!selection || selection.rangeCount === 0) return;
+  
+      let node = selection.getRangeAt(0).startContainer;
+      if (node.nodeType === Node.TEXT_NODE) node = node.parentNode!;
+      
+      const block = (node as HTMLElement).closest(value === 'pre' ? 'pre' : 'blockquote');
+  
+      if (block) {
+        // Element is already in the specified block, so unwrap it
+        const parent = block.parentNode;
+        if (parent) {
+          while (block.firstChild) {
+            parent.insertBefore(block.firstChild, block);
+          }
+          parent.removeChild(block);
         }
+      } else {
+        // Not in the block, so apply it
+        document.execCommand(command, false, value);
+        // If it's a code block, ensure it's wrapped in pre > code
+        if (value === 'pre') {
+          const newBlock = (selection.getRangeAt(0).startContainer.parentNode as HTMLElement).closest('pre');
+          if (newBlock && !newBlock.querySelector('code')) {
+            const code = document.createElement('code');
+            while(newBlock.firstChild) {
+              code.appendChild(newBlock.firstChild);
+            }
+            newBlock.appendChild(code);
+          }
+        }
+      }
     } else {
       document.execCommand(command, false, value);
     }
@@ -332,6 +351,7 @@ export function Editor({ page }: EditorProps) {
         debouncedUpdateToc();
     }, 0);
   };
+  
 
   // KeyUp handles markdown-like transforms (# headings, urls) and updates toolbar
   const handleKeyUp = (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -789,6 +809,54 @@ export function Editor({ page }: EditorProps) {
     saveSelection();
   };
 
+  const handlePaste = (event: React.ClipboardEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const clipboardData = event.clipboardData;
+    let paste = clipboardData.getData('text/html');
+    
+    if (paste) {
+      // Basic HTML sanitation
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = paste;
+      
+      // Remove style attributes
+      tempDiv.querySelectorAll('[style]').forEach(el => el.removeAttribute('style'));
+      // Remove class attributes
+      tempDiv.querySelectorAll('[class]').forEach(el => el.removeAttribute('class'));
+      // Remove other unwanted tags (add more as needed)
+      tempDiv.querySelectorAll('span, font').forEach(el => {
+        const parent = el.parentNode;
+        if (parent) {
+          while (el.firstChild) {
+            parent.insertBefore(el.firstChild, el);
+          }
+          parent.removeChild(el);
+        }
+      });
+      
+      paste = tempDiv.innerHTML;
+
+    } else {
+      paste = clipboardData.getData('text/plain');
+      // If plain text, try to convert from markdown
+      if (paste) {
+          const converter = new showdown.Converter({
+              tables: true,
+              strikethrough: true,
+              tasklists: true,
+              ghCompatibleHeaderId: true,
+          });
+          paste = converter.makeHtml(paste);
+      }
+    }
+  
+    if (paste) {
+      restoreSelection();
+      editorRef.current?.focus();
+      document.execCommand('insertHTML', false, paste);
+    }
+  };
+
   // Set initial content
   React.useEffect(() => {
     if (editorRef.current) {
@@ -1057,6 +1125,7 @@ export function Editor({ page }: EditorProps) {
             onBlur={handleBlur}
             onClick={handleEditorClick}
             onContextMenu={handleContextMenu}
+            onPaste={handlePaste}
             className="prose dark:prose-invert max-w-none w-full h-full bg-card p-4 sm:p-6 md:p-8 lg:p-12 focus:outline-none"
             style={{ direction: 'ltr' }}
           />
