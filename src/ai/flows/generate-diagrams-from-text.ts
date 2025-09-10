@@ -37,8 +37,9 @@ const prompt = ai.definePrompt({
   name: 'generateDiagramPrompt',
   input: {schema: GenerateDiagramInputSchema},
   output: {schema: GenerateDiagramOutputSchema},
-  prompt: `You are an expert data structure generator for diagrams.
+  prompt: `You are an expert data structure generator and researcher for diagrams.
 Your task is to convert a natural language description into a valid JSON string that represents the data for a specified diagram type.
+For each node or item, you must research and write a detailed, informative description.
 The JSON must be compatible with a React component that will render the diagram.
 
 The output MUST be a single JSON string, with no additional text, explanations, or markdown.
@@ -49,28 +50,29 @@ Text: {{{text}}}
 CRITICAL INSTRUCTIONS:
 - For MindMap and OrgChart, you MUST create a deep, hierarchical structure. Identify the central idea, then create main branches, then sub-branches, and sub-sub-branches. Go at least 3-4 levels deep to provide a comprehensive overview.
 - For MindMap and Flowchart, you MUST calculate logical 'x' and 'y' percentage coordinates (0-100) for each node to ensure a clean, readable layout. For a mind map, this is typically a radial layout. For a flowchart, this is typically top-down or left-to-right.
+- For EVERY node/item in the diagram, you MUST generate a "description" field containing a detailed explanation of that concept.
 
 Follow these schemas for the JSON output:
 
 - For "MindMap" or "Flowchart":
   {
-    "nodes": [{ "id": "string", "label": "string", "x": number (percentage 0-100), "y": number (percentage 0-100) }],
+    "nodes": [{ "id": "string", "label": "string", "description": "string", "x": number (percentage 0-100), "y": number (percentage 0-100) }],
     "edges": [{ "from": "string (node id)", "to": "string (node id)" }]
   }
 
 - For "OrgChart":
   {
-    "nodes": [{ "id": "string", "label": "string", "parent": "string (optional parent id, null for the root)" }]
+    "nodes": [{ "id": "string", "label": "string", "description": "string", "parent": "string (optional parent id, null for the root)" }]
   }
 
 - For "VennDiagram":
   {
-    "sets": [{ "id": "string", "label": "string", "size": number (optional) }]
+    "sets": [{ "id": "string", "label": "string", "description": "string", "size": number (optional) }]
   }
 
 - For "Timeline":
   {
-    "items": [{ "id": "string", "label": "string", "date": "string (optional)" }]
+    "items": [{ "id": "string", "label": "string", "description": "string", "date": "string (optional)" }]
   }
 
 Analyze the text and produce the corresponding JSON string.

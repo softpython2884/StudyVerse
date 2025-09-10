@@ -176,6 +176,7 @@ export const DiagramShell = ({
 type MindMapNode = {
   id: string;
   label: React.ReactNode;
+  description?: string;
   x: number;
   y: number;
   color?: string;
@@ -247,6 +248,9 @@ export const MindMap = ({ nodes, edges = [] }: {nodes: MindMapNode[], edges?: Mi
                 title={typeof node.label === "string" ? node.label : undefined}
               >
                 <div className="font-medium text-sm">{node.label}</div>
+                 {node.description && (
+                  <p className="text-xs text-muted-foreground mt-2">{node.description}</p>
+                )}
               </div>
             </motion.div>
           );
@@ -262,6 +266,7 @@ export const MindMap = ({ nodes, edges = [] }: {nodes: MindMapNode[], edges?: Mi
 type FlowchartNode = {
     id: string;
     label: React.ReactNode;
+    description?: string;
     x?: number;
     y?: number;
     width?: number;
@@ -331,8 +336,9 @@ export const Flowchart = ({ nodes, edges = [], direction = "TB" }: { nodes: Flow
           className="absolute"
           style={{ left: n.x, top: n.y, width: n.width, height: n.height, transform: "translate(-50%, -50%)" }}
         >
-          <div className="w-full h-full p-4 bg-card rounded-lg shadow-md border border-border hover:shadow-lg transition-shadow flex items-center justify-center">
-            <div className="text-sm font-medium text-card-foreground truncate">{n.label}</div>
+          <div className="w-full h-full p-4 bg-card rounded-lg shadow-md border border-border hover:shadow-lg transition-shadow flex flex-col items-center justify-center">
+            <div className="text-sm font-medium text-card-foreground text-center">{n.label}</div>
+            {n.description && <p className="text-xs text-muted-foreground mt-1 text-center">{n.description}</p>}
           </div>
         </motion.div>
       ))}
@@ -346,6 +352,7 @@ export const Flowchart = ({ nodes, edges = [], direction = "TB" }: { nodes: Flow
 type OrgChartNode = {
     id: string;
     label: React.ReactNode;
+    description?: string;
     parent?: string;
     children?: OrgChartNode[];
 };
@@ -416,6 +423,7 @@ export const OrgChart = ({ nodes }: { nodes: OrgChartNode[] }) => {
           >
             <div className="p-3 min-w-[140px] text-center rounded-lg shadow-md border border-border bg-card text-card-foreground hover:shadow-lg transition-shadow">
               <div className="text-sm font-semibold truncate">{node.label}</div>
+              {node.description && <p className="text-xs text-muted-foreground mt-1">{node.description}</p>}
             </div>
           </motion.div>
         );
@@ -430,6 +438,7 @@ export const OrgChart = ({ nodes }: { nodes: OrgChartNode[] }) => {
 type VennSet = {
     id: string;
     label: string;
+    description?: string;
     size?: number;
 };
 export const VennDiagram = ({ sets }: {sets: VennSet[]}) => {
@@ -455,7 +464,7 @@ export const VennDiagram = ({ sets }: {sets: VennSet[]}) => {
         </defs>
 
         {s.map((set, i) => (
-          <g key={set.id}>
+          <g key={set.id} title={set.description}>
             <circle cx={positions[i].x} cy={positions[i].y} r={r} fill={i === 0 ? "#FDE68A" : i === 1 ? "#A7F3D0" : "#BFDBFE"} fillOpacity={0.6} stroke="hsl(var(--border))" strokeWidth={1} filter="url(#soft)" />
             <text x={positions[i].x} y={positions[i].y - r - 12} textAnchor="middle" className="text-xs font-semibold fill-[hsl(var(--card-foreground))]" style={{ fontSize: 13 }}>
               {set.label}
@@ -475,6 +484,7 @@ export const VennDiagram = ({ sets }: {sets: VennSet[]}) => {
 type TimelineItem = {
     id: string;
     label: string;
+    description?: string;
     date?: string;
 };
 export const Timeline = ({ items }: {items: TimelineItem[]}) => {
@@ -501,6 +511,7 @@ export const Timeline = ({ items }: {items: TimelineItem[]}) => {
               <div className="mt-3 p-3 bg-card rounded-lg shadow-md border border-border text-card-foreground min-w-[160px] text-sm">
                 <div className="font-semibold">{it.label}</div>
                 {it.date && <div className="text-xs opacity-70 mt-1">{it.date}</div>}
+                {it.description && <p className="text-xs text-muted-foreground mt-2">{it.description}</p>}
               </div>
             </div>
           </motion.div>
