@@ -37,12 +37,9 @@ import {
   Minus,
   Info,
   PanelRightOpen,
-  MoreVertical,
-  Edit,
-  Trash2,
   Superscript,
   Subscript,
-  MessageSquarePlus
+  MessageSquarePlus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -103,7 +100,6 @@ export function Editor({ page }: EditorProps) {
   const editorRef = React.useRef<HTMLDivElement>(null);
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
   const [currentBlockStyle, setCurrentBlockStyle] = React.useState("p");
-  const pasteInProgress = React.useRef(false);
   const [toc, setToc] = React.useState<TocItem[]>([]);
   const debounceTimerRef = React.useRef<NodeJS.Timeout | null>(null);
   const scrollDebounceTimerRef = React.useRef<NodeJS.Timeout | null>(null);
@@ -155,6 +151,8 @@ export function Editor({ page }: EditorProps) {
   const [generatedDiagram, setGeneratedDiagram] = React.useState("");
   const [isRefining, setIsRefining] = React.useState(false);
   const [isGenerating, setIsGenerating] = React.useState(false);
+  const [htmlToInsert, setHtmlToInsert] = React.useState("");
+
 
   const [isLinkPopoverOpen, setIsLinkPopoverOpen] = React.useState(false);
   const [linkUrl, setLinkUrl] = React.useState("");
@@ -334,14 +332,29 @@ export function Editor({ page }: EditorProps) {
     const element = node as HTMLElement;
     
     if (command === 'formatBlock' && value) {
-        const currentBlock = element.closest('p, h1, h2, h3, h4, h5, h6, pre, blockquote, li');
-        
-        // If we are in a block and trying to apply the same block, convert to paragraph
-        if (currentBlock && currentBlock.tagName.toLowerCase() === value) {
-            document.execCommand('formatBlock', false, 'p');
+        if (value === 'pre') {
+            const codeContent = selection.toString();
+            const currentBlock = element.closest('p, h1, h2, h3, h4, h5, h6, pre, blockquote, li');
+            const isInPre = currentBlock?.tagName.toLowerCase() === 'pre';
+
+            if (isInPre) {
+                // If we are in a code block, convert back to paragraph
+                document.execCommand('formatBlock', false, 'p');
+            } else {
+                // Otherwise, wrap in <pre><code>...</code></pre>
+                const html = `<pre><code>${codeContent || '&#8203;'}</code></pre>`;
+                document.execCommand('insertHTML', false, html);
+            }
         } else {
-            document.execCommand(command, false, value);
+             const currentBlock = element.closest('p, h1, h2, h3, h4, h5, h6, pre, blockquote, li');
+            // If we are in a block and trying to apply the same block, convert to paragraph
+            if (currentBlock && currentBlock.tagName.toLowerCase() === value) {
+                document.execCommand('formatBlock', false, 'p');
+            } else {
+                document.execCommand(command, false, value);
+            }
         }
+
     } else if (command === 'inlineCode') {
         const codeNode = element.closest('code');
         if (codeNode && !codeNode.closest('pre')) {
@@ -411,7 +424,8 @@ export function Editor({ page }: EditorProps) {
                           `<img src="${url}" style="max-width: 100%; border-radius: 0.5rem;" />`;
                       document.execCommand('insertHTML', false, mediaTag);
                   } else {
-                      document.execCommand('createLink', false, url);
+                       const linkHtml = `<a href="${url}" title="${url}">${url}</a>`;
+                       document.execCommand('insertHTML', false, linkHtml);
                   }
 
                   // Move cursor after the link/media
@@ -569,18 +583,6 @@ export function Editor({ page }: EditorProps) {
       return;
     }
 
-    if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 'h') {
-        event.preventDefault();
-        const html = prompt("Enter raw HTML to insert:");
-        if (html) {
-            restoreSelection();
-            editorRef.current?.focus();
-            document.execCommand('insertHTML', false, html);
-        }
-        return;
-    }
-
-
     if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 'k') {
       event.preventDefault();
       const sel = window.getSelection();
@@ -695,7 +697,8 @@ export function Editor({ page }: EditorProps) {
     editorRef.current?.focus();
     setTimeout(() => {
       if (linkUrl) {
-        document.execCommand("createLink", false, linkUrl);
+        const linkHtml = `<a href="${linkUrl}" title="${linkUrl}">${linkUrl}</a>`;
+        document.execCommand("insertHTML", false, linkHtml);
       }
       setLinkUrl("");
       setIsLinkPopoverOpen(false);
@@ -812,6 +815,15 @@ export function Editor({ page }: EditorProps) {
     }, 0);
   };
 
+  const handleInsertHtml = () => {
+      restoreSelection();
+      editorRef.current?.focus();
+      setTimeout(() => {
+          document.execCommand('insertHTML', false, htmlToInsert);
+          setHtmlToInsert("");
+      }, 0);
+  }
+
   const handleEditorClick = (e: React.MouseEvent) => {
     const editor = editorRef.current;
     if (!editor) return;
@@ -825,6 +837,15 @@ export function Editor({ page }: EditorProps) {
             window.open(href, '_blank', 'noopener,noreferrer');
         }
     }
+    
+     if (target.classList.contains('code-expander')) {
+        const pre = target.closest('pre');
+        if (pre) {
+            pre.classList.toggle('collapsed');
+            target.textContent = pre.classList.contains('collapsed') ? 'Voir plus...' : 'Voir moins...';
+        }
+    }
+
 
     if (e.target === editor) {
       const last = editor.lastElementChild;
@@ -943,6 +964,19 @@ export function Editor({ page }: EditorProps) {
         } else {
             editorRef.current.innerHTML = "<p>&#8203;</p>";
         }
+        
+        // Add code expanders to existing long code blocks
+        const pres = editorRef.current.querySelectorAll('pre');
+        pres.forEach(pre => {
+             if (pre.scrollHeight > 100 && !pre.querySelector('.code-expander')) {
+                pre.classList.add('collapsed');
+                const expander = document.createElement('span');
+                expander.className = 'code-expander';
+                expander.textContent = 'Voir plus...';
+                pre.appendChild(expander);
+            }
+        });
+
         updateToc();
         updateActiveTocOnScroll(); // Initial check
     }
@@ -1073,7 +1107,35 @@ export function Editor({ page }: EditorProps) {
                 </PopoverContent>
               </Popover>
               <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => document.execCommand('insertHTML', false, '<hr><p>&#8203;</p>')}> <Minus className="h-4 w-4" /> </Button>
-              <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => document.execCommand('insertHTML', false, '<blockquote><p>&#8203;</p></blockquote>')}> <MessageSquarePlus className="h-4 w-4" /> </Button>
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => {}}> <MessageSquarePlus className="h-4 w-4" /> </Button>
+                </DialogTrigger>
+                 <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Insert HTML</DialogTitle>
+                      <DialogDescription>
+                        Paste your HTML code below. It will be inserted at your cursor position.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <Textarea 
+                        placeholder="<p>Your <b>HTML</b> here</p>"
+                        value={htmlToInsert}
+                        onChange={(e) => setHtmlToInsert(e.target.value)}
+                        className="min-h-[200px] font-mono"
+                      />
+                    </div>
+                    <DialogFooter>
+                      <DialogClose asChild>
+                        <Button variant="outline">Cancel</Button>
+                      </DialogClose>
+                      <DialogClose asChild>
+                        <Button onClick={handleInsertHtml}>Insert</Button>
+                      </DialogClose>
+                    </DialogFooter>
+                  </DialogContent>
+              </Dialog>
               <Separator orientation="vertical" className="h-6 mx-1" />
               <SpeechToText onTranscriptionComplete={(text) => {
                 restoreSelection();
@@ -1327,8 +1389,6 @@ export function Editor({ page }: EditorProps) {
           </button>
         </div>
       )}
-
-      <textarea id="editor-paste-input" style={{ position: 'fixed', left: -9999, top: -9999, display: 'none' }} />
       
       <Dialog open={isCommandPaletteOpen} onOpenChange={setIsCommandPaletteOpen}>
         <DialogContent>
@@ -1359,7 +1419,6 @@ export function Editor({ page }: EditorProps) {
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+K</kbd> - Command Palette</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Space</kbd> - AI Prompt</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Shift+K</kbd> - Insert Link</li>
-               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Shift+H</kbd> - Insert HTML</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+-</kbd> - Horizontal Rule</li>
             </ul>
           </div>
