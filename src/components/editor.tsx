@@ -464,9 +464,12 @@ export function Editor({ page }: EditorProps) {
                      hr = element.querySelector('hr') || element.previousElementSibling as HTMLElement;
                 }
             }
-            if (hr?.nodeName !== 'HR') {
-                hr = null;
-            }
+             if (hr?.nodeName !== 'HR') {
+                const elements = editorRef.current?.querySelectorAll('hr');
+                if (elements && elements.length > 0) {
+                    hr = elements[elements.length - 1];
+                }
+             }
 
             const p = document.createElement('p');
             p.innerHTML = '&#8203;'; // Zero-width space for caret
@@ -534,10 +537,10 @@ export function Editor({ page }: EditorProps) {
 
     if (event.ctrlKey && !event.altKey) {
       const key = event.key.toLowerCase();
-      if (['b', 'i', 'u'].includes(key)) {
+      if (['g', 'i', 'u'].includes(key)) {
         event.preventDefault();
         editorRef.current?.focus();
-        document.execCommand(key === 'b' ? 'bold' : key === 'i' ? 'italic' : 'underline');
+        document.execCommand(key === 'g' ? 'bold' : key === 'i' ? 'italic' : 'underline');
         setTimeout(updateToolbarState, 0);
         return;
       }
@@ -777,7 +780,7 @@ export function Editor({ page }: EditorProps) {
   };
 
   const handleBlur = () => {
-    saveSelection();
+    // No longer saving selection on blur to prevent stale selections.
   };
 
   // Set initial content
@@ -1211,7 +1214,7 @@ export function Editor({ page }: EditorProps) {
           <div className="space-y-2">
             <h3 className="font-semibold">Text Formatting</h3>
             <ul className="list-disc list-inside text-sm text-muted-foreground">
-              <li><kbd className="p-1 bg-muted rounded-md">Ctrl+B</kbd> - Bold</li>
+              <li><kbd className="p-1 bg-muted rounded-md">Ctrl+G</kbd> - Bold</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+I</kbd> - Italic</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+U</kbd> - Underline</li>
             </ul>
