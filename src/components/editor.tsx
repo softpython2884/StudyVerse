@@ -1,6 +1,6 @@
 
 
-"use client";
+      "use client";
 
 import * as React from "react";
 import type { Page } from "@/lib/types";
@@ -308,11 +308,20 @@ export function Editor({ page }: EditorProps) {
     editorRef.current?.focus();
     restoreSelection();
 
-    if (command === 'formatBlock' && value && ['blockquote', 'pre'].includes(value)) {
-        if (currentBlockStyle === value) {
-            document.execCommand('formatBlock', false, 'p');
-        } else {
-            document.execCommand(command, false, value);
+     if (command === 'formatBlock' && (value === 'blockquote' || value === 'pre')) {
+        const selection = window.getSelection();
+        if (selection && selection.rangeCount > 0) {
+            let node = selection.getRangeAt(0).startContainer;
+            if (node.nodeType === Node.TEXT_NODE) node = node.parentNode!;
+            const block = (node as HTMLElement).closest(value);
+
+            if (block) {
+                // Element is already in the specified block, convert to paragraph
+                document.execCommand('formatBlock', false, 'p');
+            } else {
+                // Not in the block, so apply it
+                document.execCommand(command, false, value);
+            }
         }
     } else {
       document.execCommand(command, false, value);
@@ -400,13 +409,12 @@ export function Editor({ page }: EditorProps) {
             block = node.closest('blockquote, pre');
         }
 
-        // Exit from blockquote or code block if the line is empty
-        if (block && block.textContent?.trim() === '') {
+        // Exit from blockquote or code block 
+        if (block) {
             event.preventDefault();
             const p = document.createElement('p');
             p.innerHTML = '&#8203;'; // Zero-width space for caret
             block.after(p);
-            block.remove(); // Remove the empty block
             
             const newRange = document.createRange();
             newRange.setStart(p, 0);
