@@ -449,7 +449,7 @@ export function Editor({ page }: EditorProps) {
               urlRange.setStart(textNode, urlStartIndex);
               urlRange.setEnd(textNode, urlStartIndex + url.length);
               
-              let newElement: HTMLElement;
+              let newElement: HTMLElement | null = null;
               const ytMatch = url.match(/(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([\w-]{11})/);
 
               if (ytMatch) {
@@ -473,7 +473,7 @@ export function Editor({ page }: EditorProps) {
                   newElement = img;
               } else if (/\.(mp4|webm)$/i.test(url)) {
                   const video = document.createElement('video');
-video.src = url;
+                  video.src = url;
                   video.controls = true;
                   video.style.maxWidth = '100%';
                   video.style.borderRadius = '0.5rem';
@@ -485,27 +485,29 @@ video.src = url;
                   newElement = a;
               }
               
-              urlRange.deleteContents();
-              urlRange.insertNode(newElement);
+              if(newElement) {
+                urlRange.deleteContents();
+                urlRange.insertNode(newElement);
 
-              // Place cursor after the new element
-              const newRange = document.createRange();
-              newRange.setStartAfter(newElement);
-              newRange.collapse(true);
-              sel.removeAllRanges();
-              sel.addRange(newRange);
-              
-              // Add a space if the key was space
-              if (event.key === ' ') {
-                const spaceNode = document.createTextNode(' ');
-                newRange.insertNode(spaceNode);
-                newRange.setStartAfter(spaceNode);
+                // Place cursor after the new element
+                const newRange = document.createRange();
+                newRange.setStartAfter(newElement);
                 newRange.collapse(true);
                 sel.removeAllRanges();
                 sel.addRange(newRange);
+                
+                // Add a space if the key was space
+                if (event.key === ' ') {
+                  const spaceNode = document.createTextNode(' ');
+                  newRange.insertNode(spaceNode);
+                  newRange.setStartAfter(spaceNode);
+                  newRange.collapse(true);
+                  sel.removeAllRanges();
+                  sel.addRange(newRange);
+                }
+                
+                event.preventDefault();
               }
-              
-              event.preventDefault();
           }
       }
 
@@ -830,7 +832,7 @@ const handleGenerateDiagram = async () => {
     
     if (event.ctrlKey && !event.altKey) {
       const key = event.key.toLowerCase();
-      if (key === 'b') { 
+      if (key === 'g') { 
         event.preventDefault();
         editorRef.current?.focus();
         document.execCommand('bold');
@@ -1512,7 +1514,7 @@ const handleGenerateDiagram = async () => {
           <div className="space-y-2 text-sm">
             <h3 className="font-semibold">Text Formatting</h3>
             <ul className="list-disc list-inside text-muted-foreground">
-              <li><kbd className="p-1 bg-muted rounded-md">Ctrl+B</kbd> - Bold</li>
+              <li><kbd className="p-1 bg-muted rounded-md">Ctrl+G</kbd> - Bold</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+I</kbd> - Italic</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+U</kbd> - Underline</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Shift+X</kbd> - Inline Code</li>
@@ -1603,3 +1605,5 @@ const handleGenerateDiagram = async () => {
     </div>
   );
 }
+
+    
