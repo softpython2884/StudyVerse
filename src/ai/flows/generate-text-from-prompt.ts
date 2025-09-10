@@ -36,10 +36,15 @@ const prompt = ai.definePrompt({
   name: 'generateTextPrompt',
   input: {schema: GenerateTextFromPromptInputSchema},
   output: {schema: GenerateTextFromPromptOutputSchema},
-  prompt: `You are an expert assistant. Respond to the following prompt in a comprehensive and well-structured manner.
-If the request is a question, answer it thoroughly.
-If it is an instruction, follow it.
-The response should be formatted in simple HTML (p, b, i, ul, ol, li tags) for direct injection into a rich text editor.
+  prompt: `You are an expert writer and researcher. Your task is to generate a comprehensive, well-structured, and detailed document based on the user's prompt.
+
+Follow these steps:
+1.  Thoroughly analyze the user's prompt to understand the core topic and requirements.
+2.  If the topic is complex, break it down into logical main sections.
+3.  For each main section, create detailed subsections and even sub-subsections if necessary to cover the topic exhaustively.
+4.  Write detailed, informative, and engaging content for each section and subsection.
+5.  Format the entire output in clean, simple HTML, using appropriate tags like <h1>, <h2>, <h3>, <p>, <ul>, <ol>, <li>, <b>, and <i>.
+6.  The final output should be a complete document, ready to be inserted into a rich text editor. Do not include any explanations, only the HTML content.
 
 Prompt: {{{prompt}}}
 `,
