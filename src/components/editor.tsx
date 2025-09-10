@@ -40,7 +40,10 @@ import {
   Superscript,
   Subscript,
   MessageSquarePlus,
-  Languages,
+  Copy,
+  Scissors,
+  ClipboardPaste,
+  Sparkles,
   LoaderCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -96,6 +99,12 @@ type TocItem = {
   id: string;
   level: number;
   text: string;
+};
+
+type InlineCorrection = {
+  anchor: HTMLElement;
+  original: string;
+  suggestion: string;
 };
 
 export function Editor({ page }: EditorProps) {
@@ -168,11 +177,10 @@ export function Editor({ page }: EditorProps) {
   const [contextMenu, setContextMenu] = React.useState<{ x: number; y: number; visible: boolean; isTextSelected: boolean }>({
     x: 0, y: 0, visible: false, isTextSelected: false
   });
-  const [isSpellCheckPopoverOpen, setIsSpellCheckPopoverOpen] = React.useState(false);
-  const [spellCheckAnchor, setSpellCheckAnchor] = React.useState<{ x: number; y: number } | null>(null);
-  const [isCheckingSpelling, setIsCheckingSpelling] = React.useState(false);
-  const [spellCheckSuggestion, setSpellCheckSuggestion] = React.useState("");
-  const [originalText, setOriginalText] = React.useState("");
+  
+  const [inlineCorrection, setInlineCorrection] = React.useState<InlineCorrection | null>(null);
+  const spellCheckDebounceTimer = React.useRef<NodeJS.Timeout | null>(null);
+
 
   const [activeStyles, setActiveStyles] = React.useState<ActiveStyles>({
     bold: false,
@@ -392,10 +400,62 @@ export function Editor({ page }: EditorProps) {
     }, 0);
   };
   
+  const triggerSpellCheck = async () => {
+    if (spellCheckDebounceTimer.current) {
+        clearTimeout(spellCheckDebounceTimer.current);
+    }
+
+    spellCheckDebounceTimer.current = setTimeout(async () => {
+        const sel = window.getSelection();
+        if (!sel || !sel.rangeCount) return;
+        
+        const range = sel.getRangeAt(0);
+        const node = range.startContainer;
+        
+        // Only trigger on text nodes within the editor
+        if (node.nodeType !== Node.TEXT_NODE || !editorRef.current?.contains(node)) {
+            setInlineCorrection(null);
+            return;
+        }
+
+        const text = node.textContent || "";
+        if (text.trim() === "" || text.endsWith(' ')) return; // Don't check empty or just-ended sentences yet.
+
+        // Get the sentence or a reasonable chunk of text around the cursor
+        const block = (node.parentElement as HTMLElement)?.closest('p,li');
+        if (!block) return;
+        const blockText = block.innerText;
+
+        try {
+            const result = await spellCheck({ text: blockText });
+            if (result.correctedText && result.correctedText !== blockText) {
+                const anchor = document.createElement('span');
+                anchor.className = "correction-anchor";
+                range.insertNode(anchor);
+                
+                // Add a very small delay for the DOM to update with the anchor
+                setTimeout(() => {
+                     setInlineCorrection({
+                        anchor,
+                        original: blockText,
+                        suggestion: result.correctedText,
+                    });
+                }, 10);
+            } else {
+                setInlineCorrection(null);
+            }
+        } catch (e) {
+            console.error("Spell check failed:", e);
+            setInlineCorrection(null);
+        }
+    }, 1500); // Wait 1.5 seconds after user stops typing
+};
 
   // KeyUp handles markdown-like transforms (# headings, urls) and updates toolbar
   const handleKeyUp = (event: React.KeyboardEvent<HTMLDivElement>) => {
-     if (event.key === ' ' || event.key === 'Enter') {
+     if (event.key === ' ' || event.key === 'Enter' || event.key === '.') {
+      triggerSpellCheck();
+      
       const sel = window.getSelection();
       if (!sel || sel.rangeCount === 0) return;
       const range = sel.getRangeAt(0);
@@ -530,8 +590,40 @@ export function Editor({ page }: EditorProps) {
     debouncedUpdateToc();
   };
 
+  const applyCorrection = () => {
+    if (!inlineCorrection) return;
+    
+    const { anchor, suggestion } = inlineCorrection;
+    const block = anchor.closest('p, li');
+    
+    if (block) {
+        block.textContent = suggestion;
+
+        // Restore cursor position at the end of the corrected block
+        const range = document.createRange();
+        const sel = window.getSelection();
+        range.selectNodeContents(block);
+        range.collapse(false); // false to collapse to the end
+        sel?.removeAllRanges();
+        sel?.addRange(range);
+    }
+    
+    setInlineCorrection(null);
+  };
+
+
   // KeyDown handles shortcuts + Enter special behavior + checklist/tab navigation + headings via Ctrl+Shift+N
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Tab' && inlineCorrection) {
+      event.preventDefault();
+      applyCorrection();
+      return;
+    }
+
+    if (event.key !== 'Tab' && inlineCorrection) {
+        setInlineCorrection(null);
+    }
+
     // Enter key logic
     if (event.key === 'Enter' && !event.shiftKey) {
         const sel = window.getSelection();
@@ -682,10 +774,10 @@ export function Editor({ page }: EditorProps) {
 
     if (event.ctrlKey && !event.altKey) {
       const key = event.key.toLowerCase();
-      if (['b', 'i', 'u'].includes(key)) {
+      if (['b', 'i', 'u', 'g'].includes(key)) {
         event.preventDefault();
         editorRef.current?.focus();
-        document.execCommand(key === 'b' ? 'bold' : key === 'i' ? 'italic' : 'underline');
+        document.execCommand(key === 'b' || key === 'g' ? 'bold' : key === 'i' ? 'italic' : 'underline');
         setTimeout(updateToolbarState, 0);
         return;
       }
@@ -882,6 +974,10 @@ export function Editor({ page }: EditorProps) {
   }
 
   const handleEditorClick = (e: React.MouseEvent) => {
+    if (inlineCorrection) {
+      setInlineCorrection(null);
+    }
+
     const editor = editorRef.current;
     if (!editor) return;
     const target = e.target as HTMLElement;
@@ -950,7 +1046,6 @@ export function Editor({ page }: EditorProps) {
     }
 
     if (contextMenu.visible) setContextMenu({ ...contextMenu, visible: false });
-    if (isSpellCheckPopoverOpen) setIsSpellCheckPopoverOpen(false);
   };
 
   const handleFocus = () => {
@@ -1013,47 +1108,6 @@ export function Editor({ page }: EditorProps) {
       document.execCommand('insertHTML', false, paste);
     }
   };
-
-  const handleSpellCheck = async (lang: 'en' | 'fr') => {
-      const selection = window.getSelection();
-      if (!selection || selection.isCollapsed) return;
-
-      const text = selection.toString();
-      setOriginalText(text);
-      setIsCheckingSpelling(true);
-      setSpellCheckSuggestion("");
-
-      try {
-        const result = await spellCheck({ text, language: lang });
-        setSpellCheckSuggestion(result.correctedText);
-      } catch (e) {
-        console.error("Spell check failed", e);
-        toast({ title: "Error", description: "Spell check failed.", variant: "destructive" });
-      } finally {
-        setIsCheckingSpelling(false);
-      }
-  }
-
-  const handleApplySuggestion = () => {
-    restoreSelection();
-    editorRef.current?.focus();
-    setTimeout(() => {
-        document.execCommand('insertText', false, spellCheckSuggestion);
-        setIsSpellCheckPopoverOpen(false);
-    }, 10);
-  }
-
-  const openSpellCheckPopover = () => {
-    const sel = window.getSelection();
-    if (!sel || sel.rangeCount === 0) return;
-    
-    const range = sel.getRangeAt(0);
-    const rect = range.getBoundingClientRect();
-    
-    setSpellCheckAnchor({ x: rect.left, y: rect.bottom + 4 });
-    setIsSpellCheckPopoverOpen(true);
-    setContextMenu({ ...contextMenu, visible: false });
-  }
 
   // Set initial content
   React.useEffect(() => {
@@ -1335,7 +1389,7 @@ export function Editor({ page }: EditorProps) {
             </div>
           </div>
         </CardHeader>
-        <CardContent ref={scrollContainerRef} className="flex-1 overflow-y-auto p-0 printable-area">
+        <CardContent ref={scrollContainerRef} className="flex-1 overflow-y-auto p-0 printable-area relative">
           <Popover open={isAiPopoverOpen} onOpenChange={setIsAiPopoverOpen} modal={true}>
             <PopoverTrigger asChild>
               {aiPopoverAnchor && <div style={{ position: 'absolute', top: 0, left: 0, width: 0, height: 0 }} ref={node => { if(node && aiPopoverAnchor.parentElement) aiPopoverAnchor.parentElement.replaceChild(node, aiPopoverAnchor)}}></div>}
@@ -1352,6 +1406,38 @@ export function Editor({ page }: EditorProps) {
                 <Button>Generate</Button>
               </div>
             </PopoverContent>
+          </Popover>
+
+          <Popover open={!!inlineCorrection} onOpenChange={(isOpen) => !isOpen && setInlineCorrection(null)}>
+              <PopoverTrigger asChild>
+                  {inlineCorrection?.anchor && <div />}
+              </PopoverTrigger>
+              <PopoverContent 
+                className="w-auto p-2" 
+                align="start"
+                side="top"
+                sideOffset={4}
+                style={{
+                    // Position the popover based on the anchor's location
+                    position: 'absolute',
+                    top: `${inlineCorrection?.anchor.offsetTop ?? 0}px`,
+                    left: `${inlineCorrection?.anchor.offsetLeft ?? 0}px`,
+                }}
+                onOpenAutoFocus={(e) => e.preventDefault()}
+                onPointerDownOutside={() => setInlineCorrection(null)}
+              >
+                <div className="flex items-center gap-2">
+                    <p className="text-sm">Correction :</p>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-accent h-auto p-1"
+                        onClick={applyCorrection}
+                    >
+                        {inlineCorrection?.suggestion}
+                    </Button>
+                </div>
+              </PopoverContent>
           </Popover>
 
           <div
@@ -1403,107 +1489,86 @@ export function Editor({ page }: EditorProps) {
       )}
 
       {contextMenu.visible && (
-        <Popover open={isSpellCheckPopoverOpen} onOpenChange={setIsSpellCheckPopoverOpen}>
-            <PopoverTrigger asChild>
-                 <div
-                    role="menu"
-                    aria-label="Editor context menu"
-                    style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y }}
-                    className="z-50 min-w-[180px] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95"
-                    onContextMenu={(e) => e.preventDefault()} // prevent chained context menus
-                    >
-                    <button
-                        role="menuitem"
-                        className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent disabled:opacity-50"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => { restoreSelection(); document.execCommand('copy'); setContextMenu({ ...contextMenu, visible: false }); }}
-                        disabled={!contextMenu.isTextSelected}
-                    >
-                        Copy
-                    </button>
+        <div
+            role="menu"
+            aria-label="Editor context menu"
+            style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y }}
+            className="z-50 min-w-[180px] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95"
+            onContextMenu={(e) => e.preventDefault()} // prevent chained context menus
+            >
+            <button
+                role="menuitem"
+                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent disabled:opacity-50"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => { restoreSelection(); document.execCommand('copy'); setContextMenu({ ...contextMenu, visible: false }); }}
+                disabled={!contextMenu.isTextSelected}
+            >
+                <Copy className="h-4 w-4" /> Copy
+            </button>
 
-                    <button
-                        role="menuitem"
-                        className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent disabled:opacity-50"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => { restoreSelection(); document.execCommand('cut'); setContextMenu({ ...contextMenu, visible: false }); }}
-                        disabled={!contextMenu.isTextSelected}
-                    >
-                        Cut
-                    </button>
+            <button
+                role="menuitem"
+                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent disabled:opacity-50"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => { restoreSelection(); document.execCommand('cut'); setContextMenu({ ...contextMenu, visible: false }); }}
+                disabled={!contextMenu.isTextSelected}
+            >
+                <Scissors className="h-4 w-4" /> Cut
+            </button>
 
-                    <button
-                        role="menuitem"
-                        className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => { 
-                            navigator.clipboard.readText().then(text => {
-                                restoreSelection();
-                                document.execCommand('insertText', false, text);
-                            });
-                            setContextMenu({ ...contextMenu, visible: false }); 
-                        }}
-                    >
-                        Paste
-                    </button>
-                    
-                    <Separator className="my-1" />
-                    
-                    <button
-                        role="menuitem"
-                        className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent disabled:opacity-50"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => { handleFormat('inlineCode'); setContextMenu({ ...contextMenu, visible: false }); }}
-                        disabled={!contextMenu.isTextSelected}
-                    >
-                        <Code className="h-4 w-4" /> Inline Code
-                    </button>
+            <button
+                role="menuitem"
+                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                    // Use execCommand for broader compatibility and to avoid permission issues.
+                    // The onPaste handler will clean the content.
+                    document.execCommand('paste');
+                    setContextMenu({ ...contextMenu, visible: false }); 
+                }}
+            >
+                <ClipboardPaste className="h-4 w-4" /> Paste
+            </button>
+            
+            <Separator className="my-1" />
+            
+            <button
+                role="menuitem"
+                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent disabled:opacity-50"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => { handleFormat('inlineCode'); setContextMenu({ ...contextMenu, visible: false }); }}
+                disabled={!contextMenu.isTextSelected}
+            >
+                <Code className="h-4 w-4" /> Inline Code
+            </button>
+            <Separator className="my-1" />
 
-                    <button
-                        role="menuitem"
-                        className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent disabled:opacity-50"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => { openSpellCheckPopover(); }}
-                        disabled={!contextMenu.isTextSelected}
-                    >
-                        <Languages className="h-4 w-4" /> Spell Check
-                    </button>
-                    </div>
-            </PopoverTrigger>
-            <PopoverContent className="w-80" onOpenAutoFocus={(e) => e.preventDefault()}>
-                <div className="grid gap-4">
-                    <div className="space-y-2">
-                        <h4 className="font-medium leading-none">Spell & Grammar Check</h4>
-                        <p className="text-sm text-muted-foreground">
-                        Correct the selected text with AI.
-                        </p>
-                    </div>
-                    {isCheckingSpelling && (
-                        <div className="flex items-center justify-center p-4">
-                            <LoaderCircle className="h-6 w-6 animate-spin" />
-                        </div>
-                    )}
+             <button
+                role="menuitem"
+                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => { handleFormat('insertUnorderedList'); setContextMenu({...contextMenu, visible: false});}}
+            >
+                <List className="h-4 w-4" /> Bullet List
+            </button>
+             <button
+                role="menuitem"
+                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => { handleFormat('insertOrderedList'); setContextMenu({...contextMenu, visible: false});}}
+            >
+                <ListOrdered className="h-4 w-4" /> Numbered List
+            </button>
+             <button
+                role="menuitem"
+                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => { handleInsertChecklist(); setContextMenu({...contextMenu, visible: false});}}
+            >
+                <ListChecks className="h-4 w-4" /> Checklist
+            </button>
 
-                    {!isCheckingSpelling && spellCheckSuggestion && (
-                         <div className="space-y-2">
-                            <Label>Suggestion</Label>
-                            <div className="rounded-md border bg-muted p-2 text-sm">
-                                {spellCheckSuggestion}
-                            </div>
-                         </div>
-                    )}
-                    <div className="flex justify-between">
-                         <div className="flex gap-2">
-                            <Button variant="outline" size="sm" onClick={() => handleSpellCheck('fr')} disabled={isCheckingSpelling}>Français</Button>
-                            <Button variant="outline" size="sm" onClick={() => handleSpellCheck('en')} disabled={isCheckingSpelling}>English</Button>
-                        </div>
-                        {spellCheckSuggestion && (
-                             <Button size="sm" onClick={handleApplySuggestion}>Apply</Button>
-                        )}
-                    </div>
-                </div>
-            </PopoverContent>
-        </Popover>
+            </div>
       )}
       
       <Dialog open={isCommandPaletteOpen} onOpenChange={setIsCommandPaletteOpen}>
@@ -1517,7 +1582,7 @@ export function Editor({ page }: EditorProps) {
           <div className="space-y-2">
             <h3 className="font-semibold">Text Formatting</h3>
             <ul className="list-disc list-inside text-sm text-muted-foreground">
-              <li><kbd className="p-1 bg-muted rounded-md">Ctrl+B</kbd> - Bold</li>
+              <li><kbd className="p-1 bg-muted rounded-md">Ctrl+G</kbd> - Bold</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+I</kbd> - Italic</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+U</kbd> - Underline</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Shift+X</kbd> - Inline Code</li>
