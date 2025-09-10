@@ -83,7 +83,7 @@ import showdown from 'showdown';
 import { spellCheck } from "@/ai/flows/spell-check-flow";
 import { generateTextFromPrompt } from "@/ai/flows/generate-text-from-prompt";
 import { getBriefAnswer } from "@/ai/flows/get-brief-answer";
-import { DiagramShell, MindMap, Flowchart, OrgChart, VennDiagram, Timeline } from "./diagrams/diagrams_library";
+import ReactFlow, { Background, Controls, MiniMap, type Node, type Edge } from 'reactflow';
 
 
 interface EditorProps {
@@ -113,12 +113,23 @@ type AiSuggestion = {
     position: { top: number; left: number };
 };
 
-const diagramComponents = {
-    MindMap,
-    Flowchart,
-    OrgChart,
-    VennDiagram,
-    Timeline
+const diagramTypes = ['MindMap', 'Flowchart', 'OrgChart'];
+
+
+const DiagramRenderer = ({ initialNodes, initialEdges }: { initialNodes: Node[], initialEdges: Edge[] }) => {
+    return (
+        <div style={{ height: '500px', width: '100%' }} className="border rounded-md bg-background my-4">
+             <ReactFlow
+                defaultNodes={initialNodes}
+                defaultEdges={initialEdges}
+                fitView
+            >
+                <Background />
+                <Controls />
+                <MiniMap />
+            </ReactFlow>
+        </div>
+    );
 };
 
 
@@ -173,7 +184,7 @@ export function Editor({ page }: EditorProps) {
   };
 
   const [diagramText, setDiagramText] = React.useState("");
-  const [diagramType, setDiagramType] = React.useState<keyof typeof diagramComponents>("MindMap");
+  const [diagramType, setDiagramType] = React.useState<(typeof diagramTypes)[number]>("MindMap");
 
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [htmlToInsert, setHtmlToInsert] = React.useState("");
@@ -941,9 +952,9 @@ video.src = url;
     }
     setIsGenerating(true);
     try {
-      const result = await generateDiagram({ text: diagramText, diagramType });
-      const encodedData = btoa(result.diagramData);
-      const diagramHtml = `<div data-diagram-type="${diagramType}" data-diagram-data='${encodedData}' contenteditable="false"><p>Diagram placeholder. It will be rendered on page load.</p></div><p>&#8203;</p>`;
+      const result = await generateDiagram({ text: diagramText, diagramType: diagramType as any });
+      
+      const diagramHtml = `<div data-diagram-type="${diagramType}" data-diagram-data='${result.diagramData}' contenteditable="false" class="bg-card p-2 rounded-md my-4">Diagram placeholder. It will be rendered on page load.</div><p>&#8203;</p>`;
       restoreSelection();
       editorRef.current?.focus();
       document.execCommand('insertHTML', false, diagramHtml);
@@ -1126,23 +1137,25 @@ video.src = url;
     const diagramPlaceholders = editorRef.current.querySelectorAll('div[data-diagram-type]');
 
     diagramPlaceholders.forEach(container => {
-      const type = container.getAttribute('data-diagram-type') as keyof typeof diagramComponents;
+      const type = container.getAttribute('data-diagram-type');
       const dataStr = container.getAttribute('data-diagram-data');
-      if (!type || !dataStr || !diagramComponents[type]) return;
+      if (!type || !dataStr) return;
 
       try {
-        const decodedData = atob(dataStr);
-        const data = JSON.parse(decodedData);
-        const DiagramComponent = diagramComponents[type];
-
+        const data = JSON.parse(dataStr);
+        const { nodes, edges } = data;
+        
         const diagramElement = (
-          <DiagramShell>
-            <DiagramComponent {...data} />
-          </DiagramShell>
+            <DiagramRenderer initialNodes={nodes} initialEdges={edges} />
         );
 
-        const root = createRoot(container);
-        root.render(diagramElement);
+        // Check if the container is already a React root
+        // This is a simple check; a more robust solution might be needed
+        if (!(container as any)._reactRootContainer) {
+            const root = createRoot(container);
+            root.render(diagramElement);
+        }
+
       } catch (e) {
         console.error("Failed to parse or render diagram", e);
         container.textContent = "Error rendering diagram.";
@@ -1359,14 +1372,12 @@ video.src = url;
                     </div>
                     <div className="grid gap-2">
                       <Label htmlFor="diagram-type">Diagram Type</Label>
-                      <Select onValueChange={(value: keyof typeof diagramComponents) => setDiagramType(value)} defaultValue={diagramType}>
+                      <Select onValueChange={(value: (typeof diagramTypes)[number]) => setDiagramType(value)} defaultValue={diagramType}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="MindMap">Mind Map</SelectItem>
-                          <SelectItem value="Flowchart">Flowchart</SelectItem>
-                          <SelectItem value="OrgChart">Organization Chart</SelectItem>
-                          <SelectItem value="VennDiagram">Venn Diagram</SelectItem>
-                          <SelectItem value="Timeline">Timeline</SelectItem>
+                          {diagramTypes.map(type => (
+                            <SelectItem key={type} value={type}>{type}</SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>

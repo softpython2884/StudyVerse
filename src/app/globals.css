@@ -1,3 +1,4 @@
+@import 'reactflow/dist/style.css';
 
 @tailwind base;
 @tailwind components;

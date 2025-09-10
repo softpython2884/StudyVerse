@@ -54,6 +54,7 @@
     "react-day-picker": "^8.10.1",
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.54.2",
+    "reactflow": "^11.11.3",
     "recharts": "^2.15.1",
     "showdown": "^2.1.0",
     "sqlite": "^5.1.1",
