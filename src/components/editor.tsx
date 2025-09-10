@@ -942,7 +942,8 @@ video.src = url;
     setIsGenerating(true);
     try {
       const result = await generateDiagram({ text: diagramText, diagramType });
-      const diagramHtml = `<div data-diagram-type="${diagramType}" data-diagram-data='${result.diagramData}' contenteditable="false"><p>Diagram placeholder. It will be rendered on page load.</p></div><p>&#8203;</p>`;
+      const encodedData = btoa(result.diagramData);
+      const diagramHtml = `<div data-diagram-type="${diagramType}" data-diagram-data='${encodedData}' contenteditable="false"><p>Diagram placeholder. It will be rendered on page load.</p></div><p>&#8203;</p>`;
       restoreSelection();
       editorRef.current?.focus();
       document.execCommand('insertHTML', false, diagramHtml);
@@ -1130,7 +1131,8 @@ video.src = url;
       if (!type || !dataStr || !diagramComponents[type]) return;
 
       try {
-        const data = JSON.parse(dataStr);
+        const decodedData = atob(dataStr);
+        const data = JSON.parse(decodedData);
         const DiagramComponent = diagramComponents[type];
 
         const diagramElement = (
@@ -1598,3 +1600,4 @@ video.src = url;
     </div>
   );
 }
+
