@@ -10,6 +10,12 @@ import {
   Plus,
   LoaderCircle,
   Bot,
+  Palette,
+  Group,
+  Ungroup,
+  RectangleHorizontal,
+  MoveDownRight,
+  MoveUpLeft,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,6 +28,17 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuPortal,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Label } from "./ui/label";
 import { Textarea } from "./ui/textarea";
 import {
@@ -47,12 +64,23 @@ import ReactFlow, {
   useNodesState,
   useEdgesState,
   addEdge,
-  type Connection
+  type Connection,
+  useOnSelectionChange,
+  MarkerType,
 } from 'reactflow';
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
+import { cn } from "@/lib/utils";
 
 const proOptions: ProOptions = { hideAttribution: true };
 const diagramTypes = ['MindMap', 'Flowchart', 'OrgChart'];
+const nodeColors = [
+    { name: "Default", color: "#ffffff" },
+    { name: "Red", color: "#ffcdd2" },
+    { name: "Green", color: "#c8e6c9" },
+    { name: "Blue", color: "#bbdefb" },
+    { name: "Yellow", color: "#fff9c4" },
+    { name: "Purple", color: "#e1bee7" },
+];
 
 interface DiagramEditorProps {
   page: Page;
@@ -68,8 +96,26 @@ export function DiagramEditor({ page }: DiagramEditorProps) {
   const [diagramPrompt, setDiagramPrompt] = React.useState("");
   const [diagramType, setDiagramType] = React.useState<(typeof diagramTypes)[number]>("MindMap");
 
+  const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
+  
+  const [contextMenu, setContextMenu] = useState<{
+    id: string;
+    top: number;
+    left: number;
+    right: number;
+    bottom: number;
+  } | null>(null);
+  const ref = React.useRef<HTMLDivElement>(null);
+
+
   const { toast } = useToast();
   const reactFlowInstance = useReactFlow();
+
+  useOnSelectionChange({
+    onChange: ({ nodes }) => {
+      setSelectedNodeIds(nodes.map((node) => node.id));
+    },
+  });
 
   React.useEffect(() => {
     if (page.content) {
@@ -89,13 +135,13 @@ export function DiagramEditor({ page }: DiagramEditorProps) {
   }, [page, setNodes, setEdges]);
   
   const onConnect = useCallback(
-    (params: Edge | Connection) => setEdges((eds) => addEdge(params, eds)),
+    (params: Edge | Connection) => setEdges((eds) => addEdge({ ...params, markerEnd: { type: MarkerType.ArrowClosed } }, eds)),
     [setEdges]
   );
   
   const onNodeDoubleClick = useCallback((event: React.MouseEvent, node: Node) => {
     const newLabel = prompt("Enter new label:", node.data.label);
-    if (newLabel !== null) {
+    if (newLabel !== null && newLabel.trim() !== '') {
       setNodes((nds) =>
         nds.map((n) => {
           if (n.id === node.id) {
@@ -112,6 +158,24 @@ export function DiagramEditor({ page }: DiagramEditorProps) {
       );
     }
   }, [setNodes]);
+
+  const onNodeContextMenu = useCallback(
+    (event: React.MouseEvent, node: Node) => {
+      event.preventDefault();
+      const pane = ref.current?.getBoundingClientRect();
+      if (!pane) return;
+      setContextMenu({
+        id: node.id,
+        top: event.clientY,
+        left: event.clientX,
+        right: pane.width - event.clientX,
+        bottom: pane.height - event.clientY,
+      });
+    },
+    [setContextMenu]
+  );
+  
+  const onPaneClick = useCallback(() => setContextMenu(null), [setContextMenu]);
 
   const handleSaveContent = async () => {
     setIsSaving(true);
@@ -173,7 +237,94 @@ export function DiagramEditor({ page }: DiagramEditorProps) {
     };
     setNodes((nds) => nds.concat(newNode));
   };
+  
+  const setNodeStyle = (color: string) => {
+    if (!contextMenu) return;
+    setNodes((nds) =>
+      nds.map((n) => {
+        if (n.id === contextMenu.id) {
+          return { ...n, style: { ...n.style, backgroundColor: color } };
+        }
+        return n;
+      })
+    );
+    setContextMenu(null);
+  };
 
+  const setNodeType = (type: string) => {
+    if (!contextMenu) return;
+    setNodes((nds) =>
+      nds.map((n) => {
+        if (n.id === contextMenu.id) {
+          return { ...n, type };
+        }
+        return n;
+      })
+    );
+    setContextMenu(null);
+  };
+  
+  const handleGroupNodes = () => {
+    if (selectedNodeIds.length <= 1) {
+        toast({ title: "Info", description: "Select multiple nodes to group them." });
+        return;
+    }
+    const groupId = `group-${Date.now()}`;
+    const selectedNodes = nodes.filter(n => selectedNodeIds.includes(n.id) && !n.parentNode);
+
+    const minX = Math.min(...selectedNodes.map(n => n.position.x));
+    const minY = Math.min(...selectedNodes.map(n => n.position.y));
+    const maxX = Math.max(...selectedNodes.map(n => n.position.x + (n.width || 150)));
+    const maxY = Math.max(...selectedNodes.map(n => n.position.y + (n.height || 40)));
+
+    const groupNode: Node = {
+      id: groupId,
+      type: 'group',
+      position: { x: minX - 20, y: minY - 40 },
+      data: { label: 'New Group' },
+      style: {
+        width: maxX - minX + 40,
+        height: maxY - minY + 60,
+        backgroundColor: 'rgba(128, 128, 128, 0.1)',
+        borderColor: 'rgba(128, 128, 128, 0.3)',
+      },
+    };
+
+    setNodes(prevNodes => [
+      ...prevNodes.map(n => {
+        if (selectedNodeIds.includes(n.id)) {
+          return { ...n, parentNode: groupId, extent: 'parent' as const };
+        }
+        return n;
+      }),
+      groupNode,
+    ]);
+    
+    setContextMenu(null);
+  };
+
+  const handleUngroupNode = () => {
+    if (!contextMenu) return;
+    const nodeToUngroup = nodes.find(n => n.id === contextMenu.id);
+    if (!nodeToUngroup || !nodeToUngroup.parentNode) return;
+
+    setNodes(prevNodes =>
+      prevNodes.map(n => {
+        if (n.id === nodeToUngroup.id) {
+          const { parentNode, extent, ...rest } = n;
+          return rest;
+        }
+        return n;
+      })
+    );
+    setContextMenu(null);
+  };
+
+  const isNodeInGroup = () => {
+      if (!contextMenu) return false;
+      const node = nodes.find(n => n.id === contextMenu.id);
+      return !!node?.parentNode;
+  }
 
   return (
     <div className="flex flex-col h-full bg-background">
@@ -237,13 +388,15 @@ export function DiagramEditor({ page }: DiagramEditorProps) {
         </div>
       </header>
 
-      <main className="flex-1 w-full h-full">
+      <main ref={ref} className="flex-1 w-full h-full">
         <ReactFlow
             nodes={nodes}
             edges={edges}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
+            onPaneClick={onPaneClick}
+            onNodeContextMenu={onNodeContextMenu}
             onNodeDoubleClick={onNodeDoubleClick}
             deleteKeyCode={['Backspace', 'Delete']}
             fitView
@@ -253,7 +406,71 @@ export function DiagramEditor({ page }: DiagramEditorProps) {
             <Controls />
             <MiniMap nodeStrokeWidth={3} zoomable pannable />
         </ReactFlow>
+        
+        {contextMenu && (
+            <DropdownMenu open onOpenChange={() => setContextMenu(null)}>
+                 <DropdownMenuPortal>
+                    <DropdownMenuContent
+                        className="w-48"
+                        style={{ top: contextMenu.top, left: contextMenu.left }}
+                        onCloseAutoFocus={(e) => e.preventDefault()}
+                    >
+                         <DropdownMenuSub>
+                            <DropdownMenuSubTrigger>
+                                <Palette className="mr-2 h-4 w-4" />
+                                <span>Change Color</span>
+                            </DropdownMenuSubTrigger>
+                            <DropdownMenuPortal>
+                                <DropdownMenuSubContent>
+                                    {nodeColors.map(({ name, color }) => (
+                                        <DropdownMenuItem key={name} onClick={() => setNodeStyle(color)}>
+                                            <div className="w-4 h-4 rounded-full mr-2" style={{ backgroundColor: color, border: '1px solid #ccc' }} />
+                                            {name}
+                                        </DropdownMenuItem>
+                                    ))}
+                                </DropdownMenuSubContent>
+                            </DropdownMenuPortal>
+                        </DropdownMenuSub>
+                        <DropdownMenuSub>
+                            <DropdownMenuSubTrigger>
+                                <RectangleHorizontal className="mr-2 h-4 w-4" />
+                                <span>Change Shape</span>
+                            </DropdownMenuSubTrigger>
+                             <DropdownMenuPortal>
+                                <DropdownMenuSubContent>
+                                    <DropdownMenuItem onClick={() => setNodeType('default')}>
+                                        <RectangleHorizontal className="mr-2 h-4 w-4" /> Default
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => setNodeType('input')}>
+                                        <MoveDownRight className="mr-2 h-4 w-4" /> Input
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => setNodeType('output')}>
+                                        <MoveUpLeft className="mr-2 h-4 w-4" /> Output
+                                    </DropdownMenuItem>
+                                </DropdownMenuSubContent>
+                            </DropdownMenuPortal>
+                        </DropdownMenuSub>
+
+                        <DropdownMenuSeparator />
+
+                        <DropdownMenuItem onClick={handleGroupNodes} disabled={selectedNodeIds.length <= 1}>
+                             <Group className="mr-2 h-4 w-4" />
+                             Group Selection
+                        </DropdownMenuItem>
+                        {isNodeInGroup() && (
+                            <DropdownMenuItem onClick={handleUngroupNode}>
+                                <Ungroup className="mr-2 h-4 w-4" />
+                                Ungroup Node
+                            </DropdownMenuItem>
+                        )}
+                    </DropdownMenuContent>
+                </DropdownMenuPortal>
+            </DropdownMenu>
+        )}
+
       </main>
     </div>
   );
 }
+
+    
