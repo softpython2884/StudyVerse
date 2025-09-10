@@ -180,10 +180,8 @@ body {
 
 .hljs-number,
 .hljs-literal,
-.hljs-variable,
-.hljs-template-variable,
-.hljs-tag .hljs-attr {
-    @apply !text-accent;
+.hljs-variable {
+  @apply !text-accent;
 }
 
 .hljs-string,
