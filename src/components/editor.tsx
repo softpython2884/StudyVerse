@@ -337,7 +337,7 @@ export function Editor({ page }: EditorProps) {
             const isInPre = currentBlock?.tagName.toLowerCase() === 'pre';
 
             if (isInPre) {
-                document.execCommand('formatBlock', false, 'p');
+                 document.execCommand('formatBlock', false, 'p');
             } else {
                  document.execCommand('formatBlock', false, value);
             }
@@ -382,99 +382,132 @@ export function Editor({ page }: EditorProps) {
       const sel = window.getSelection();
       if (!sel || sel.rangeCount === 0) return;
       const range = sel.getRangeAt(0);
+      const textNode = range.startContainer;
 
-      const block = (range.startContainer.nodeType === Node.TEXT_NODE
-        ? (range.startContainer.parentElement?.closest('p,div,li,h1,h2,h3,h4,h5,h6,pre,blockquote'))
-        : (range.startContainer as HTMLElement).closest('p,div,li,h1,h2,h3,h4,h5,h6,pre,blockquote')) as HTMLElement | null;
-
-      if (!block || !editorRef.current?.contains(block)) {
+      // Ensure we are working with a text node
+      if (textNode.nodeType !== Node.TEXT_NODE) {
         updateToolbarState();
+        debouncedUpdateToc();
         return;
       }
       
-      const startRange = document.createRange();
-      startRange.setStart(block, 0);
-      startRange.setEnd(range.startContainer, range.startOffset);
-      const prefixText = startRange.toString();
-
-      // Auto-linking and embedding
-      const urlMatch = prefixText.match(/(https?:\/\/[^\s]+)\s$/);
+      const textContent = textNode.textContent || '';
+      const cursorPosition = range.startOffset;
+      const textBeforeCursor = textContent.substring(0, cursorPosition);
+      
+      const urlMatch = textBeforeCursor.match(/(https?:\/\/\S+)\s$/);
+      
       if (urlMatch) {
           const url = urlMatch[1];
-          const textNode = range.startContainer;
-          if (textNode.textContent) {
-              const urlIndex = textNode.textContent.lastIndexOf(url);
-              if (urlIndex !== -1) {
-                  // Create range for the URL text
-                  const urlRange = document.createRange();
-                  urlRange.setStart(textNode, urlIndex);
-                  urlRange.setEnd(textNode, urlIndex + url.length);
-                  sel.removeAllRanges();
-                  sel.addRange(urlRange);
+          const urlStartIndex = textBeforeCursor.lastIndexOf(url);
+          
+          if(urlStartIndex > -1) {
+            
+              const urlRange = document.createRange();
+              urlRange.setStart(textNode, urlStartIndex);
+              urlRange.setEnd(textNode, urlStartIndex + url.length);
+              
+              let newElement: HTMLElement;
+              const ytMatch = url.match(/(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([\w-]{11})/);
 
-                  // Check for YouTube
-                  const ytMatch = url.match(/(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([\w-]{11})/);
-                  if (ytMatch) {
-                    const videoId = ytMatch[1];
-                    const iframe = `<iframe width="560" height="315" src="https://www.youtube.com/embed/${videoId}" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen style="max-width: 100%; border-radius: 0.5rem;"></iframe>`;
-                    document.execCommand('insertHTML', false, iframe);
-                  } else if (/\.(jpe?g|png|gif|webp|mp4|webm)$/i.test(url)) {
-                       // Check if it's an image/video
-                      const mediaTag = /\.(mp4|webm)$/i.test(url) ? 
-                          `<video src="${url}" controls style="max-width: 100%; border-radius: 0.5rem;"></video>` : 
-                          `<img src="${url}" style="max-width: 100%; border-radius: 0.5rem;" />`;
-                      document.execCommand('insertHTML', false, mediaTag);
-                  } else {
-                       const linkHtml = `<a href="${url}" title="${url}">${url}</a>`;
-                       document.execCommand('insertHTML', false, linkHtml);
-                  }
-
-                  // Move cursor after the link/media
-                  const newRange = document.createRange();
-                  const lastChild = block.lastChild;
-                  if (lastChild) {
-                    newRange.setStartAfter(lastChild);
-                  }
-                  newRange.collapse(true);
-                  sel.removeAllRanges();
-                  sel.addRange(newRange);
+              if (ytMatch) {
+                  const videoId = ytMatch[1];
+                  const iframe = document.createElement('iframe');
+                  iframe.width = '560';
+                  iframe.height = '315';
+                  iframe.src = `https://www.youtube.com/embed/${videoId}`;
+                  iframe.title = "YouTube video player";
+                  iframe.frameBorder = "0";
+                  iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
+                  iframe.allowFullscreen = true;
+                  iframe.style.maxWidth = '100%';
+                  iframe.style.borderRadius = '0.5rem';
+                  newElement = iframe;
+              } else if (/\.(jpe?g|png|gif|webp)$/i.test(url)) {
+                  const img = document.createElement('img');
+                  img.src = url;
+                  img.style.maxWidth = '100%';
+                  img.style.borderRadius = '0.5rem';
+                  newElement = img;
+              } else if (/\.(mp4|webm)$/i.test(url)) {
+                  const video = document.createElement('video');
+                  video.src = url;
+                  video.controls = true;
+                  video.style.maxWidth = '100%';
+                  video.style.borderRadius = '0.5rem';
+                  newElement = video;
+              } else {
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.title = url;
+                  a.textContent = url;
+                  newElement = a;
               }
+              
+              urlRange.deleteContents();
+              urlRange.insertNode(newElement);
+
+              // Place cursor after the new element
+              const newRange = document.createRange();
+              newRange.setStartAfter(newElement);
+              newRange.collapse(true);
+              sel.removeAllRanges();
+              sel.addRange(newRange);
+              
+              // Add a space if the key was space
+              if (event.key === ' ') {
+                const spaceNode = document.createTextNode(' ');
+                newRange.insertNode(spaceNode);
+                newRange.setStartAfter(spaceNode);
+                newRange.collapse(true);
+                sel.removeAllRanges();
+                sel.addRange(newRange);
+              }
+              
+              event.preventDefault();
           }
       }
 
 
       // match headings typed at start of block e.g. "# " or "## " up to 6
-      const headingMatch = prefixText.match(/^\s*(#{1,6})\s$/);
-      if (headingMatch) {
-        event.preventDefault();
-        const level = headingMatch[1].length;
+      const block = (textNode.parentElement as HTMLElement)?.closest('p,div,li,h1,h2,h3,h4,h5,h6,pre,blockquote');
+      if (block) {
+          const startRange = document.createRange();
+          startRange.setStart(block, 0);
+          startRange.setEnd(range.startContainer, range.startOffset);
+          const prefixText = startRange.toString();
 
-        // More robust way to remove the markdown prefix
-        const textNode = (function findFirstTextNode(node: Node): Node | null {
-          if (node.nodeType === Node.TEXT_NODE) return node;
-          for (let i = 0; i < node.childNodes.length; i++) {
-              const result = findFirstTextNode(node.childNodes[i]);
-              if (result) return result;
+          const headingMatch = prefixText.match(/^\s*(#{1,6})\s$/);
+          if (headingMatch) {
+            event.preventDefault();
+            const level = headingMatch[1].length;
+
+            // More robust way to remove the markdown prefix
+            const firstTextNode = (function findFirstTextNode(node: Node): Node | null {
+              if (node.nodeType === Node.TEXT_NODE) return node;
+              for (let i = 0; i < node.childNodes.length; i++) {
+                  const result = findFirstTextNode(node.childNodes[i]);
+                  if (result) return result;
+              }
+              return null;
+            })(block);
+            
+            if (firstTextNode && firstTextNode.textContent) {
+                const matchLength = headingMatch[0].length;
+                firstTextNode.textContent = firstTextNode.textContent.slice(matchLength);
+            }
+
+            setTimeout(() => {
+              handleFormat('formatBlock', `h${level}`);
+              const newRange = document.createRange();
+              newRange.selectNodeContents(block);
+              newRange.collapse(false);
+              sel.removeAllRanges();
+              sel.addRange(newRange);
+              updateToolbarState();
+            }, 0);
+            return;
           }
-          return null;
-        })(block);
-        
-        if (textNode && textNode.textContent) {
-            const matchLength = headingMatch[0].length;
-            textNode.textContent = textNode.textContent.slice(matchLength);
-        }
-
-        setTimeout(() => {
-          handleFormat('formatBlock', `h${level}`);
-          // Move cursor to the end of the newly formatted heading
-          const newRange = document.createRange();
-          newRange.selectNodeContents(block);
-          newRange.collapse(false);
-          sel.removeAllRanges();
-          sel.addRange(newRange);
-          updateToolbarState();
-        }, 0);
-        return;
       }
     }
     updateToolbarState();
@@ -711,7 +744,7 @@ export function Editor({ page }: EditorProps) {
     editorRef.current?.focus();
     setTimeout(() => {
       if (linkUrl) {
-        const linkHtml = `<a href="${linkUrl}" title="${linkUrl}">${linkUrl}</a>`;
+        const linkHtml = `<a href="${linkUrl}" title="${linkUrl}">${window.getSelection()?.toString() || linkUrl}</a>`;
         document.execCommand("insertHTML", false, linkHtml);
       }
       setLinkUrl("");
