@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import * as React from "react";
@@ -68,8 +67,8 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { Label } from "./ui/label";
+import { Textarea } from "./ui/textarea";
 import { refineAndStructureNotes } from "@/ai/flows/refine-and-structure-notes";
 import { generateDiagram } from "@/ai/flows/generate-diagrams-from-text";
 import { cn } from "@/lib/utils";
@@ -176,7 +175,7 @@ export function Editor({ page }: EditorProps) {
     if (!editorRef.current) return;
     const headings = editorRef.current.querySelectorAll('h1, h2, h3, h4, h5, h6');
     const newToc: TocItem[] = [];
-    headings.forEach((heading, index) => {
+    headings.forEach((heading) => {
       const id = heading.id || `toc-heading-${Date.now()}-${Math.random()}`;
       if (!heading.id) {
         heading.id = id;
@@ -506,12 +505,11 @@ export function Editor({ page }: EditorProps) {
 
     if (event.ctrlKey && !event.altKey) {
       const key = event.key.toLowerCase();
-      if (['b', 'i', 'u', 'z', 'y', 'g'].includes(key)) {
+      if (['b', 'i', 'u', 'z', 'y'].includes(key)) {
         event.preventDefault();
         restoreSelection();
         switch (key) {
           case 'b': document.execCommand('bold'); break;
-          case 'g': document.execCommand('bold'); break;
           case 'i': document.execCommand('italic'); break;
           case 'u': document.execCommand('underline'); break;
           case 'z': document.execCommand('undo'); break;
@@ -520,6 +518,14 @@ export function Editor({ page }: EditorProps) {
         setTimeout(updateToolbarState, 0);
         return;
       }
+    }
+
+    if(event.ctrlKey && event.key.toLowerCase() === 'g') {
+        event.preventDefault();
+        restoreSelection();
+        document.execCommand('bold');
+        setTimeout(updateToolbarState, 0);
+        return;
     }
 
     if (event.ctrlKey && event.shiftKey) {
@@ -582,8 +588,8 @@ export function Editor({ page }: EditorProps) {
   };
 
   const handleInsertTable = (rows: number, cols: number) => {
-    restoreSelection();
     editorRef.current?.focus();
+    restoreSelection();
     setTimeout(() => {
       let tableHtml = '<table style="border-collapse: collapse; width: 100%;">';
       for (let i = 0; i < rows; i++) {
@@ -595,9 +601,9 @@ export function Editor({ page }: EditorProps) {
       }
       tableHtml += '</table><p>&#8203;</p>';
       document.execCommand("insertHTML", false, tableHtml);
+      setIsTablePopoverOpen(false);
+      setTableGridSize({ rows: 0, cols: 0 });
     }, 10);
-    setIsTablePopoverOpen(false);
-    setTableGridSize({ rows: 0, cols: 0 });
   };
 
   const handleSaveContent = async () => {
