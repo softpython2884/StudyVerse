@@ -114,7 +114,10 @@ export function Editor({ page }: EditorProps) {
       if (typeof window === 'undefined') return;
       const sel = window.getSelection();
       if (sel && sel.rangeCount > 0) {
-          savedSelection.current = sel.getRangeAt(0).cloneRange();
+          const range = sel.getRangeAt(0);
+          if (editorRef.current && editorRef.current.contains(range.commonAncestorContainer)) {
+            savedSelection.current = range.cloneRange();
+          }
       }
   };
 
@@ -433,14 +436,21 @@ export function Editor({ page }: EditorProps) {
       const block = (node.nodeType === Node.TEXT_NODE ? node.parentElement?.closest('blockquote, pre') : (node as HTMLElement).closest?.('blockquote, pre'));
       if (block && block.textContent?.trim() === '') {
           event.preventDefault();
-          handleFormat('formatBlock', 'p');
+          const p = document.createElement('p');
+          p.innerHTML = '&#8203;'; // For caret
+          block.after(p);
+          block.remove();
+          const newRange = document.createRange();
+          newRange.setStart(p, 0);
+          newRange.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(newRange);
           return;
       }
     }
     
     if (event.ctrlKey && event.key === '-') {
         event.preventDefault();
-        restoreSelection();
         document.execCommand('insertHTML', false, '<hr><p>&#8203;</p>');
         updateToolbarState();
         return;
@@ -568,20 +578,22 @@ export function Editor({ page }: EditorProps) {
     }, 10);
   };
 
-  const handleInsertTable = (rows: number, cols: number) => {
+  const handleInsertTable = () => {
     editorRef.current?.focus();
     restoreSelection();
     setTimeout(() => {
-      let tableHtml = '<table style="border-collapse: collapse; width: 100%;">';
-      for (let i = 0; i < rows; i++) {
-        tableHtml += '<tr style="border: 1px solid #ccc;">';
-        for (let j = 0; j < cols; j++) {
-          tableHtml += '<td style="border: 1px solid #ccc; padding: 8px;"><p>&#8203;</p></td>';
+      if (tableGridSize.rows > 0 && tableGridSize.cols > 0) {
+        let tableHtml = '<table style="border-collapse: collapse; width: 100%;">';
+        for (let i = 0; i < tableGridSize.rows; i++) {
+          tableHtml += '<tr style="border: 1px solid #ccc;">';
+          for (let j = 0; j < tableGridSize.cols; j++) {
+            tableHtml += '<td style="border: 1px solid #ccc; padding: 8px;"><p>&#8203;</p></td>';
+          }
+          tableHtml += '</tr>';
         }
-        tableHtml += '</tr>';
+        tableHtml += '</table><p>&#8203;</p>';
+        document.execCommand("insertHTML", false, tableHtml);
       }
-      tableHtml += '</table><p>&#8203;</p>';
-      document.execCommand("insertHTML", false, tableHtml);
       setIsTablePopoverOpen(false);
       setTableGridSize({ rows: 0, cols: 0 });
     }, 10);
@@ -734,7 +746,12 @@ export function Editor({ page }: EditorProps) {
     updateToolbarState();
   };
 
-  const handleBlur = () => {
+  const handleBlur = (e: React.FocusEvent) => {
+    // We only save selection if the focus is leaving the editor but staying within the app
+    // to avoid issues with browser extensions or devtools.
+    if (editorRef.current?.contains(e.relatedTarget as Node)) {
+        return;
+    }
     saveSelection();
   };
 
@@ -866,7 +883,7 @@ export function Editor({ page }: EditorProps) {
                               rowIndex < tableGridSize.rows && colIndex < tableGridSize.cols ? "bg-primary/50" : "hover:bg-primary/20"
                             )}
                             onMouseEnter={() => setTableGridSize({ rows: rowIndex + 1, cols: colIndex + 1 })}
-                            onClick={() => handleInsertTable(tableGridSize.rows, tableGridSize.cols)}
+                            onClick={handleInsertTable}
                           />
                         ))}
                       </div>
@@ -1129,7 +1146,7 @@ export function Editor({ page }: EditorProps) {
             role="menuitem"
             className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
             onMouseDown={(e) => e.preventDefault()}
-            onClick={() => { restoreSelection(); handleFormat('insertHorizontalRule'); setContextMenu({ x: 0, y: 0, visible: false }); }}
+            onClick={() => { restoreSelection(); document.execCommand('insertHTML', false, '<hr><p>&#8203;</p>'); setContextMenu({ x: 0, y: 0, visible: false }); }}
           >
             <Minus className="h-4 w-4" /> Insert HR
           </button>
