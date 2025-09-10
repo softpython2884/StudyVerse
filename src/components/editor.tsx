@@ -333,21 +333,16 @@ export function Editor({ page }: EditorProps) {
     
     if (command === 'formatBlock' && value) {
         if (value === 'pre') {
-            const codeContent = selection.toString();
             const currentBlock = element.closest('p, h1, h2, h3, h4, h5, h6, pre, blockquote, li');
             const isInPre = currentBlock?.tagName.toLowerCase() === 'pre';
 
             if (isInPre) {
-                // If we are in a code block, convert back to paragraph
                 document.execCommand('formatBlock', false, 'p');
             } else {
-                // Otherwise, wrap in <pre><code>...</code></pre>
-                const html = `<pre><code>${codeContent || '&#8203;'}</code></pre>`;
-                document.execCommand('insertHTML', false, html);
+                 document.execCommand('formatBlock', false, value);
             }
         } else {
              const currentBlock = element.closest('p, h1, h2, h3, h4, h5, h6, pre, blockquote, li');
-            // If we are in a block and trying to apply the same block, convert to paragraph
             if (currentBlock && currentBlock.tagName.toLowerCase() === value) {
                 document.execCommand('formatBlock', false, 'p');
             } else {
@@ -430,7 +425,7 @@ export function Editor({ page }: EditorProps) {
                           `<img src="${url}" style="max-width: 100%; border-radius: 0.5rem;" />`;
                       document.execCommand('insertHTML', false, mediaTag);
                   } else {
-                       const linkHtml = `<a href="${url}">${url}</a>`;
+                       const linkHtml = `<a href="${url}" title="${url}">${url}</a>`;
                        document.execCommand('insertHTML', false, linkHtml);
                   }
 
@@ -618,6 +613,17 @@ export function Editor({ page }: EditorProps) {
         handleFormat('inlineCode');
         return;
     }
+    
+    if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 'h') {
+        event.preventDefault();
+        const html = prompt("Enter HTML to insert:");
+        if (html) {
+            restoreSelection();
+            editorRef.current?.focus();
+            document.execCommand('insertHTML', false, html);
+        }
+        return;
+    }
 
     if (event.ctrlKey && event.code === 'Space') {
       event.preventDefault();
@@ -637,10 +643,10 @@ export function Editor({ page }: EditorProps) {
 
     if (event.ctrlKey && !event.altKey) {
       const key = event.key.toLowerCase();
-      if (['b', 'i', 'u'].includes(key)) {
+      if (['g', 'i', 'u'].includes(key)) {
         event.preventDefault();
         editorRef.current?.focus();
-        document.execCommand(key === 'b' ? 'bold' : key === 'i' ? 'italic' : 'underline');
+        document.execCommand(key === 'g' ? 'bold' : key === 'i' ? 'italic' : 'underline');
         setTimeout(updateToolbarState, 0);
         return;
       }
@@ -705,7 +711,7 @@ export function Editor({ page }: EditorProps) {
     editorRef.current?.focus();
     setTimeout(() => {
       if (linkUrl) {
-        const linkHtml = `<a href="${linkUrl}">${linkUrl}</a>`;
+        const linkHtml = `<a href="${linkUrl}" title="${linkUrl}">${linkUrl}</a>`;
         document.execCommand("insertHTML", false, linkHtml);
       }
       setLinkUrl("");
@@ -1117,7 +1123,7 @@ export function Editor({ page }: EditorProps) {
               <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => document.execCommand('insertHTML', false, '<hr><p>&#8203;</p>')}> <Minus className="h-4 w-4" /> </Button>
               <Dialog>
                 <DialogTrigger asChild>
-                  <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => {}}> <MessageSquarePlus className="h-4 w-4" /> </Button>
+                  <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown}> <MessageSquarePlus className="h-4 w-4" /> </Button>
                 </DialogTrigger>
                  <DialogContent>
                     <DialogHeader>
@@ -1409,7 +1415,7 @@ export function Editor({ page }: EditorProps) {
           <div className="space-y-2">
             <h3 className="font-semibold">Text Formatting</h3>
             <ul className="list-disc list-inside text-sm text-muted-foreground">
-              <li><kbd className="p-1 bg-muted rounded-md">Ctrl+B</kbd> - Bold</li>
+              <li><kbd className="p-1 bg-muted rounded-md">Ctrl+G</kbd> - Bold</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+I</kbd> - Italic</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+U</kbd> - Underline</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Shift+X</kbd> - Inline Code</li>
@@ -1427,6 +1433,7 @@ export function Editor({ page }: EditorProps) {
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+K</kbd> - Command Palette</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Space</kbd> - AI Prompt</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Shift+K</kbd> - Insert Link</li>
+              <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Shift+H</kbd> - Insert HTML</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+-</kbd> - Horizontal Rule</li>
             </ul>
           </div>
