@@ -43,7 +43,15 @@ import {
   Superscript,
   Subscript
 } from "lucide-react";
-import hljs from 'highlight.js';
+import hljs from 'highlight.js/lib/core';
+import javascript from 'highlight.js/lib/languages/javascript';
+import python from 'highlight.js/lib/languages/python';
+import xml from 'highlight.js/lib/languages/xml'; // For HTML
+import css from 'highlight.js/lib/languages/css';
+import typescript from 'highlight.js/lib/languages/typescript';
+import json from 'highlight.js/lib/languages/json';
+import bash from 'highlight.js/lib/languages/bash';
+import javaLang from 'highlight.js/lib/languages/java';
 import 'highlight.js/styles/github.css'; 
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -54,7 +62,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { updatePageContent } from "@/lib/actions";
@@ -75,6 +83,16 @@ import { Textarea } from "./ui/textarea";
 import { refineAndStructureNotes } from "@/ai/flows/refine-and-structure-notes";
 import { generateDiagram } from "@/ai/flows/generate-diagrams-from-text";
 import { cn } from "@/lib/utils";
+
+
+hljs.registerLanguage('javascript', javascript);
+hljs.registerLanguage('python', python);
+hljs.registerLanguage('xml', xml);
+hljs.registerLanguage('css', css);
+hljs.registerLanguage('typescript', typescript);
+hljs.registerLanguage('json', json);
+hljs.registerLanguage('bash', bash);
+hljs.registerLanguage('java', javaLang);
 
 interface EditorProps {
   page: Page;
@@ -183,8 +201,29 @@ export function Editor({ page }: EditorProps) {
             clearTimeout(highlightDebounceTimerRef.current);
         }
         highlightDebounceTimerRef.current = setTimeout(() => {
-            editorRef.current?.querySelectorAll('pre code').forEach((codeBlock) => {
-                hljs.highlightElement(codeBlock as HTMLElement);
+            if (!editorRef.current) return;
+            const codeBlocks = editorRef.current.querySelectorAll('pre');
+            codeBlocks.forEach((preBlock) => {
+                const codeElement = preBlock.querySelector('code');
+                if (codeElement) {
+                    // Remove any existing language badge
+                    preBlock.querySelector('.language-badge')?.remove();
+
+                    // Highlight the code block
+                    hljs.highlightElement(codeElement as HTMLElement);
+                    
+                    // After highlighting, 'highlight.js' adds a class like 'language-python'
+                    const languageClass = Array.from(codeElement.classList).find(cls => cls.startsWith('language-'));
+                    if (languageClass) {
+                        const languageName = languageClass.replace('language-', '');
+                        
+                        // Create and prepend the badge
+                        const badge = document.createElement('div');
+                        badge.className = 'language-badge';
+                        badge.textContent = languageName;
+                        preBlock.prepend(badge);
+                    }
+                }
             });
         }, 300);
     }, []);
@@ -269,7 +308,11 @@ export function Editor({ page }: EditorProps) {
       if (node && node instanceof HTMLElement && editorRef.current?.contains(node)) {
         const blockElement = node.closest('p, h1, h2, h3, h4, h5, h6, pre, blockquote, li');
         if (blockElement) {
-            setCurrentBlockStyle(blockElement.tagName.toLowerCase());
+            let blockTag = blockElement.tagName.toLowerCase();
+            if (blockTag === 'code' && blockElement.parentElement?.tagName.toLowerCase() === 'pre') {
+              blockTag = 'pre';
+            }
+            setCurrentBlockStyle(blockTag);
 
             // For active TOC item, we rely on the scroll handler, but this can set an initial one.
             const headingElement = node.closest('h1, h2, h3, h4, h5, h6');
@@ -307,14 +350,17 @@ export function Editor({ page }: EditorProps) {
   }, [page.id, updateToolbarState, debouncedScrollHandler]);
 
   const handleFormat = (command: string, value?: string) => {
-    if (command === 'formatBlock' && (value === 'blockquote' || value === 'pre')) {
-        if (currentBlockStyle === value) {
-            value = 'p'; // Toggle back to paragraph
-        }
-    }
     
     editorRef.current?.focus();
     restoreSelection();
+
+    if (command === 'formatBlock' && (value === 'blockquote' || value === 'pre')) {
+        if (currentBlockStyle === value) {
+            document.execCommand('formatBlock', false, 'p');
+            setTimeout(updateToolbarState, 0);
+            return;
+        }
+    }
 
     setTimeout(() => {
       try {
@@ -328,7 +374,7 @@ export function Editor({ page }: EditorProps) {
             if (p) {
               const pre = document.createElement('pre');
               const code = document.createElement('code');
-              code.innerHTML = p.innerHTML; // Move content
+              code.innerHTML = p.innerHTML || '&#8203;'; // Move content
               pre.appendChild(code);
               p.replaceWith(pre);
               // Restore cursor inside the new code block
@@ -427,19 +473,18 @@ export function Editor({ page }: EditorProps) {
         let block: HTMLElement | null = null;
         
         if (node.nodeType === Node.TEXT_NODE && node.parentElement) {
-            block = node.parentElement.closest('blockquote, pre, li');
+            block = node.parentElement.closest('blockquote, pre');
         } else if (node instanceof HTMLElement) {
-            block = node.closest('blockquote, pre, li');
+            block = node.closest('blockquote, pre');
         }
 
-        // Case 1: Exit from blockquote or code block if the line is empty
-        if ((block?.tagName === 'BLOCKQUOTE' || block?.tagName === 'PRE') && block.textContent?.trim() === '') {
+        // Exit from blockquote or code block
+        if (block) {
             event.preventDefault();
             const p = document.createElement('p');
             p.innerHTML = '&#8203;'; // Zero-width space for caret
             block.after(p);
-            block.remove();
-
+            
             const newRange = document.createRange();
             newRange.setStart(p, 0);
             newRange.collapse(true);
@@ -449,7 +494,7 @@ export function Editor({ page }: EditorProps) {
             return;
         }
       
-      // Case 2: In a checklist
+      // In a checklist
       const li = (node.nodeType === Node.TEXT_NODE ? node.parentElement?.closest('li') : (node as HTMLElement).closest?.('li'));
       if (li && li.closest('ul[data-type="checklist"]')) {
           if (li.textContent?.trim() === '') {
@@ -483,7 +528,7 @@ export function Editor({ page }: EditorProps) {
         return;
       }
       
-      // Case 3: In a heading
+      // In a heading
       const heading = (node.nodeType === Node.TEXT_NODE ? node.parentElement?.closest('h1, h2, h3, h4, h5, h6') : (node as HTMLElement).closest?.('h1, h2, h3, h4, h5, h6'));
       if (heading && !event.shiftKey) {
         event.preventDefault();
@@ -499,7 +544,7 @@ export function Editor({ page }: EditorProps) {
       }
     }
     
-    if (event.ctrlKey && (event.key === '-' || event.key === '_')) {
+    if (event.ctrlKey && event.key === '-') {
         event.preventDefault();
         document.execCommand('insertHTML', false, '<hr><p>&#8203;</p>');
         const newRange = document.createRange();
@@ -561,10 +606,10 @@ export function Editor({ page }: EditorProps) {
 
     if (event.ctrlKey && !event.altKey) {
       const key = event.key.toLowerCase();
-      if (['b', 'i', 'u'].includes(key)) {
+      if (['g', 'i', 'u'].includes(key)) {
         event.preventDefault();
         editorRef.current?.focus();
-        document.execCommand(key === 'b' ? 'bold' : key === 'i' ? 'italic' : 'underline');
+        document.execCommand(key === 'g' ? 'bold' : key === 'i' ? 'italic' : 'underline');
         setTimeout(updateToolbarState, 0);
         return;
       }
@@ -1245,7 +1290,7 @@ export function Editor({ page }: EditorProps) {
           <div className="space-y-2">
             <h3 className="font-semibold">Text Formatting</h3>
             <ul className="list-disc list-inside text-sm text-muted-foreground">
-              <li><kbd className="p-1 bg-muted rounded-md">Ctrl+B</kbd> - Bold</li>
+              <li><kbd className="p-1 bg-muted rounded-md">Ctrl+G</kbd> - Bold</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+I</kbd> - Italic</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+U</kbd> - Underline</li>
             </ul>
@@ -1270,3 +1315,5 @@ export function Editor({ page }: EditorProps) {
     </div>
   );
 }
+
+    
