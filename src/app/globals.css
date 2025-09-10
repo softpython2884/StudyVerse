@@ -196,3 +196,8 @@ body {
         visibility: visible;
     }
 }
+
+/* Rounded corners for context menu */
+.z-50.min-w-\[180px\] {
+  @apply rounded-lg;
+}

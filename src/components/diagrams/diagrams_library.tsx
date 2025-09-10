@@ -12,12 +12,12 @@ import { ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
 // -------------------------
 // Small local helpers
 // -------------------------
-const cn = (...args) => twMerge(clsx(...args));
+const cn = (...args: any[]) => twMerge(clsx(...args));
 
 type Point = { x: number; y: number };
 
 // clamp helper
-const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 
 // -------------------------
 // DiagramShell: pan/zoom viewport
@@ -32,12 +32,21 @@ export const DiagramShell = ({
   children,
   className,
   backgroundGrid = true,
+}: {
+    width?: string;
+    height?: string;
+    minZoom?: number;
+    maxZoom?: number;
+    initialZoom?: number;
+    children: React.ReactNode;
+    className?: string;
+    backgroundGrid?: boolean;
 }) => {
-  const containerRef = useRef(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(initialZoom);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const dragging = useRef(false);
-  const lastPos = useRef(null);
+  const lastPos = useRef<Point | null>(null);
 
   useEffect(() => {
     setZoom(initialZoom);
@@ -48,7 +57,7 @@ export const DiagramShell = ({
     const el = containerRef.current;
     if (!el) return;
 
-    const onWheel = (e) => {
+    const onWheel = (e: WheelEvent) => {
       // if ctrlKey or metaKey => zoom
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
@@ -67,15 +76,15 @@ export const DiagramShell = ({
     const el = containerRef.current;
     if (!el) return;
 
-    const onDown = (e) => {
+    const onDown = (e: MouseEvent) => {
       // ignore clicks on interactive controls (buttons etc.) by checking target
-      const target = e.target;
+      const target = e.target as HTMLElement;
       if (target?.closest("button")) return;
       dragging.current = true;
       lastPos.current = { x: e.clientX, y: e.clientY };
       el.style.cursor = "grabbing";
     };
-    const onMove = (e) => {
+    const onMove = (e: MouseEvent) => {
       if (!dragging.current || !lastPos.current) return;
       const dx = e.clientX - lastPos.current.x;
       const dy = e.clientY - lastPos.current.y;
@@ -85,7 +94,7 @@ export const DiagramShell = ({
     const onUp = () => {
       dragging.current = false;
       lastPos.current = null;
-      el.style.cursor = "default";
+      if (el) el.style.cursor = "default";
     };
 
     el.addEventListener("mousedown", onDown);
@@ -164,7 +173,18 @@ export const DiagramShell = ({
 // -------------------------
 // MindMap component
 // -------------------------
-export const MindMap = ({ nodes, edges = [] }) => {
+type MindMapNode = {
+  id: string;
+  label: React.ReactNode;
+  x: number;
+  y: number;
+  color?: string;
+};
+type MindMapEdge = {
+  from: string;
+  to: string;
+};
+export const MindMap = ({ nodes, edges = [] }: {nodes: MindMapNode[], edges?: MindMapEdge[]}) => {
   const nodesById = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
 
   return (
@@ -239,7 +259,19 @@ export const MindMap = ({ nodes, edges = [] }) => {
 // -------------------------
 // Flowchart: supports nodes with optional positions or auto-grid layout
 // -------------------------
-export const Flowchart = ({ nodes, edges = [], direction = "TB" }) => {
+type FlowchartNode = {
+    id: string;
+    label: React.ReactNode;
+    x?: number;
+    y?: number;
+    width?: number;
+    height?: number;
+}
+type FlowchartEdge = {
+    from: string;
+    to: string;
+}
+export const Flowchart = ({ nodes, edges = [], direction = "TB" }: { nodes: FlowchartNode[], edges?: FlowchartEdge[], direction?: "TB" | "LR" }) => {
   // If nodes have no x,y, compute a simple grid layout
   const positioned = useMemo(() => {
     const havePos = nodes.every((n) => typeof n.x === "number" && typeof n.y === "number");
@@ -277,10 +309,10 @@ export const Flowchart = ({ nodes, edges = [], direction = "TB" }) => {
           const a = nodeMap.get(e.from);
           const b = nodeMap.get(e.to);
           if (!a || !b) return null;
-          const x1 = a.x + (a.width ?? 160) / 2;
-          const y1 = a.y + (a.height ?? 64) / 2;
-          const x2 = b.x + (b.width ?? 160) / 2;
-          const y2 = b.y + (b.height ?? 64) / 2;
+          const x1 = a.x! + (a.width ?? 160) / 2;
+          const y1 = a.y! + (a.height ?? 64) / 2;
+          const x2 = b.x! + (b.width ?? 160) / 2;
+          const y2 = b.y! + (b.height ?? 64) / 2;
 
           // orthogonal polyline
           const midX = x1 + (x2 - x1) / 2;
@@ -311,12 +343,18 @@ export const Flowchart = ({ nodes, edges = [], direction = "TB" }) => {
 // -------------------------
 // OrgChart: accepts nodes with parent reference; simple horizontal layout
 // -------------------------
-export const OrgChart = ({ nodes }) => {
+type OrgChartNode = {
+    id: string;
+    label: React.ReactNode;
+    parent?: string;
+    children?: OrgChartNode[];
+};
+export const OrgChart = ({ nodes }: { nodes: OrgChartNode[] }) => {
   // build tree
-  const map = useMemo(() => new Map(nodes.map((n) => [n.id, { ...n, children: [] }])), [nodes]);
+  const map = useMemo(() => new Map(nodes.map((n) => [n.id, { ...n, children: [] as string[] }])), [nodes]);
   useMemo(() => {
     for (const n of map.values()) {
-      if (n.parent && map.has(n.parent)) map.get(n.parent).children.push(n.id);
+      if (n.parent && map.has(n.parent)) map.get(n.parent)!.children.push(n.id);
     }
   }, [map]);
 
@@ -324,9 +362,9 @@ export const OrgChart = ({ nodes }) => {
   const roots = Array.from(map.values()).filter((n) => !n.parent || !map.has(n.parent));
 
   // layout: assign depth and order
-  const layout = [];
+  const layout: {id: string, depth: number, order: number}[] = [];
   let order = 0;
-  const dfs = (id, depth = 0) => {
+  const dfs = (id: string, depth = 0) => {
     layout.push({ id, depth, order: order++ });
     const children = map.get(id)?.children ?? [];
     for (const c of children) dfs(c, depth + 1);
@@ -346,13 +384,13 @@ export const OrgChart = ({ nodes }) => {
 
         {layout.map((ln) => {
           const node = map.get(ln.id);
-          const children = node.children;
+          const children = node!.children;
           const x = 120 + ln.order * 200;
           const y = 80 + ln.depth * 140;
           return (
             <g key={ln.id}>
               {children.map((cid) => {
-                const childLayout = layout.find((l) => l.id === cid);
+                const childLayout = layout.find((l) => l.id === cid)!;
                 const cx = 120 + childLayout.order * 200;
                 const cy = 80 + childLayout.depth * 140;
                 return (
@@ -365,7 +403,7 @@ export const OrgChart = ({ nodes }) => {
       </svg>
 
       {layout.map((ln) => {
-        const node = map.get(ln.id);
+        const node = map.get(ln.id)!;
         const x = 120 + ln.order * 200;
         const y = 80 + ln.depth * 140;
         return (
@@ -389,7 +427,12 @@ export const OrgChart = ({ nodes }) => {
 // -------------------------
 // VennDiagram (up to 3 sets) - analytical visual used in education
 // -------------------------
-export const VennDiagram = ({ sets }) => {
+type VennSet = {
+    id: string;
+    label: string;
+    size?: number;
+};
+export const VennDiagram = ({ sets }: {sets: VennSet[]}) => {
   const s = sets.slice(0, 3);
   const w = 700;
   const h = 420;
@@ -429,7 +472,12 @@ export const VennDiagram = ({ sets }) => {
 // -------------------------
 // Timeline: horizontal timeline for courses and lectures
 // -------------------------
-export const Timeline = ({ items }) => {
+type TimelineItem = {
+    id: string;
+    label: string;
+    date?: string;
+};
+export const Timeline = ({ items }: {items: TimelineItem[]}) => {
   const w = 1600;
   const gap = Math.max(120, Math.floor(w / Math.max(1, items.length)));
   return (
@@ -461,19 +509,3 @@ export const Timeline = ({ items }) => {
     </div>
   );
 };
-
-// -------------------------
-// USAGE EXAMPLES (copy into your app):
-// import { DiagramShell, MindMap, Flowchart, OrgChart, VennDiagram, Timeline } from './diagrams-library';
-//
-// <DiagramShell width="100%" height="800px">
-//   <MindMap nodes={[{id:'c', label:'Central', x:50, y:50}, ...]} edges={[{from:'c',to:'1'}]} />
-// </DiagramShell>
-//
-// The DiagramShell wraps content in a large canvas (2000x1400) and provides pan/zoom controls.
-// For very large diagrams, compute node x/y positions in advance (percentage or px) and render only visible clusters
-// if you must optimize further (virtualization). This code aims to be robust and extensible for educational & pro use.
-
-// -------------------------
-// End of file
-// -------------------------

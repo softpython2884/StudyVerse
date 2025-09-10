@@ -3,6 +3,7 @@
       "use client";
 
 import * as React from "react";
+import * as ReactDOM from "react-dom";
 import type { Page } from "@/lib/types";
 import {
   Bold,
@@ -82,6 +83,7 @@ import showdown from 'showdown';
 import { spellCheck } from "@/ai/flows/spell-check-flow";
 import { generateTextFromPrompt } from "@/ai/flows/generate-text-from-prompt";
 import { getBriefAnswer } from "@/ai/flows/get-brief-answer";
+import { DiagramShell, MindMap, Flowchart, OrgChart, VennDiagram, Timeline } from "./diagrams/diagrams_library";
 
 
 interface EditorProps {
@@ -109,6 +111,14 @@ type AiSuggestion = {
     originalRange: Range;
     suggestionText: string;
     position: { top: number; left: number };
+};
+
+const diagramComponents = {
+    MindMap,
+    Flowchart,
+    OrgChart,
+    VennDiagram,
+    Timeline
 };
 
 
@@ -163,8 +173,7 @@ export function Editor({ page }: EditorProps) {
   };
 
   const [diagramText, setDiagramText] = React.useState("");
-  const [diagramFormat, setDiagramFormat] = React.useState<"markdown" | "latex" | "txt">("txt");
-  const [generatedDiagram, setGeneratedDiagram] = React.useState("");
+  const [diagramType, setDiagramType] = React.useState<keyof typeof diagramComponents>("MindMap");
 
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [htmlToInsert, setHtmlToInsert] = React.useState("");
@@ -466,7 +475,7 @@ export function Editor({ page }: EditorProps) {
                   newElement = img;
               } else if (/\.(mp4|webm)$/i.test(url)) {
                   const video = document.createElement('video');
-                  video.src = url;
+video.src = url;
                   video.controls = true;
                   video.style.maxWidth = '100%';
                   video.style.borderRadius = '0.5rem';
@@ -776,7 +785,7 @@ export function Editor({ page }: EditorProps) {
     
     if (event.ctrlKey && !event.altKey) {
       const key = event.key.toLowerCase();
-      if (['g'].includes(key)) {
+      if (key === 'g') { 
         event.preventDefault();
         editorRef.current?.focus();
         document.execCommand('bold');
@@ -927,31 +936,25 @@ export function Editor({ page }: EditorProps) {
 
   const handleGenerateDiagram = async () => {
     if (!diagramText) {
-      toast({
-        title: "Error",
-        description: "Please enter text to generate a diagram.",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "Please enter text for the diagram.", variant: "destructive" });
       return;
     }
     setIsGenerating(true);
     try {
-      const result = await generateDiagram({
-        text: diagramText,
-        format: diagramFormat,
-      });
-      setGeneratedDiagram(result.diagram);
+      const result = await generateDiagram({ text: diagramText, diagramType });
+      const diagramHtml = `<div data-diagram-type="${diagramType}" data-diagram-data='${result.diagramData}' contenteditable="false"><p>Diagram placeholder. It will be rendered on page load.</p></div><p>&#8203;</p>`;
+      restoreSelection();
+      editorRef.current?.focus();
+      document.execCommand('insertHTML', false, diagramHtml);
+      setTimeout(renderDiagramsInEditor, 50); // Re-render diagrams
     } catch (error) {
       console.error("Error generating diagram:", error);
-      toast({
-        title: "Error",
-        description: "Failed to generate diagram.",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "Failed to generate diagram data.", variant: "destructive" });
     } finally {
       setIsGenerating(false);
     }
   };
+
 
   const handlePrint = () => {
     window.print();
@@ -1117,7 +1120,35 @@ export function Editor({ page }: EditorProps) {
     }
   };
 
-  // Set initial content
+  const renderDiagramsInEditor = React.useCallback(() => {
+    if (!editorRef.current) return;
+    const diagramPlaceholders = editorRef.current.querySelectorAll('div[data-diagram-type]');
+
+    diagramPlaceholders.forEach(container => {
+      const type = container.getAttribute('data-diagram-type') as keyof typeof diagramComponents;
+      const dataStr = container.getAttribute('data-diagram-data');
+      if (!type || !dataStr || !diagramComponents[type]) return;
+
+      try {
+        const data = JSON.parse(dataStr);
+        const DiagramComponent = diagramComponents[type];
+
+        const diagramElement = (
+          <DiagramShell>
+            <DiagramComponent {...data} />
+          </DiagramShell>
+        );
+
+        const root = ReactDOM.createRoot(container);
+        root.render(diagramElement);
+      } catch (e) {
+        console.error("Failed to parse or render diagram", e);
+        container.textContent = "Error rendering diagram.";
+      }
+    });
+  }, []);
+
+  // Set initial content and render diagrams
   React.useEffect(() => {
     if (editorRef.current) {
         if (page.content) {
@@ -1139,7 +1170,7 @@ export function Editor({ page }: EditorProps) {
                 }
             }
         });
-
+        renderDiagramsInEditor();
         updateToc();
         updateActiveTocOnScroll(); // Initial check
     }
@@ -1309,29 +1340,12 @@ export function Editor({ page }: EditorProps) {
               }} />
               <Dialog>
                 <DialogTrigger asChild>
-                  <Button variant="ghost" size="sm">
-                    <Bot className="mr-2 h-4 w-4" />
-                    Refine with AI
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-[625px]">
-                  <DialogHeader>
-                    <DialogTitle>Refine Note with AI</DialogTitle>
-                    <DialogDescription>Select text in the editor and click "Refine" to enhance it.</DialogDescription>
-                  </DialogHeader>
-                   <div className="text-center p-8">
-                     <p className="text-muted-foreground"> This dialog is now triggered from the right-click menu for a better workflow. </p>
-                   </div>
-                </DialogContent>
-              </Dialog>
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button variant="ghost" size="sm">
+                  <Button variant="ghost" size="sm" onMouseDown={onToolbarMouseDown}>
                     <Network className="mr-2 h-4 w-4" />
                     Generate Diagram
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-[625px]">
+                <DialogContent className="sm:max-w-[425px]">
                   <DialogHeader>
                     <DialogTitle>Generate Diagram</DialogTitle>
                     <DialogDescription>Create a diagram from text using AI.</DialogDescription>
@@ -1339,39 +1353,27 @@ export function Editor({ page }: EditorProps) {
                   <div className="grid gap-4 py-4">
                     <div className="grid gap-2">
                       <Label htmlFor="diagram-text">Text</Label>
-                      <Textarea id="diagram-text" value={diagramText} onChange={(e) => setDiagramText(e.target.value)} placeholder="Enter text to turn into a diagram..." />
+                      <Textarea id="diagram-text" value={diagramText} onChange={(e) => setDiagramText(e.target.value)} placeholder="Describe the diagram you want to create..." />
                     </div>
                     <div className="grid gap-2">
-                      <Label htmlFor="diagram-format">Format</Label>
-                      <Select onValueChange={(value: "markdown" | "latex" | "txt") => setDiagramFormat(value)} defaultValue={diagramFormat}>
-                        <SelectTrigger><SelectValue placeholder="Select a format" /></SelectTrigger>
+                      <Label htmlFor="diagram-type">Diagram Type</Label>
+                      <Select onValueChange={(value: keyof typeof diagramComponents) => setDiagramType(value)} defaultValue={diagramType}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="txt">TXT + ASCII</SelectItem>
-                          <SelectItem value="markdown">Markdown</SelectItem>
-                          <SelectItem value="latex">LaTeX</SelectItem>
+                          <SelectItem value="MindMap">Mind Map</SelectItem>
+                          <SelectItem value="Flowchart">Flowchart</SelectItem>
+                          <SelectItem value="OrgChart">Organization Chart</SelectItem>
+                          <SelectItem value="VennDiagram">Venn Diagram</SelectItem>
+                          <SelectItem value="Timeline">Timeline</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
-                    <Button onClick={handleGenerateDiagram} disabled={isGenerating}>{isGenerating ? "Generating..." : "Generate"}</Button>
-                    {generatedDiagram && (
-                      <div className="max-h-[30vh] overflow-y-auto p-4 border rounded-md">
-                        <Label>Generated Diagram</Label>
-                        <pre className="whitespace-pre-wrap font-mono text-sm">{generatedDiagram}</pre>
-                      </div>
-                    )}
                   </div>
                   <DialogFooter>
-                    <Button onClick={() => {
-                      restoreSelection();
-                      editorRef.current?.focus();
-                      setTimeout(() => {
-                        const sanitizedDiagram = generatedDiagram.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-                        document.execCommand('insertHTML', false, `<pre><code>${sanitizedDiagram}</code></pre>`);
-                      }, 10);
-                    }}>
-                      Insert
-                    </Button>
                     <DialogClose asChild><Button type="button" variant="secondary">Close</Button></DialogClose>
+                    <Button onClick={handleGenerateDiagram} disabled={isGenerating}>
+                      {isGenerating ? "Generating..." : "Generate & Insert"}
+                    </Button>
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
@@ -1480,13 +1482,8 @@ export function Editor({ page }: EditorProps) {
                 role="menuitem"
                 className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
                 onMouseDown={(e) => e.preventDefault()}
-                onClick={async () => {
-                    try {
-                        document.execCommand('paste');
-                    } catch (err) {
-                        toast({ title: "Paste failed", description: "Could not paste from clipboard.", variant: "destructive" });
-                        console.error('Failed to paste from clipboard: ', err);
-                    }
+                onClick={() => {
+                    document.execCommand('paste');
                     setContextMenu({ ...contextMenu, visible: false });
                 }}
             >
@@ -1601,5 +1598,3 @@ export function Editor({ page }: EditorProps) {
     </div>
   );
 }
-
-    
