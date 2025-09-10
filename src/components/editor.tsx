@@ -267,9 +267,9 @@ export function Editor({ page }: EditorProps) {
 
   // init + listeners
   React.useEffect(() => {
-    const onSelChange = () => updateToolbarState();
-    const onMouseUp = () => updateToolbarState();
-    const onKeyUp = () => updateToolbarState();
+    const onSelChange = () => { saveSelection(); updateToolbarState(); };
+    const onMouseUp = () => { saveSelection(); updateToolbarState(); };
+    const onKeyUp = () => { saveSelection(); updateToolbarState(); };
     
     const scroller = scrollContainerRef.current;
 
@@ -303,8 +303,10 @@ export function Editor({ page }: EditorProps) {
       } catch (err) {
         // ignore execCommand errors
       }
-      setTimeout(updateToolbarState, 0);
-      setTimeout(debouncedUpdateToc, 50);
+      setTimeout(() => {
+        updateToolbarState();
+        debouncedUpdateToc();
+      }, 0);
     }, 0);
   };
 
@@ -435,19 +437,20 @@ export function Editor({ page }: EditorProps) {
       }
 
       // Case 4: Horizontal Rule
-      const currentBlock = (range.startContainer.nodeType === Node.TEXT_NODE
-          ? range.startContainer.parentElement
-          : range.startContainer) as HTMLElement | null;
+      const rangeStartNode = range.startContainer;
+      const currentBlock = rangeStartNode.nodeType === 3 
+          ? rangeStartNode.parentElement 
+          : rangeStartNode as HTMLElement;
 
-      if (currentBlock && currentBlock.closest && currentBlock.closest('p,div,li') && currentBlock.textContent?.trim() === '---') {
-        const blockToReplace = currentBlock.closest('p,div,li');
-        if (blockToReplace) {
+      if (currentBlock && currentBlock.closest('p, div, li') && currentBlock.textContent === '---') {
           event.preventDefault();
+          
+          const blockToReplace = currentBlock.closest('p, div, li')!;
           const hr = document.createElement('hr');
           blockToReplace.replaceWith(hr);
           
           const p = document.createElement('p');
-          p.innerHTML = '&#8203;';
+          p.innerHTML = '&#8203;'; // Zero-width space to place the cursor
           hr.after(p);
           
           const newRange = document.createRange();
@@ -455,10 +458,9 @@ export function Editor({ page }: EditorProps) {
           newRange.collapse(true);
           sel.removeAllRanges();
           sel.addRange(newRange);
-          
+
           setTimeout(updateToolbarState, 0);
           return;
-        }
       }
     }
 
@@ -1014,7 +1016,6 @@ export function Editor({ page }: EditorProps) {
             onKeyDown={handleKeyDown}
             onKeyUp={handleKeyUp}
             onFocus={handleFocus}
-            onBlur={saveSelection}
             onClick={handleEditorClick}
             onContextMenu={handleContextMenu}
             className="prose dark:prose-invert max-w-none w-full h-full bg-card p-4 sm:p-6 md:p-8 lg:p-12 focus:outline-none"
