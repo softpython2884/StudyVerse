@@ -560,6 +560,12 @@ export function Editor({ page }: EditorProps) {
       return;
     }
 
+    if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 'x') {
+        event.preventDefault();
+        handleFormat('inlineCode');
+        return;
+    }
+
     if (event.ctrlKey && event.code === 'Space') {
       event.preventDefault();
       saveSelection();
@@ -1314,6 +1320,7 @@ export function Editor({ page }: EditorProps) {
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+B</kbd> - Bold</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+I</kbd> - Italic</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+U</kbd> - Underline</li>
+              <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Shift+X</kbd> - Inline Code</li>
             </ul>
             <h3 className="font-semibold">Headings</h3>
             <ul className="list-disc list-inside text-sm text-muted-foreground">
