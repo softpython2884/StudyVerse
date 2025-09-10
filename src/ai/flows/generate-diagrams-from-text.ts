@@ -47,14 +47,14 @@ Text: {{{text}}}
 CRITICAL INSTRUCTIONS:
 1.  **Analyze the text** to identify key concepts, entities, and their relationships.
 2.  **Create a deep, hierarchical structure**, especially for MindMap and OrgChart. Go at least 3-4 levels deep if the text allows.
-3.  **Generate \`nodes\` array:**
+3.  **Generate 'nodes' array:**
     - Each node MUST have a unique \`id\` (string).
     - Each node MUST have a \`data.label\` (string) for its title.
     - Each node MUST have a \`data.description\` (string) containing a detailed, researched explanation of that concept.
     - Each node MUST have a \`position\` object with \`x\` and \`y\` coordinates. You must calculate logical positions to create a clean, readable, and non-overlapping layout. For a mind map, this is typically a radial layout. For a flowchart or org chart, this is typically top-down.
     - For OrgChart, you can also add a \`data.parent\` field with the parent node ID.
     - Advanced: You can add a 'type' for nodes (e.g., 'input', 'output', 'default') and a 'style' object for custom appearances (e.g., backgroundColor, borderColor).
-4.  **Generate \`edges\` array:**
+4.  **Generate 'edges' array:**
     - Each edge MUST have a unique \`id\` (e.g., "e1-2").
     - Each edge MUST have a \`source\` (the parent node's id).
     - Each edge MUST have a \`target\` (the child node's id).
