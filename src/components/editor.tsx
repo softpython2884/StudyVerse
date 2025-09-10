@@ -512,7 +512,7 @@ export function Editor({ page }: EditorProps) {
       const key = event.key.toLowerCase();
       if (['b', 'i', 'u', 'z', 'y', 'g'].includes(key)) {
         event.preventDefault();
-        restoreSelection();
+        editorRef.current?.focus();
         switch (key) {
           case 'b': document.execCommand('bold'); break;
           case 'g': document.execCommand('bold'); break;
@@ -745,6 +745,10 @@ export function Editor({ page }: EditorProps) {
 
     if (contextMenu.visible) setContextMenu({ x: 0, y: 0, visible: false });
   };
+
+  const handleBlur = () => {
+      saveSelection();
+  }
 
   const handleFocus = () => {
     restoreSelection();
@@ -1016,6 +1020,7 @@ export function Editor({ page }: EditorProps) {
             onKeyDown={handleKeyDown}
             onKeyUp={handleKeyUp}
             onFocus={handleFocus}
+            onBlur={handleBlur}
             onClick={handleEditorClick}
             onContextMenu={handleContextMenu}
             className="prose dark:prose-invert max-w-none w-full h-full bg-card p-4 sm:p-6 md:p-8 lg:p-12 focus:outline-none"
@@ -1205,5 +1210,3 @@ export function Editor({ page }: EditorProps) {
     </div>
   );
 }
-
-    
