@@ -105,14 +105,24 @@ body {
       @apply bg-muted text-muted-foreground rounded-sm px-1.5 py-1 font-code text-sm;
     }
     pre {
-      @apply bg-muted p-4 rounded-md overflow-x-auto relative;
+        @apply bg-muted p-4 rounded-md overflow-x-auto relative;
+        max-height: 400px;
+        transition: max-height 0.3s ease-out;
+    }
+    pre.collapsed {
+        max-height: 100px; /* Or any other collapsed height */
+        overflow: hidden;
     }
     pre > code {
       @apply bg-transparent p-0 text-sm;
     }
-    pre .language-badge {
-        @apply absolute top-2 right-2 text-xs text-muted-foreground bg-background/50 px-2 py-1 rounded-md pointer-events-none;
-        text-transform: capitalize;
+    .code-expander {
+        display: block;
+        text-align: center;
+        padding-top: 8px;
+        color: hsl(var(--accent));
+        cursor: pointer;
+        font-size: 0.8rem;
     }
     hr {
       @apply border-border my-6;

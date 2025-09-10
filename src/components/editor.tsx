@@ -1,4 +1,5 @@
 
+
       "use client";
 
 import * as React from "react";
@@ -323,7 +324,7 @@ export function Editor({ page }: EditorProps) {
   const handleFormat = (command: string, value?: string) => {
     editorRef.current?.focus();
     restoreSelection();
-  
+
     const selection = window.getSelection();
     if (!selection || selection.rangeCount === 0) return;
     const range = selection.getRangeAt(0);
@@ -331,17 +332,15 @@ export function Editor({ page }: EditorProps) {
     if (node.nodeType === Node.TEXT_NODE) node = node.parentNode!;
     const element = node as HTMLElement;
     
-    if (command === 'formatBlock' && (value === 'blockquote' || value === 'pre')) {
-      const block = element.closest(value);
-      if (block) {
-          const p = document.createElement('p');
-          while (block.firstChild) {
-              p.appendChild(block.firstChild);
-          }
-          block.parentNode?.replaceChild(p, block);
-      } else {
-        document.execCommand(command, false, value);
-      }
+    if (command === 'formatBlock' && value) {
+        const currentBlock = element.closest('p, h1, h2, h3, h4, h5, h6, pre, blockquote, li');
+        
+        // If we are in a block and trying to apply the same block, convert to paragraph
+        if (currentBlock && currentBlock.tagName.toLowerCase() === value) {
+            document.execCommand('formatBlock', false, 'p');
+        } else {
+            document.execCommand(command, false, value);
+        }
     } else if (command === 'inlineCode') {
         const codeNode = element.closest('code');
         if (codeNode && !codeNode.closest('pre')) {
@@ -990,7 +989,6 @@ export function Editor({ page }: EditorProps) {
               <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => handleFormat("insertOrderedList")}> <ListOrdered className="h-4 w-4" /> </Button>
               <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={handleInsertChecklist}> <ListChecks className="h-4 w-4" /> </Button>
               <Button variant={currentBlockStyle === 'blockquote' ? "secondary" : "ghost"} size="icon" onMouseDown={onToolbarMouseDown} onClick={() => handleFormat("formatBlock", "blockquote")}> <Quote className="h-4 w-4" /> </Button>
-              <Button variant={activeStyles.code ? 'secondary' : 'ghost'} size="icon" onMouseDown={onToolbarMouseDown} onClick={() => handleFormat('inlineCode')}> <Code className="h-4 w-4" /> </Button>
               <Button variant={currentBlockStyle === 'pre' ? "secondary" : "ghost"} size="icon" onMouseDown={onToolbarMouseDown} onClick={() => handleFormat("formatBlock", "pre")}> <Code className="h-4 w-4" /> </Button>
               <Popover open={isTablePopoverOpen} onOpenChange={(isOpen) => { if(!isOpen) setTableGridSize({rows: 0, cols: 0}); setIsTablePopoverOpen(isOpen)}}>
                 <PopoverTrigger asChild>
