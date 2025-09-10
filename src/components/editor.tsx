@@ -411,7 +411,11 @@ export function Editor({ page }: EditorProps) {
      if (event.key === ' ' || event.key === 'Enter') {
       
       const sel = window.getSelection();
-      if (!sel || sel.rangeCount === 0) return;
+      if (!sel || sel.rangeCount === 0) {
+        updateToolbarState();
+        debouncedUpdateToc();
+        return;
+      }
       const range = sel.getRangeAt(0);
       const textNode = range.startContainer;
 
@@ -772,7 +776,7 @@ export function Editor({ page }: EditorProps) {
     
     if (event.ctrlKey && !event.altKey) {
       const key = event.key.toLowerCase();
-      if (['b', 'g'].includes(key)) {
+      if (['g'].includes(key)) {
         event.preventDefault();
         editorRef.current?.focus();
         document.execCommand('bold');
@@ -995,8 +999,8 @@ export function Editor({ page }: EditorProps) {
     }
     
     if (target.classList.contains('code-expander')) {
-      const pre = target.previousElementSibling;
-      if (pre && pre.tagName === 'PRE') {
+      const pre = target.closest('pre');
+      if (pre) {
           pre.classList.toggle('collapsed');
           target.textContent = pre.classList.contains('collapsed') ? 'Voir plus...' : 'Voir moins...';
       }
@@ -1130,7 +1134,9 @@ export function Editor({ page }: EditorProps) {
                 const expander = document.createElement('span');
                 expander.className = 'code-expander';
                 expander.textContent = 'Voir plus...';
-                pre.after(expander);
+                if (pre.parentNode) {
+                    pre.parentNode.insertBefore(expander, pre.nextSibling);
+                }
             }
         });
 

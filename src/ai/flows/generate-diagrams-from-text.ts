@@ -32,12 +32,18 @@ const prompt = ai.definePrompt({
   name: 'generateDiagramPrompt',
   input: {schema: GenerateDiagramInputSchema},
   output: {schema: GenerateDiagramOutputSchema},
-  prompt: `You are an expert diagram generator. You will generate a diagram from the given text in the specified format.
+  prompt: `You are an expert diagram generator. You convert natural language descriptions into structured diagram formats.
+
+Your task is to generate a diagram from the given text in the specified format. The output should be only the diagram code or text, without any additional explanation.
+
+For 'txt' format, use ASCII characters to draw the diagram.
+For 'markdown', use Mermaid.js syntax inside a '\`\`\`mermaid' code block.
+For 'latex', use appropriate LaTeX packages like TikZ.
 
 Text: {{{text}}}
 Format: {{{format}}}
 
-Diagram:`, // No triple curly braces
+Diagram:`,
 });
 
 const generateDiagramFlow = ai.defineFlow(
