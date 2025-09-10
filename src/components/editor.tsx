@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import * as React from "react";
@@ -436,36 +435,30 @@ export function Editor({ page }: EditorProps) {
           handleFormat('formatBlock', 'p');
           return;
       }
-
-      // Case 4: Horizontal Rule with '---'
-      const rangeStartNode = range.startContainer;
-      const currentBlock = (rangeStartNode.nodeType === Node.TEXT_NODE 
-          ? rangeStartNode.parentElement 
-          : (rangeStartNode as HTMLElement))?.closest('p, div, li, h1, h2, h3, h4, h5, h6');
-
-      if (currentBlock && currentBlock.textContent?.trim() === '---') {
-          event.preventDefault();
-          
-          const hr = document.createElement('hr');
-          const p = document.createElement('p');
-          p.innerHTML = '&#8203;'; // Zero-width space to place the cursor
-          
-          // Replace the current block with the HR
-          currentBlock.parentElement?.insertBefore(hr, currentBlock);
-          currentBlock.parentElement?.removeChild(currentBlock);
-          
-          // Add a new paragraph after the HR and move the cursor
-          hr.after(p);
-          
-          const newRange = document.createRange();
-          newRange.setStart(p, 0);
-          newRange.collapse(true);
-          sel.removeAllRanges();
-          sel.addRange(newRange);
-
-          setTimeout(updateToolbarState, 0);
-          return;
-      }
+    }
+    
+    if (event.ctrlKey && event.key === '-') {
+        event.preventDefault();
+        restoreSelection();
+        document.execCommand('insertHorizontalRule', false);
+        // Add a new paragraph after the HR for a better UX
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount > 0) {
+            const range = sel.getRangeAt(0);
+            const p = document.createElement('p');
+            p.innerHTML = '&#8203;'; // Zero-width space
+            const parent = range.startContainer.parentNode;
+            if (parent && parent.parentNode) {
+                 parent.parentNode.insertBefore(p, parent.nextSibling);
+                 const newRange = document.createRange();
+                 newRange.setStart(p, 0);
+                 newRange.collapse(true);
+                 sel.removeAllRanges();
+                 sel.addRange(newRange);
+            }
+        }
+        setTimeout(updateToolbarState, 0);
+        return;
     }
 
     if (event.ctrlKey && !event.shiftKey && event.key.toLowerCase() === 'k') {
@@ -756,6 +749,10 @@ export function Editor({ page }: EditorProps) {
     updateToolbarState();
   };
 
+  const handleBlur = () => {
+    saveSelection();
+  };
+
   // Set initial content
   React.useEffect(() => {
     if (editorRef.current) {
@@ -1021,6 +1018,7 @@ export function Editor({ page }: EditorProps) {
             onKeyDown={handleKeyDown}
             onKeyUp={handleKeyUp}
             onFocus={handleFocus}
+            onBlur={handleBlur}
             onClick={handleEditorClick}
             onContextMenu={handleContextMenu}
             className="prose dark:prose-invert max-w-none w-full h-full bg-card p-4 sm:p-6 md:p-8 lg:p-12 focus:outline-none"
@@ -1203,6 +1201,7 @@ export function Editor({ page }: EditorProps) {
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+K</kbd> - Command Palette</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Space</kbd> - AI Prompt</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Shift+K</kbd> - Insert Link</li>
+              <li><kbd className="p-1 bg-muted rounded-md">Ctrl+-</kbd> - Horizontal Rule</li>
             </ul>
           </div>
         </DialogContent>
