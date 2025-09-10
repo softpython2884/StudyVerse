@@ -144,7 +144,7 @@ export async function deleteNotebook(values: z.infer<typeof DeleteNotebookSchema
 const CreatePageSchema = z.object({
   title: z.string().min(1, "Title is required."),
   notebookId: z.string(),
-  type: z.enum(['course', 'note']),
+  type: z.enum(['document', 'diagram']),
 });
 
 export async function createPage(values: z.infer<typeof CreatePageSchema>) {
@@ -158,7 +158,7 @@ export async function createPage(values: z.infer<typeof CreatePageSchema>) {
 
     const db = await getDb();
     const id = `page-${Date.now()}`;
-    const icon = type === 'course' ? 'FileText' : 'StickyNote';
+    const icon = type === 'diagram' ? 'Network' : 'FileText';
 
     try {
         await db.run('INSERT INTO pages (id, notebook_id, title, icon, type, content) VALUES (?, ?, ?, ?, ?, ?)', id, notebookId, title, icon, type, '');

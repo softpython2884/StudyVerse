@@ -20,6 +20,7 @@ import {
   Edit,
   Trash2,
   type LucideIcon,
+  Network,
 } from "lucide-react";
 import {
   SidebarProvider,
@@ -83,6 +84,7 @@ const icons: { [key: string]: LucideIcon } = {
   BookOpen,
   FileText,
   StickyNote,
+  Network
 };
 
 const predefinedColors = [
@@ -124,7 +126,7 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
       title: "",
       color: predefinedColors[0],
       tags: "",
-      type: "note" as "course" | "note"
+      type: "document" as "document" | "diagram"
   });
 
   const handleLogout = async () => {
@@ -155,7 +157,7 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
   const currentPage = getActivePage();
   
   const resetNewItem = () => {
-      setNewItem({ title: "", color: predefinedColors[0], tags: "", type: "note"});
+      setNewItem({ title: "", color: predefinedColors[0], tags: "", type: "document"});
   }
 
   const handleCreateBinder = async () => {
@@ -568,11 +570,11 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
                     </div>
                     <div>
                         <Label>Page Type</Label>
-                        <Select onValueChange={(value: "course" | "note") => setNewItem({...newItem, type: value})} defaultValue={newItem.type}>
+                        <Select onValueChange={(value: "document" | "diagram") => setNewItem({...newItem, type: value})} defaultValue={newItem.type}>
                              <SelectTrigger><SelectValue placeholder="Select a type" /></SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="note"><StickyNote className="inline-block mr-2 h-4 w-4" /> My Study Notes</SelectItem>
-                                <SelectItem value="course"><FileText className="inline-block mr-2 h-4 w-4" /> Course Document</SelectItem>
+                                <SelectItem value="document"><FileText className="inline-block mr-2 h-4 w-4" /> Document</SelectItem>
+                                <SelectItem value="diagram"><Network className="inline-block mr-2 h-4 w-4" /> Diagram</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>

@@ -2,7 +2,7 @@ export type Page = {
   id: string;
   title: string;
   icon: string;
-  type: 'course' | 'note';
+  type: 'document' | 'diagram';
   content?: string | null;
 };
 

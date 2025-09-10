@@ -45,7 +45,7 @@ export const DDL_STATEMENTS = [
         notebook_id TEXT NOT NULL,
         title TEXT NOT NULL,
         icon TEXT,
-        type TEXT CHECK(type IN ('course', 'note')),
+        type TEXT CHECK(type IN ('document', 'diagram')),
         content TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,

@@ -77,14 +77,11 @@ import {
 import { Label } from "./ui/label";
 import { Textarea } from "./ui/textarea";
 import { refineAndStructureNotes } from "@/ai/flows/refine-and-structure-notes";
-import { generateDiagram } from "@/ai/flows/generate-diagrams-from-text";
 import { cn } from "@/lib/utils";
 import showdown from 'showdown';
 import { spellCheck } from "@/ai/flows/spell-check-flow";
 import { generateTextFromPrompt } from "@/ai/flows/generate-text-from-prompt";
 import { getBriefAnswer } from "@/ai/flows/get-brief-answer";
-import ReactFlow, { Background, Controls, type Node, type Edge, ProOptions } from 'reactflow';
-
 
 interface EditorProps {
   page: Page;
@@ -112,27 +109,6 @@ type AiSuggestion = {
     suggestionText: string;
     position: { top: number; left: number };
 };
-
-const diagramTypes = ['MindMap', 'Flowchart', 'OrgChart'];
-
-const proOptions: ProOptions = { hideAttribution: true };
-
-const DiagramRenderer = ({ initialNodes, initialEdges }: { initialNodes: Node[], initialEdges: Edge[] }) => {
-    return (
-        <div style={{ height: '500px', width: '100%' }} className="border rounded-md bg-background my-4">
-             <ReactFlow
-                defaultNodes={initialNodes}
-                defaultEdges={initialEdges}
-                fitView
-                proOptions={proOptions}
-            >
-                <Background />
-                <Controls />
-            </ReactFlow>
-        </div>
-    );
-};
-
 
 export function Editor({ page }: EditorProps) {
   const [isSaving, setIsSaving] = React.useState(false);
@@ -183,9 +159,6 @@ export function Editor({ page }: EditorProps) {
     e.preventDefault(); // prevents blur
     saveSelection();    // mark selection before any popover/dialog steals focus
   };
-
-  const [diagramText, setDiagramText] = React.useState("");
-  const [diagramType, setDiagramType] = React.useState<(typeof diagramTypes)[number]>("MindMap");
 
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [htmlToInsert, setHtmlToInsert] = React.useState("");
@@ -946,31 +919,6 @@ video.src = url;
     setIsSaving(false);
   };
 
-  const handleGenerateDiagram = async () => {
-    if (!diagramText) {
-      toast({ title: "Error", description: "Please enter text for the diagram.", variant: "destructive" });
-      return;
-    }
-    setIsGenerating(true);
-    try {
-      const result = await generateDiagram({ text: diagramText, diagramType: diagramType as any });
-      
-      const encodedData = btoa(unescape(encodeURIComponent(result.diagramData)));
-      const diagramHtml = `<div data-diagram-type="${diagramType}" data-diagram-data="${encodedData}" contenteditable="false" class="bg-card p-2 rounded-md my-4">Diagram placeholder. It will be rendered on page load.</div><p>&#8203;</p>`;
-
-      restoreSelection();
-      editorRef.current?.focus();
-      document.execCommand('insertHTML', false, diagramHtml);
-      setTimeout(renderDiagramsInEditor, 50); // Re-render diagrams
-    } catch (error) {
-      console.error("Error generating diagram:", error);
-      toast({ title: "Error", description: "Failed to generate diagram data.", variant: "destructive" });
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-
   const handlePrint = () => {
     window.print();
   };
@@ -1135,37 +1083,6 @@ video.src = url;
     }
   };
 
-  const renderDiagramsInEditor = React.useCallback(() => {
-    if (!editorRef.current) return;
-    const diagramPlaceholders = editorRef.current.querySelectorAll('div[data-diagram-type]');
-
-    diagramPlaceholders.forEach(container => {
-      const type = container.getAttribute('data-diagram-type');
-      const encodedData = container.getAttribute('data-diagram-data');
-      if (!type || !encodedData) return;
-
-      try {
-        const dataStr = decodeURIComponent(escape(atob(encodedData)));
-        const data = JSON.parse(dataStr);
-        const { nodes, edges } = data;
-        
-        const diagramElement = (
-            <DiagramRenderer initialNodes={nodes} initialEdges={edges} />
-        );
-
-        // Check if the container is already a React root
-        if (!(container as any)._reactRootContainer) {
-            const root = createRoot(container);
-            root.render(diagramElement);
-        }
-
-      } catch (e) {
-        console.error("Failed to parse or render diagram", e);
-        container.textContent = "Error rendering diagram.";
-      }
-    });
-  }, []);
-
   // Set initial content and render diagrams
   React.useEffect(() => {
     if (editorRef.current) {
@@ -1188,7 +1105,6 @@ video.src = url;
                 }
             }
         });
-        renderDiagramsInEditor();
         updateToc();
         updateActiveTocOnScroll(); // Initial check
     }
@@ -1356,43 +1272,6 @@ video.src = url;
                   document.execCommand('insertHTML', false, ` ${text}`);
                 }, 10);
               }} />
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button variant="ghost" size="sm" onMouseDown={onToolbarMouseDown}>
-                    <Network className="mr-2 h-4 w-4" />
-                    Generate Diagram
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-[425px]">
-                  <DialogHeader>
-                    <DialogTitle>Generate Diagram</DialogTitle>
-                    <DialogDescription>Create a diagram from text using AI.</DialogDescription>
-                  </DialogHeader>
-                  <div className="grid gap-4 py-4">
-                    <div className="grid gap-2">
-                      <Label htmlFor="diagram-text">Text</Label>
-                      <Textarea id="diagram-text" value={diagramText} onChange={(e) => setDiagramText(e.target.value)} placeholder="Describe the diagram you want to create..." />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="diagram-type">Diagram Type</Label>
-                      <Select onValueChange={(value: (typeof diagramTypes)[number]) => setDiagramType(value)} defaultValue={diagramType}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {diagramTypes.map(type => (
-                            <SelectItem key={type} value={type}>{type}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <DialogFooter>
-                    <DialogClose asChild><Button type="button" variant="secondary">Close</Button></DialogClose>
-                    <Button onClick={handleGenerateDiagram} disabled={isGenerating}>
-                      {isGenerating ? "Generating..." : "Generate & Insert"}
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
             </div>
             <div className="flex items-center gap-2">
               <Button variant="ghost" size="sm" onClick={handleSaveContent} disabled={isSaving}>
@@ -1614,8 +1493,3 @@ video.src = url;
     </div>
   );
 }
-
-    
-
-    
-
