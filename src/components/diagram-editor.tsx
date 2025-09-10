@@ -42,7 +42,8 @@ import ReactFlow, {
   MiniMap,
   type Node,
   type Edge,
-  type ProOptions
+  type ProOptions,
+  useReactFlow
 } from 'reactflow';
 
 const proOptions: ProOptions = { hideAttribution: true };
@@ -63,6 +64,7 @@ export function DiagramEditor({ page }: DiagramEditorProps) {
   const [diagramType, setDiagramType] = React.useState<(typeof diagramTypes)[number]>("MindMap");
 
   const { toast } = useToast();
+  const reactFlowInstance = useReactFlow();
 
   React.useEffect(() => {
     if (page.content) {
@@ -106,7 +108,8 @@ export function DiagramEditor({ page }: DiagramEditorProps) {
     }
     setIsGenerating(true);
     try {
-        const result = await generateDiagram({ text: diagramContext, diagramType, prompt: diagramPrompt });
+        const fullPrompt = `${diagramContext}\n\nPROMPT: ${diagramPrompt}`;
+        const result = await generateDiagram({ text: fullPrompt, diagramType });
         const data = JSON.parse(result.diagramData);
         setNodes(data.nodes || []);
         setEdges(data.edges || []);
@@ -117,6 +120,23 @@ export function DiagramEditor({ page }: DiagramEditorProps) {
     } finally {
         setIsGenerating(false);
     }
+  };
+  
+  const handleAddNode = () => {
+    const newNodeId = `node-${nodes.length + 1}`;
+    const viewport = reactFlowInstance.getViewport();
+    const position = {
+        x: ( -viewport.x + reactFlowInstance.width / 2) / viewport.zoom,
+        y: ( -viewport.y + reactFlowInstance.height / 2) / viewport.zoom
+    };
+
+    const newNode: Node = {
+      id: newNodeId,
+      position,
+      data: { label: `New Node ${nodes.length + 1}` },
+      type: 'default',
+    };
+    setNodes((nds) => nds.concat(newNode));
   };
 
 
@@ -139,7 +159,7 @@ export function DiagramEditor({ page }: DiagramEditorProps) {
                         </DialogHeader>
                         <div className="grid gap-4 py-4">
                            <div className="grid gap-2">
-                                <Label htmlFor="diagram-prompt">Prompt</Label>
+                                <Label htmlFor="diagram-prompt">Generation Prompt</Label>
                                 <Input id="diagram-prompt" value={diagramPrompt} onChange={(e) => setDiagramPrompt(e.target.value)} placeholder="e.g., Org chart of the British Royal Family" />
                             </div>
                             <div className="grid gap-2">
@@ -168,7 +188,7 @@ export function DiagramEditor({ page }: DiagramEditorProps) {
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>
-                <Button variant="ghost" size="sm"><Plus className="mr-2 h-4 w-4" />Add Node</Button>
+                <Button variant="ghost" size="sm" onClick={handleAddNode}><Plus className="mr-2 h-4 w-4" />Add Node</Button>
             </div>
 
             <div className="flex items-center gap-2">
@@ -186,8 +206,8 @@ export function DiagramEditor({ page }: DiagramEditorProps) {
         <ReactFlow
             nodes={nodes}
             edges={edges}
-            onNodesChange={(changes) => setNodes(nds => ReactFlow.applyNodeChanges(changes, nds))}
-            onEdgesChange={(changes) => setEdges(eds => ReactFlow.applyEdgeChanges(changes, eds))}
+            onNodesChange={(changes) => setNodes((nds) => ReactFlow.applyNodeChanges(changes, nds))}
+            onEdgesChange={(changes) => setEdges((eds) => ReactFlow.applyEdgeChanges(changes, eds))}
             fitView
             proOptions={proOptions}
         >
@@ -199,3 +219,5 @@ export function DiagramEditor({ page }: DiagramEditorProps) {
     </div>
   );
 }
+
+    

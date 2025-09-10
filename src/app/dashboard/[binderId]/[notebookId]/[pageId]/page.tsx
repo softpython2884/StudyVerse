@@ -1,6 +1,7 @@
 import { Editor } from "@/components/editor";
 import { DiagramEditor } from "@/components/diagram-editor";
 import { getPage } from "@/lib/data";
+import { ReactFlowProvider } from "reactflow";
 
 
 export default async function Page({ params }: { params: { pageId: string } }) {
@@ -12,7 +13,9 @@ export default async function Page({ params }: { params: { pageId: string } }) {
         <>
             {page ? (
                 page.type === 'diagram' ? (
-                    <DiagramEditor key={pageId} page={page} />
+                    <ReactFlowProvider>
+                        <DiagramEditor key={pageId} page={page} />
+                    </ReactFlowProvider>
                 ) : (
                     <Editor key={pageId} page={page} />
                 )
@@ -24,3 +27,5 @@ export default async function Page({ params }: { params: { pageId: string } }) {
         </>
     );
 }
+
+    
