@@ -1359,6 +1359,7 @@ export function Editor({ page }: EditorProps) {
             key={page.id}
             contentEditable
             suppressContentEditableWarning
+            spellCheck={true}
             onKeyDown={handleKeyDown}
             onKeyUp={handleKeyUp}
             onFocus={handleFocus}
