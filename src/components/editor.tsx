@@ -41,7 +41,8 @@ import {
   Edit,
   Trash2,
   Superscript,
-  Subscript
+  Subscript,
+  MessageSquarePlus
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -388,6 +389,43 @@ export function Editor({ page }: EditorProps) {
       startRange.setEnd(range.startContainer, range.startOffset);
       const prefixText = startRange.toString();
 
+      // Auto-linking
+      const urlMatch = prefixText.match(/(https?:\/\/[^\s]+)\s$/);
+      if (urlMatch) {
+          const url = urlMatch[1];
+          const textNode = range.startContainer;
+          if (textNode.textContent) {
+              const urlIndex = textNode.textContent.lastIndexOf(url);
+              if (urlIndex !== -1) {
+                  // Create range for the URL text
+                  const urlRange = document.createRange();
+                  urlRange.setStart(textNode, urlIndex);
+                  urlRange.setEnd(textNode, urlIndex + url.length);
+                  sel.removeAllRanges();
+                  sel.addRange(urlRange);
+
+                  // Check if it's an image/video
+                  if (/\.(jpe?g|png|gif|webp|mp4|webm)$/i.test(url)) {
+                      const mediaTag = /\.(mp4|webm)$/i.test(url) ? 
+                          `<video src="${url}" controls style="max-width: 100%; border-radius: 0.5rem;"></video>` : 
+                          `<img src="${url}" style="max-width: 100%; border-radius: 0.5rem;" />`;
+                      document.execCommand('insertHTML', false, mediaTag);
+                  } else {
+                      document.execCommand('createLink', false, url);
+                  }
+
+                  // Move cursor after the link/media
+                  const newRange = document.createRange();
+                  const lastChild = block.lastChild;
+                  newRange.setStart(lastChild!, lastChild!.textContent!.length);
+                  newRange.collapse(true);
+                  sel.removeAllRanges();
+                  sel.addRange(newRange);
+              }
+          }
+      }
+
+
       // match headings typed at start of block e.g. "# " or "## " up to 6
       const headingMatch = prefixText.match(/^\s*(#{1,6})\s$/);
       if (headingMatch) {
@@ -531,6 +569,18 @@ export function Editor({ page }: EditorProps) {
       return;
     }
 
+    if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 'h') {
+        event.preventDefault();
+        const html = prompt("Enter raw HTML to insert:");
+        if (html) {
+            restoreSelection();
+            editorRef.current?.focus();
+            document.execCommand('insertHTML', false, html);
+        }
+        return;
+    }
+
+
     if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 'k') {
       event.preventDefault();
       const sel = window.getSelection();
@@ -577,10 +627,10 @@ export function Editor({ page }: EditorProps) {
 
     if (event.ctrlKey && !event.altKey) {
       const key = event.key.toLowerCase();
-      if (['b', 'i', 'u'].includes(key)) {
+      if (['g', 'i', 'u'].includes(key)) {
         event.preventDefault();
         editorRef.current?.focus();
-        document.execCommand(key === 'b' ? 'bold' : key === 'i' ? 'italic' : 'underline');
+        document.execCommand(key === 'g' ? 'bold' : key === 'i' ? 'italic' : 'underline');
         setTimeout(updateToolbarState, 0);
         return;
       }
@@ -767,6 +817,14 @@ export function Editor({ page }: EditorProps) {
     if (!editor) return;
     const target = e.target as HTMLElement;
     if (!target) return;
+
+    if (e.ctrlKey && target.tagName === 'A') {
+        e.preventDefault();
+        const href = target.getAttribute('href');
+        if (href) {
+            window.open(href, '_blank', 'noopener,noreferrer');
+        }
+    }
 
     if (e.target === editor) {
       const last = editor.lastElementChild;
@@ -1015,6 +1073,7 @@ export function Editor({ page }: EditorProps) {
                 </PopoverContent>
               </Popover>
               <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => document.execCommand('insertHTML', false, '<hr><p>&#8203;</p>')}> <Minus className="h-4 w-4" /> </Button>
+              <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => document.execCommand('insertHTML', false, '<blockquote><p>&#8203;</p></blockquote>')}> <MessageSquarePlus className="h-4 w-4" /> </Button>
               <Separator orientation="vertical" className="h-6 mx-1" />
               <SpeechToText onTranscriptionComplete={(text) => {
                 restoreSelection();
@@ -1282,7 +1341,7 @@ export function Editor({ page }: EditorProps) {
           <div className="space-y-2">
             <h3 className="font-semibold">Text Formatting</h3>
             <ul className="list-disc list-inside text-sm text-muted-foreground">
-              <li><kbd className="p-1 bg-muted rounded-md">Ctrl+B</kbd> - Bold</li>
+              <li><kbd className="p-1 bg-muted rounded-md">Ctrl+G</kbd> - Bold</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+I</kbd> - Italic</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+U</kbd> - Underline</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Shift+X</kbd> - Inline Code</li>
@@ -1300,6 +1359,7 @@ export function Editor({ page }: EditorProps) {
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+K</kbd> - Command Palette</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Space</kbd> - AI Prompt</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Shift+K</kbd> - Insert Link</li>
+               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Shift+H</kbd> - Insert HTML</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+-</kbd> - Horizontal Rule</li>
             </ul>
           </div>

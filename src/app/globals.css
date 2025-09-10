@@ -90,7 +90,11 @@ body {
       @apply my-4;
     }
     a {
-      color: #FECACA;
+      color: hsl(var(--accent));
+      cursor: pointer;
+    }
+    a:hover {
+        text-decoration: underline;
     }
     b, strong {
       @apply font-bold;
