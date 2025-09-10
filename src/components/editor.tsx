@@ -183,13 +183,33 @@ export function Editor({ page }: EditorProps) {
             clearTimeout(highlightDebounceTimerRef.current);
         }
         highlightDebounceTimerRef.current = setTimeout(() => {
-            editorRef.current?.querySelectorAll('pre code').forEach((block) => {
-                // To prevent re-highlighting which can cause issues
-                if (!(block as HTMLElement).dataset.highlighted) {
-                     hljs.highlightElement(block as HTMLElement);
+            editorRef.current?.querySelectorAll('pre').forEach((preElement) => {
+                const codeElement = preElement.querySelector('code');
+                if (codeElement && !codeElement.dataset.highlighted) {
+                     hljs.highlightElement(codeElement);
+                     codeElement.dataset.highlighted = 'true';
+                }
+
+                if (codeElement) {
+                    const languageClass = Array.from(codeElement.classList).find(c => c.startsWith('language-'));
+                    const existingBadge = preElement.querySelector('.language-badge');
+                    
+                    if (languageClass) {
+                        const language = languageClass.replace('language-', '');
+                        if (existingBadge) {
+                            existingBadge.textContent = language;
+                        } else {
+                            const badge = document.createElement('div');
+                            badge.className = 'language-badge';
+                            badge.textContent = language;
+                            preElement.insertBefore(badge, preElement.firstChild);
+                        }
+                    } else if (existingBadge) {
+                        existingBadge.remove();
+                    }
                 }
             });
-        }, 300); // 300ms debounce
+        }, 300);
     }, []);
 
   const updateToc = React.useCallback(() => {
@@ -321,7 +341,30 @@ export function Editor({ page }: EditorProps) {
 
     setTimeout(() => {
       try {
-        document.execCommand(command, false, value);
+        if (command === 'formatBlock' && value === 'pre') {
+          // Special handling for code blocks to ensure proper structure
+          document.execCommand('formatBlock', false, 'p'); // First, make it a paragraph
+          const sel = window.getSelection();
+          if (sel && sel.rangeCount > 0) {
+            const range = sel.getRangeAt(0);
+            const p = range.commonAncestorContainer.parentElement?.closest('p');
+            if (p) {
+              const pre = document.createElement('pre');
+              const code = document.createElement('code');
+              code.innerHTML = p.innerHTML; // Move content
+              pre.appendChild(code);
+              p.replaceWith(pre);
+              // Restore cursor inside the new code block
+              const newRange = document.createRange();
+              newRange.selectNodeContents(code);
+              newRange.collapse(false);
+              sel.removeAllRanges();
+              sel.addRange(newRange);
+            }
+          }
+        } else {
+          document.execCommand(command, false, value);
+        }
       } catch (err) {
         // ignore execCommand errors
       }

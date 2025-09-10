@@ -89,10 +89,14 @@ body {
       @apply bg-muted text-muted-foreground rounded-sm px-1.5 py-1 font-code text-sm;
     }
     pre {
-      @apply bg-muted p-4 rounded-md overflow-x-auto;
+      @apply bg-muted p-4 rounded-md overflow-x-auto relative;
     }
     pre > code {
       @apply bg-transparent p-0 text-sm;
+    }
+    pre .language-badge {
+        @apply absolute top-2 right-2 text-xs text-muted-foreground bg-background/50 px-2 py-1 rounded-md pointer-events-none;
+        text-transform: capitalize;
     }
     hr {
       @apply border-border my-6;
