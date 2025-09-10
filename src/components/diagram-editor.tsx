@@ -17,6 +17,11 @@ import {
   MoveUpLeft,
   Image,
   FileText,
+  Spline,
+  Minus,
+  MoveVertical,
+  Waypoints,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -102,6 +107,7 @@ export function DiagramEditor({ page }: DiagramEditorProps) {
   
   const [contextMenu, setContextMenu] = useState<{
     id: string;
+    type: 'node' | 'edge';
     top: number;
     left: number;
     right: number;
@@ -136,7 +142,7 @@ export function DiagramEditor({ page }: DiagramEditorProps) {
   }, [page, setNodes, setEdges]);
   
   const onConnect = useCallback(
-    (params: Edge | Connection) => setEdges((eds) => addEdge({ ...params, markerEnd: { type: MarkerType.ArrowClosed } }, eds)),
+    (params: Edge | Connection) => setEdges((eds) => addEdge({ ...params, type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed } }, eds)),
     [setEdges]
   );
   
@@ -167,6 +173,7 @@ export function DiagramEditor({ page }: DiagramEditorProps) {
       if (!pane) return;
       setContextMenu({
         id: node.id,
+        type: 'node',
         top: event.clientY,
         left: event.clientX,
         right: pane.width - event.clientX,
@@ -176,6 +183,23 @@ export function DiagramEditor({ page }: DiagramEditorProps) {
     [setContextMenu]
   );
   
+  const onEdgeContextMenu = useCallback(
+    (event: React.MouseEvent, edge: Edge) => {
+      event.preventDefault();
+      const pane = ref.current?.getBoundingClientRect();
+      if (!pane) return;
+      setContextMenu({
+        id: edge.id,
+        type: 'edge',
+        top: event.clientY,
+        left: event.clientX,
+        right: pane.width - event.clientX,
+        bottom: pane.height - event.clientY,
+      });
+    },
+    [setContextMenu]
+  );
+
   const onPaneClick = useCallback(() => setContextMenu(null), [setContextMenu]);
 
   const handleSaveContent = async () => {
@@ -264,7 +288,24 @@ export function DiagramEditor({ page }: DiagramEditorProps) {
     );
     setContextMenu(null);
   };
-  
+
+  const setEdgeStyle = (style: Partial<Edge>) => {
+    if (!contextMenu) return;
+    setEdges((eds) => 
+        eds.map((e) => {
+            if (e.id === contextMenu.id) {
+                const newEdge = { ...e, ...style };
+                if (style.style) {
+                    newEdge.style = { ...e.style, ...style.style };
+                }
+                return newEdge;
+            }
+            return e;
+        })
+    );
+    setContextMenu(null);
+  };
+
   const handleGroupNodes = () => {
     if (selectedNodeIds.length <= 1) {
         toast({ title: "Info", description: "Select multiple nodes to group them." });
@@ -445,6 +486,7 @@ export function DiagramEditor({ page }: DiagramEditorProps) {
               onConnect={onConnect}
               onPaneClick={onPaneClick}
               onNodeContextMenu={onNodeContextMenu}
+              onEdgeContextMenu={onEdgeContextMenu}
               onNodeDoubleClick={onNodeDoubleClick}
               deleteKeyCode={['Backspace', 'Delete']}
               fitView
@@ -463,54 +505,90 @@ export function DiagramEditor({ page }: DiagramEditorProps) {
                           style={{ top: contextMenu.top, left: contextMenu.left }}
                           onCloseAutoFocus={(e) => e.preventDefault()}
                       >
-                           <DropdownMenuSub>
-                              <DropdownMenuSubTrigger>
-                                  <Palette className="mr-2 h-4 w-4" />
-                                  <span>Change Color</span>
-                              </DropdownMenuSubTrigger>
-                              <DropdownMenuPortal>
-                                  <DropdownMenuSubContent>
-                                      {nodeColors.map(({ name, color }) => (
-                                          <DropdownMenuItem key={name} onClick={() => setNodeStyle(color)}>
-                                              <div className="w-4 h-4 rounded-full mr-2" style={{ backgroundColor: color, border: '1px solid #ccc' }} />
-                                              {name}
-                                          </DropdownMenuItem>
-                                      ))}
-                                  </DropdownMenuSubContent>
-                              </DropdownMenuPortal>
-                          </DropdownMenuSub>
-                          <DropdownMenuSub>
-                              <DropdownMenuSubTrigger>
-                                  <RectangleHorizontal className="mr-2 h-4 w-4" />
-                                  <span>Change Shape</span>
-                              </DropdownMenuSubTrigger>
-                               <DropdownMenuPortal>
-                                  <DropdownMenuSubContent>
-                                      <DropdownMenuItem onClick={() => setNodeType('default')}>
-                                          <RectangleHorizontal className="mr-2 h-4 w-4" /> Default
-                                      </DropdownMenuItem>
-                                      <DropdownMenuItem onClick={() => setNodeType('input')}>
-                                          <MoveDownRight className="mr-2 h-4 w-4" /> Input
-                                      </DropdownMenuItem>
-                                      <DropdownMenuItem onClick={() => setNodeType('output')}>
-                                          <MoveUpLeft className="mr-2 h-4 w-4" /> Output
-                                      </DropdownMenuItem>
-                                  </DropdownMenuSubContent>
-                              </DropdownMenuPortal>
-                          </DropdownMenuSub>
+                           {contextMenu.type === 'node' && (
+                                <>
+                                    <DropdownMenuSub>
+                                        <DropdownMenuSubTrigger>
+                                            <Palette className="mr-2 h-4 w-4" />
+                                            <span>Change Color</span>
+                                        </DropdownMenuSubTrigger>
+                                        <DropdownMenuPortal>
+                                            <DropdownMenuSubContent>
+                                                {nodeColors.map(({ name, color }) => (
+                                                    <DropdownMenuItem key={name} onClick={() => setNodeStyle(color)}>
+                                                        <div className="w-4 h-4 rounded-full mr-2" style={{ backgroundColor: color, border: '1px solid #ccc' }} />
+                                                        {name}
+                                                    </DropdownMenuItem>
+                                                ))}
+                                            </DropdownMenuSubContent>
+                                        </DropdownMenuPortal>
+                                    </DropdownMenuSub>
+                                    <DropdownMenuSub>
+                                        <DropdownMenuSubTrigger>
+                                            <RectangleHorizontal className="mr-2 h-4 w-4" />
+                                            <span>Change Shape</span>
+                                        </DropdownMenuSubTrigger>
+                                        <DropdownMenuPortal>
+                                            <DropdownMenuSubContent>
+                                                <DropdownMenuItem onClick={() => setNodeType('default')}>
+                                                    <RectangleHorizontal className="mr-2 h-4 w-4" /> Default
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => setNodeType('input')}>
+                                                    <MoveDownRight className="mr-2 h-4 w-4" /> Input
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => setNodeType('output')}>
+                                                    <MoveUpLeft className="mr-2 h-4 w-4" /> Output
+                                                </DropdownMenuItem>
+                                            </DropdownMenuSubContent>
+                                        </DropdownMenuPortal>
+                                    </DropdownMenuSub>
 
-                          <DropdownMenuSeparator />
+                                    <DropdownMenuSeparator />
 
-                          <DropdownMenuItem onClick={handleGroupNodes} disabled={selectedNodeIds.length <= 1}>
-                               <Group className="mr-2 h-4 w-4" />
-                               Group Selection
-                          </DropdownMenuItem>
-                          {isNodeInGroup() && (
-                              <DropdownMenuItem onClick={handleUngroupNode}>
-                                  <Ungroup className="mr-2 h-4 w-4" />
-                                  Ungroup Node
-                              </DropdownMenuItem>
-                          )}
+                                    <DropdownMenuItem onClick={handleGroupNodes} disabled={selectedNodeIds.length <= 1}>
+                                        <Group className="mr-2 h-4 w-4" />
+                                        Group Selection
+                                    </DropdownMenuItem>
+                                    {isNodeInGroup() && (
+                                        <DropdownMenuItem onClick={handleUngroupNode}>
+                                            <Ungroup className="mr-2 h-4 w-4" />
+                                            Ungroup Node
+                                        </DropdownMenuItem>
+                                    )}
+                                </>
+                           )}
+                           {contextMenu.type === 'edge' && (
+                                <>
+                                    <DropdownMenuSub>
+                                        <DropdownMenuSubTrigger><Waypoints className="mr-2 h-4 w-4" /><span>Type de tracé</span></DropdownMenuSubTrigger>
+                                        <DropdownMenuPortal>
+                                            <DropdownMenuSubContent>
+                                                <DropdownMenuItem onClick={() => setEdgeStyle({ type: 'default' })}>Bézier</DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => setEdgeStyle({ type: 'smoothstep' })}>Arrondi</DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => setEdgeStyle({ type: 'step' })}>Orthogonal</DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => setEdgeStyle({ type: 'straight' })}>Droit</DropdownMenuItem>
+                                            </DropdownMenuSubContent>
+                                        </DropdownMenuPortal>
+                                    </DropdownMenuSub>
+                                    <DropdownMenuSub>
+                                        <DropdownMenuSubTrigger><Spline className="mr-2 h-4 w-4" /><span>Style de ligne</span></DropdownMenuSubTrigger>
+                                        <DropdownMenuPortal>
+                                            <DropdownMenuSubContent>
+                                                <DropdownMenuItem onClick={() => setEdgeStyle({ style: { strokeDasharray: undefined } })}>Plein</DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => setEdgeStyle({ style: { strokeDasharray: '5 5' } })}>Pointillés</DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => setEdgeStyle({ style: { strokeDasharray: '10 5' } })}>Tirets</DropdownMenuItem>
+                                            </DropdownMenuSubContent>
+                                        </DropdownMenuPortal>
+                                    </DropdownMenuSub>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem onClick={() => setEdgeStyle({ animated: true })}>
+                                        <Sparkles className="mr-2 h-4 w-4" /> Animer
+                                    </DropdownMenuItem>
+                                     <DropdownMenuItem onClick={() => setEdgeStyle({ animated: false })}>
+                                        <Minus className="mr-2 h-4 w-4" /> Stopper animation
+                                    </DropdownMenuItem>
+                                </>
+                           )}
                       </DropdownMenuContent>
                   </DropdownMenuPortal>
               </DropdownMenu>
