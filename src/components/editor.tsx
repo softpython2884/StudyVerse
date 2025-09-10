@@ -43,6 +43,8 @@ import {
   Superscript,
   Subscript
 } from "lucide-react";
+import hljs from 'highlight.js';
+import 'highlight.js/styles/github.css'; 
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -103,6 +105,8 @@ export function Editor({ page }: EditorProps) {
   const [toc, setToc] = React.useState<TocItem[]>([]);
   const debounceTimerRef = React.useRef<NodeJS.Timeout | null>(null);
   const scrollDebounceTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+  const highlightDebounceTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+
   const [activeTocId, setActiveTocId] = React.useState<string | null>(null);
   const [isTocVisible, setIsTocVisible] = React.useState(true);
 
@@ -173,6 +177,20 @@ export function Editor({ page }: EditorProps) {
   });
 
   const { toast } = useToast();
+
+    const debouncedHighlight = React.useCallback(() => {
+        if (highlightDebounceTimerRef.current) {
+            clearTimeout(highlightDebounceTimerRef.current);
+        }
+        highlightDebounceTimerRef.current = setTimeout(() => {
+            editorRef.current?.querySelectorAll('pre code').forEach((block) => {
+                // To prevent re-highlighting which can cause issues
+                if (!(block as HTMLElement).dataset.highlighted) {
+                     hljs.highlightElement(block as HTMLElement);
+                }
+            });
+        }, 300); // 300ms debounce
+    }, []);
 
   const updateToc = React.useCallback(() => {
     if (!editorRef.current) return;
@@ -310,6 +328,9 @@ export function Editor({ page }: EditorProps) {
       setTimeout(() => {
         updateToolbarState();
         debouncedUpdateToc();
+        if (value === 'pre') {
+          debouncedHighlight();
+        }
       }, 0);
     }, 0);
   };
@@ -371,19 +392,44 @@ export function Editor({ page }: EditorProps) {
     }
     updateToolbarState();
     debouncedUpdateToc();
+    debouncedHighlight();
   };
 
   // KeyDown handles shortcuts + Enter special behavior + checklist/tab navigation + headings via Ctrl+Shift+N
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     // Enter key logic
     if (event.key === 'Enter' && !event.shiftKey) {
-      const sel = window.getSelection();
-      if (!sel || !sel.rangeCount) return;
+        const sel = window.getSelection();
+        if (!sel || !sel.rangeCount) return;
 
-      const range = sel.getRangeAt(0);
-      const node = range.startContainer;
+        const range = sel.getRangeAt(0);
+        const node = range.startContainer;
+        let block: HTMLElement | null = null;
+        
+        if (node.nodeType === Node.TEXT_NODE && node.parentElement) {
+            block = node.parentElement.closest('blockquote, pre, li');
+        } else if (node instanceof HTMLElement) {
+            block = node.closest('blockquote, pre, li');
+        }
+
+        // Case 1: Exit from blockquote or code block if the line is empty
+        if ((block?.tagName === 'BLOCKQUOTE' || block?.tagName === 'PRE') && block.textContent?.trim() === '') {
+            event.preventDefault();
+            const p = document.createElement('p');
+            p.innerHTML = '&#8203;'; // Zero-width space for caret
+            block.after(p);
+            block.remove();
+
+            const newRange = document.createRange();
+            newRange.setStart(p, 0);
+            newRange.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(newRange);
+            setTimeout(updateToolbarState, 0);
+            return;
+        }
       
-      // Case 1: In a checklist
+      // Case 2: In a checklist
       const li = (node.nodeType === Node.TEXT_NODE ? node.parentElement?.closest('li') : (node as HTMLElement).closest?.('li'));
       if (li && li.closest('ul[data-type="checklist"]')) {
           if (li.textContent?.trim() === '') {
@@ -417,7 +463,7 @@ export function Editor({ page }: EditorProps) {
         return;
       }
       
-      // Case 2: In a heading
+      // Case 3: In a heading
       const heading = (node.nodeType === Node.TEXT_NODE ? node.parentElement?.closest('h1, h2, h3, h4, h5, h6') : (node as HTMLElement).closest?.('h1, h2, h3, h4, h5, h6'));
       if (heading && !event.shiftKey) {
         event.preventDefault();
@@ -430,22 +476,6 @@ export function Editor({ page }: EditorProps) {
         sel.removeAllRanges();
         sel.addRange(newRange);
         return;
-      }
-
-      // Case 3: Exit from blockquote or code block if it's empty
-      const block = (node.nodeType === Node.TEXT_NODE ? node.parentElement?.closest('blockquote, pre') : (node as HTMLElement).closest?.('blockquote, pre'));
-      if (block && block.textContent?.trim() === '') {
-          event.preventDefault();
-          const p = document.createElement('p');
-          p.innerHTML = '&#8203;'; // For caret
-          block.after(p);
-          block.remove();
-          const newRange = document.createRange();
-          newRange.setStart(p, 0);
-          newRange.collapse(true);
-          sel.removeAllRanges();
-          sel.addRange(newRange);
-          return;
       }
     }
     
@@ -764,6 +794,7 @@ export function Editor({ page }: EditorProps) {
             editorRef.current.innerHTML = "<p>&#8203;</p>";
         }
         updateToc();
+        debouncedHighlight();
         updateActiveTocOnScroll(); // Initial check
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -892,7 +923,7 @@ export function Editor({ page }: EditorProps) {
                   <div className="text-center text-sm mt-2">{tableGridSize.rows} x {tableGridSize.cols}</div>
                 </PopoverContent>
               </Popover>
-              <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => handleFormat("insertHorizontalRule")}> <Minus className="h-4 w-4" /> </Button>
+              <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => document.execCommand('insertHTML', false, '<hr><p>&#8203;</p>')}> <Minus className="h-4 w-4" /> </Button>
               <Separator orientation="vertical" className="h-6 mx-1" />
               <SpeechToText onTranscriptionComplete={(text) => {
                 restoreSelection();
@@ -1211,4 +1242,3 @@ export function Editor({ page }: EditorProps) {
     </div>
   );
 }
-
