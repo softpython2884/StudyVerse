@@ -796,7 +796,7 @@ video.src = url;
     
     if (event.ctrlKey && !event.altKey) {
       const key = event.key.toLowerCase();
-      if (key === 'g') { 
+      if (key === 'b') { 
         event.preventDefault();
         editorRef.current?.focus();
         document.execCommand('bold');
@@ -954,7 +954,9 @@ video.src = url;
     try {
       const result = await generateDiagram({ text: diagramText, diagramType: diagramType as any });
       
-      const diagramHtml = `<div data-diagram-type="${diagramType}" data-diagram-data='${result.diagramData}' contenteditable="false" class="bg-card p-2 rounded-md my-4">Diagram placeholder. It will be rendered on page load.</div><p>&#8203;</p>`;
+      const encodedData = btoa(unescape(encodeURIComponent(result.diagramData)));
+      const diagramHtml = `<div data-diagram-type="${diagramType}" data-diagram-data="${encodedData}" contenteditable="false" class="bg-card p-2 rounded-md my-4">Diagram placeholder. It will be rendered on page load.</div><p>&#8203;</p>`;
+
       restoreSelection();
       editorRef.current?.focus();
       document.execCommand('insertHTML', false, diagramHtml);
@@ -1138,10 +1140,11 @@ video.src = url;
 
     diagramPlaceholders.forEach(container => {
       const type = container.getAttribute('data-diagram-type');
-      const dataStr = container.getAttribute('data-diagram-data');
-      if (!type || !dataStr) return;
+      const encodedData = container.getAttribute('data-diagram-data');
+      if (!type || !encodedData) return;
 
       try {
+        const dataStr = decodeURIComponent(escape(atob(encodedData)));
         const data = JSON.parse(dataStr);
         const { nodes, edges } = data;
         
@@ -1150,7 +1153,6 @@ video.src = url;
         );
 
         // Check if the container is already a React root
-        // This is a simple check; a more robust solution might be needed
         if (!(container as any)._reactRootContainer) {
             const root = createRoot(container);
             root.render(diagramElement);
@@ -1560,7 +1562,7 @@ video.src = url;
           <div className="space-y-2 text-sm">
             <h3 className="font-semibold">Text Formatting</h3>
             <ul className="list-disc list-inside text-muted-foreground">
-              <li><kbd className="p-1 bg-muted rounded-md">Ctrl+G</kbd> - Bold</li>
+              <li><kbd className="p-1 bg-muted rounded-md">Ctrl+B</kbd> - Bold</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+I</kbd> - Italic</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+U</kbd> - Underline</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Shift+X</kbd> - Inline Code</li>
@@ -1611,5 +1613,7 @@ video.src = url;
     </div>
   );
 }
+
+    
 
     
