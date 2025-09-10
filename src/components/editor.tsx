@@ -402,7 +402,7 @@ export function Editor({ page }: EditorProps) {
       startRange.setEnd(range.startContainer, range.startOffset);
       const prefixText = startRange.toString();
 
-      // Auto-linking
+      // Auto-linking and embedding
       const urlMatch = prefixText.match(/(https?:\/\/[^\s]+)\s$/);
       if (urlMatch) {
           const url = urlMatch[1];
@@ -417,21 +417,29 @@ export function Editor({ page }: EditorProps) {
                   sel.removeAllRanges();
                   sel.addRange(urlRange);
 
-                  // Check if it's an image/video
-                  if (/\.(jpe?g|png|gif|webp|mp4|webm)$/i.test(url)) {
+                  // Check for YouTube
+                  const ytMatch = url.match(/(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([\w-]{11})/);
+                  if (ytMatch) {
+                    const videoId = ytMatch[1];
+                    const iframe = `<iframe width="560" height="315" src="https://www.youtube.com/embed/${videoId}" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen style="max-width: 100%; border-radius: 0.5rem;"></iframe>`;
+                    document.execCommand('insertHTML', false, iframe);
+                  } else if (/\.(jpe?g|png|gif|webp|mp4|webm)$/i.test(url)) {
+                       // Check if it's an image/video
                       const mediaTag = /\.(mp4|webm)$/i.test(url) ? 
                           `<video src="${url}" controls style="max-width: 100%; border-radius: 0.5rem;"></video>` : 
                           `<img src="${url}" style="max-width: 100%; border-radius: 0.5rem;" />`;
                       document.execCommand('insertHTML', false, mediaTag);
                   } else {
-                       const linkHtml = `<a href="${url}" title="${url}">${url}</a>`;
+                       const linkHtml = `<a href="${url}">${url}</a>`;
                        document.execCommand('insertHTML', false, linkHtml);
                   }
 
                   // Move cursor after the link/media
                   const newRange = document.createRange();
                   const lastChild = block.lastChild;
-                  newRange.setStart(lastChild!, lastChild!.textContent!.length);
+                  if (lastChild) {
+                    newRange.setStartAfter(lastChild);
+                  }
                   newRange.collapse(true);
                   sel.removeAllRanges();
                   sel.addRange(newRange);
@@ -629,10 +637,10 @@ export function Editor({ page }: EditorProps) {
 
     if (event.ctrlKey && !event.altKey) {
       const key = event.key.toLowerCase();
-      if (['g', 'i', 'u'].includes(key)) {
+      if (['b', 'i', 'u'].includes(key)) {
         event.preventDefault();
         editorRef.current?.focus();
-        document.execCommand(key === 'g' ? 'bold' : key === 'i' ? 'italic' : 'underline');
+        document.execCommand(key === 'b' ? 'bold' : key === 'i' ? 'italic' : 'underline');
         setTimeout(updateToolbarState, 0);
         return;
       }
@@ -697,7 +705,7 @@ export function Editor({ page }: EditorProps) {
     editorRef.current?.focus();
     setTimeout(() => {
       if (linkUrl) {
-        const linkHtml = `<a href="${linkUrl}" title="${linkUrl}">${linkUrl}</a>`;
+        const linkHtml = `<a href="${linkUrl}">${linkUrl}</a>`;
         document.execCommand("insertHTML", false, linkHtml);
       }
       setLinkUrl("");
@@ -1401,7 +1409,7 @@ export function Editor({ page }: EditorProps) {
           <div className="space-y-2">
             <h3 className="font-semibold">Text Formatting</h3>
             <ul className="list-disc list-inside text-sm text-muted-foreground">
-              <li><kbd className="p-1 bg-muted rounded-md">Ctrl+G</kbd> - Bold</li>
+              <li><kbd className="p-1 bg-muted rounded-md">Ctrl+B</kbd> - Bold</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+I</kbd> - Italic</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+U</kbd> - Underline</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Shift+X</kbd> - Inline Code</li>
