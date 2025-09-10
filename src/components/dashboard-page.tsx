@@ -375,7 +375,7 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
 
             <SidebarMenu>
               {filteredData.map((binder: Binder) => (
-                <Collapsible key={binder.id} className="w-full" defaultOpen={false}>
+                <Collapsible key={binder.id} className="w-full" defaultOpen={binder.id === params.binderId}>
                   <div className="flex items-center justify-between group">
                       <SidebarMenuItem className="flex-1">
                           <CollapsibleTrigger asChild>
@@ -400,7 +400,7 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
                   <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
                     <div className="pl-4">
                       {binder.notebooks.map((notebook: Notebook) => (
-                        <Collapsible key={notebook.id} className="w-full" defaultOpen={false}>
+                        <Collapsible key={notebook.id} className="w-full" defaultOpen={notebook.id === params.notebookId}>
                             <div className="flex items-center justify-between group">
                                 <SidebarMenuItem className="flex-1">
                                     <CollapsibleTrigger asChild>
@@ -479,7 +479,7 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
                     </SidebarTrigger>
                     <div>
                         <h1 className="text-2xl font-bold font-headline">{currentPage?.title || "Welcome"}</h1>
-                        <p className="text-sm text-muted-foreground">Select a page to start editing.</p>
+                        <p className="text-sm text-muted-foreground">{currentPage ? 'Select a page to start editing.' : 'What will you learn today?'}</p>
                     </div>
                 </div>
                  <DropdownMenu>
