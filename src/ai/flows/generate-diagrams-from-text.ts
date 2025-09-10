@@ -47,7 +47,7 @@ Text: {{{text}}}
 CRITICAL INSTRUCTIONS:
 1.  **Analyze the text** to identify key concepts, entities, and their relationships.
 2.  **Create a deep, hierarchical structure**, especially for MindMap and OrgChart. Go at least 3-4 levels deep if the text allows.
-3.  **Generate `nodes` array:**
+3.  **Generate \`nodes\` array:**
     - Each node MUST have a unique \`id\` (string).
     - Each node MUST have a \`data.label\` (string) for its title.
     - Each node MUST have a \`data.description\` (string) containing a detailed, researched explanation of that concept.
@@ -57,7 +57,7 @@ CRITICAL INSTRUCTIONS:
     - Each edge MUST have a unique \`id\` (e.g., "e1-2").
     - Each edge MUST have a \`source\` (the parent node's id).
     - Each edge MUST have a \`target\` (the child node's id).
-    - Edges should have `type: 'smoothstep'` for better curves.
+    - Edges should have \`type: 'smoothstep'\` for better curves.
 
 The output MUST be a single, valid JSON string, with no additional text, explanations, or markdown.
 
