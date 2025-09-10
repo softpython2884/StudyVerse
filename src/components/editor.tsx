@@ -334,33 +334,27 @@ export function Editor({ page }: EditorProps) {
     if (command === 'formatBlock' && (value === 'blockquote' || value === 'pre')) {
       const block = element.closest(value);
       if (block) {
-          document.execCommand('formatBlock', false, 'p');
-          const p = element.closest('p');
-          if (p && p.parentNode) {
-              const parent = p.parentNode;
-              while(p.firstChild) {
-                  parent.insertBefore(p.firstChild, p);
-              }
-              parent.removeChild(p);
+          const p = document.createElement('p');
+          while (block.firstChild) {
+              p.appendChild(block.firstChild);
           }
+          block.parentNode?.replaceChild(p, block);
       } else {
         document.execCommand(command, false, value);
       }
     } else if (command === 'inlineCode') {
         const codeNode = element.closest('code');
-        if (codeNode) {
+        if (codeNode && !codeNode.closest('pre')) {
             const parent = codeNode.parentNode;
             if (parent) {
                 while(codeNode.firstChild) {
                     parent.insertBefore(codeNode.firstChild, codeNode);
                 }
                 parent.removeChild(codeNode);
+                (parent as HTMLElement).normalize();
             }
         } else {
-             const selectedText = range.toString();
-             const code = document.createElement('code');
-             code.textContent = selectedText;
-             document.execCommand('insertHTML', false, code.outerHTML);
+             document.execCommand('insertHTML', false, `<code>${selection.toString()}</code>`);
         }
 
     } else {
@@ -1214,43 +1208,16 @@ export function Editor({ page }: EditorProps) {
           >
             Cut
           </button>
-
+          
+          <Separator className="my-1" />
+          
           <button
             role="menuitem"
             className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
             onMouseDown={(e) => e.preventDefault()}
-            onClick={() => {
-              const ta = document.getElementById('editor-paste-input') as HTMLTextAreaElement | null;
-              if (ta) { ta.value = ''; ta.style.display = 'block'; ta.focus(); }
-              setTimeout(() => { if (ta) ta.style.display = 'none'; }, 2000);
-              setContextMenu({ x: 0, y: 0, visible: false });
-            }}
+            onClick={() => { handleFormat('inlineCode'); setContextMenu({ x: 0, y: 0, visible: false }); }}
           >
-            Paste
-          </button>
-
-          <input id="context-file-input" type="file" accept="image/*" style={{ display: 'none' }} onChange={(ev) => {
-            const file = (ev.target as HTMLInputElement).files?.[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = () => {
-              restoreSelection(); editorRef.current?.focus();
-              setTimeout(() => {
-                const imgHtml = `<img src="${reader.result}" alt="${file.name}" />`;
-                document.execCommand('insertHTML', false, imgHtml);
-                updateToolbarState();
-              }, 0);
-            };
-            reader.readAsDataURL(file);
-          }} />
-
-          <button
-            role="menuitem"
-            className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => { const inp = document.getElementById('context-file-input') as HTMLInputElement | null; inp?.click(); setContextMenu({ x: 0, y: 0, visible: false }); }}
-          >
-            Insert Image
+            <Code className="h-4 w-4" /> Inline Code
           </button>
 
           <button
