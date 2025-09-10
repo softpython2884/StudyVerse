@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import * as React from "react";
@@ -372,7 +373,7 @@ export function Editor({ page }: EditorProps) {
   // KeyDown handles shortcuts + Enter special behavior + checklist/tab navigation + headings via Ctrl+Shift+N
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     // Enter key logic
-    if (event.key === 'Enter') {
+    if (event.key === 'Enter' && !event.shiftKey) {
       const sel = window.getSelection();
       if (!sel || !sel.rangeCount) return;
 
@@ -438,19 +439,18 @@ export function Editor({ page }: EditorProps) {
 
       // Case 4: Horizontal Rule
       const rangeStartNode = range.startContainer;
-      const currentBlock = rangeStartNode.nodeType === 3 
+      const currentBlock = (rangeStartNode.nodeType === 3 
           ? rangeStartNode.parentElement 
-          : rangeStartNode as HTMLElement;
+          : rangeStartNode as HTMLElement)?.closest('p, div, li');
 
-      if (currentBlock && currentBlock.closest('p, div, li') && currentBlock.textContent === '---') {
+      if (currentBlock && currentBlock.textContent?.trim() === '---') {
           event.preventDefault();
           
-          const blockToReplace = currentBlock.closest('p, div, li')!;
           const hr = document.createElement('hr');
-          blockToReplace.replaceWith(hr);
-          
           const p = document.createElement('p');
           p.innerHTML = '&#8203;'; // Zero-width space to place the cursor
+          
+          currentBlock.replaceWith(hr);
           hr.after(p);
           
           const newRange = document.createRange();
@@ -510,21 +510,22 @@ export function Editor({ page }: EditorProps) {
 
     if (event.ctrlKey && !event.altKey) {
       const key = event.key.toLowerCase();
-      if (['b', 'i', 'u', 'z', 'y', 'g'].includes(key)) {
+      if (['b', 'i', 'u'].includes(key)) {
         event.preventDefault();
         editorRef.current?.focus();
-        switch (key) {
-          case 'b': document.execCommand('bold'); break;
-          case 'g': document.execCommand('bold'); break;
-          case 'i': document.execCommand('italic'); break;
-          case 'u': document.execCommand('underline'); break;
-          case 'z': document.execCommand('undo'); break;
-          case 'y': document.execCommand('redo'); break;
-        }
+        document.execCommand(key === 'b' ? 'bold' : key === 'i' ? 'italic' : 'underline');
+        setTimeout(updateToolbarState, 0);
+        return;
+      }
+      if (['z', 'y'].includes(key)) {
+        event.preventDefault();
+        editorRef.current?.focus();
+        document.execCommand(key === 'z' ? 'undo' : 'redo');
         setTimeout(updateToolbarState, 0);
         return;
       }
     }
+
 
     if (event.ctrlKey && event.shiftKey) {
       const keyNumber = parseInt(event.key, 10);
@@ -746,12 +747,7 @@ export function Editor({ page }: EditorProps) {
     if (contextMenu.visible) setContextMenu({ x: 0, y: 0, visible: false });
   };
 
-  const handleBlur = () => {
-      saveSelection();
-  }
-
   const handleFocus = () => {
-    restoreSelection();
     updateToolbarState();
   };
 
@@ -1020,7 +1016,6 @@ export function Editor({ page }: EditorProps) {
             onKeyDown={handleKeyDown}
             onKeyUp={handleKeyUp}
             onFocus={handleFocus}
-            onBlur={handleBlur}
             onClick={handleEditorClick}
             onContextMenu={handleContextMenu}
             className="prose dark:prose-invert max-w-none w-full h-full bg-card p-4 sm:p-6 md:p-8 lg:p-12 focus:outline-none"
@@ -1186,7 +1181,7 @@ export function Editor({ page }: EditorProps) {
           <div className="space-y-2">
             <h3 className="font-semibold">Text Formatting</h3>
             <ul className="list-disc list-inside text-sm text-muted-foreground">
-              <li><kbd className="p-1 bg-muted rounded-md">Ctrl+G</kbd> or <kbd className="p-1 bg-muted rounded-md">Ctrl+B</kbd> - Bold</li>
+              <li><kbd className="p-1 bg-muted rounded-md">Ctrl+B</kbd> - Bold</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+I</kbd> - Italic</li>
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+U</kbd> - Underline</li>
             </ul>
