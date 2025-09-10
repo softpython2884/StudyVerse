@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import * as React from "react";
@@ -218,7 +219,7 @@ export function Editor({ page }: EditorProps) {
 
   }, []);
 
-  const debouncedScrollHandler = React.useCallback(() => {
+  const debouncedScrollHandler = React. useCallback(() => {
     if (scrollDebounceTimerRef.current) {
       clearTimeout(scrollDebounceTimerRef.current);
     }
@@ -441,22 +442,48 @@ export function Editor({ page }: EditorProps) {
         event.preventDefault();
         restoreSelection();
         document.execCommand('insertHorizontalRule', false);
-        // Add a new paragraph after the HR for a better UX
+        
         const sel = window.getSelection();
         if (sel && sel.rangeCount > 0) {
             const range = sel.getRangeAt(0);
-            const p = document.createElement('p');
-            p.innerHTML = '&#8203;'; // Zero-width space
-            const parent = range.startContainer.parentNode;
-            if (parent && parent.parentNode) {
-                 parent.parentNode.insertBefore(p, parent.nextSibling);
-                 const newRange = document.createRange();
-                 newRange.setStart(p, 0);
-                 newRange.collapse(true);
-                 sel.removeAllRanges();
-                 sel.addRange(newRange);
+            const currentNode = range.startContainer;
+            let currentElement = currentNode.nodeType === 3 ? currentNode.parentNode : currentNode;
+            
+            // Find the HR element that was just inserted
+            // It's often the previous sibling of the cursor's new position
+            let element = currentElement as HTMLElement | null;
+            let hr = element?.previousSibling as HTMLElement;
+
+            // If the cursor is inside a p, the p might be after the hr.
+            if (hr?.nodeName !== 'HR' && element?.parentNode) {
+                const children = Array.from(element.parentNode.childNodes);
+                const elementIndex = children.indexOf(element as ChildNode);
+                if (elementIndex > 0 && (children[elementIndex-1] as HTMLElement).nodeName === 'HR') {
+                    hr = children[elementIndex-1] as HTMLElement;
+                } else {
+                     hr = element.querySelector('hr') || element.previousElementSibling as HTMLElement;
+                }
             }
+            if (hr?.nodeName !== 'HR') {
+                hr = null;
+            }
+
+            const p = document.createElement('p');
+            p.innerHTML = '&#8203;'; // Zero-width space for caret
+
+            if (hr && hr.parentNode) {
+                hr.parentNode.insertBefore(p, hr.nextSibling);
+            } else if (editorRef.current) {
+                editorRef.current.appendChild(p);
+            }
+            
+            const newRange = document.createRange();
+            newRange.setStart(p, 0);
+            newRange.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(newRange);
         }
+
         setTimeout(updateToolbarState, 0);
         return;
     }
