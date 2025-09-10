@@ -441,57 +441,12 @@ export function Editor({ page }: EditorProps) {
     if (event.ctrlKey && event.key === '-') {
         event.preventDefault();
         restoreSelection();
-        document.execCommand('insertHorizontalRule', false);
-        
-        const sel = window.getSelection();
-        if (sel && sel.rangeCount > 0) {
-            const range = sel.getRangeAt(0);
-            const currentNode = range.startContainer;
-            let currentElement = currentNode.nodeType === 3 ? currentNode.parentNode : currentNode;
-            
-            // Find the HR element that was just inserted
-            // It's often the previous sibling of the cursor's new position
-            let element = currentElement as HTMLElement | null;
-            let hr = element?.previousSibling as HTMLElement;
-
-            // If the cursor is inside a p, the p might be after the hr.
-            if (hr?.nodeName !== 'HR' && element?.parentNode) {
-                const children = Array.from(element.parentNode.childNodes);
-                const elementIndex = children.indexOf(element as ChildNode);
-                if (elementIndex > 0 && (children[elementIndex-1] as HTMLElement).nodeName === 'HR') {
-                    hr = children[elementIndex-1] as HTMLElement;
-                } else {
-                     hr = element.querySelector('hr') || element.previousElementSibling as HTMLElement;
-                }
-            }
-             if (hr?.nodeName !== 'HR') {
-                const elements = editorRef.current?.querySelectorAll('hr');
-                if (elements && elements.length > 0) {
-                    hr = elements[elements.length - 1];
-                }
-             }
-
-            const p = document.createElement('p');
-            p.innerHTML = '&#8203;'; // Zero-width space for caret
-
-            if (hr && hr.parentNode) {
-                hr.parentNode.insertBefore(p, hr.nextSibling);
-            } else if (editorRef.current) {
-                editorRef.current.appendChild(p);
-            }
-            
-            const newRange = document.createRange();
-            newRange.setStart(p, 0);
-            newRange.collapse(true);
-            sel.removeAllRanges();
-            sel.addRange(newRange);
-        }
-
-        setTimeout(updateToolbarState, 0);
+        document.execCommand('insertHTML', false, '<hr><p>&#8203;</p>');
+        updateToolbarState();
         return;
     }
 
-    if (event.ctrlKey && !event.shiftKey && event.key.toLowerCase() === 'k') {
+    if (event.ctrlKey && event.key === 'k' && !event.shiftKey) {
       event.preventDefault();
       setIsCommandPaletteOpen(true);
       return;
@@ -780,7 +735,7 @@ export function Editor({ page }: EditorProps) {
   };
 
   const handleBlur = () => {
-    // No longer saving selection on blur to prevent stale selections.
+    saveSelection();
   };
 
   // Set initial content
@@ -1239,3 +1194,4 @@ export function Editor({ page }: EditorProps) {
     </div>
   );
 }
+
