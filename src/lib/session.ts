@@ -8,7 +8,10 @@ import { getDb } from './db';
 import type { User } from './types';
 
 
-const secretKey = process.env.SESSION_SECRET || 'your-fallback-secret-key';
+const secretKey = process.env.SESSION_SECRET;
+if (!secretKey) {
+  throw new Error('SESSION_SECRET is not defined in the environment variables.');
+}
 const key = new TextEncoder().encode(secretKey);
 
 export async function encrypt(payload: any) {
