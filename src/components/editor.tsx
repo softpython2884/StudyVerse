@@ -484,6 +484,8 @@ export function Editor({ page }: EditorProps) {
               let newElement: HTMLElement | null = null;
               const ytMatch = url.match(/(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([\w-]{11})/);
               const sheetMatch = url.match(/https?:\/\/docs\.google\.com\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+              const slidesMatch = url.match(/https?:\/\/docs\.google\.com\/presentation\/d\/([a-zA-Z0-9-_]+)/);
+
 
               if (ytMatch) {
                   const videoId = ytMatch[1];
@@ -507,6 +509,18 @@ export function Editor({ page }: EditorProps) {
                   iframe.src = `https://docs.google.com/spreadsheets/d/${sheetId}/pubhtml?widget=true&amp;headers=false`;
                   iframe.style.borderRadius = '0.5rem';
                   iframe.style.border = '1px solid hsl(var(--border))';
+                  newElement = iframe;
+              } else if (slidesMatch) {
+                  const slidesId = slidesMatch[1];
+                  const iframe = document.createElement('iframe');
+                  iframe.width = '560';
+                  iframe.height = '315';
+                  iframe.src = `https://docs.google.com/presentation/d/${slidesId}/embed?start=false&loop=false&delayms=3000`;
+                  iframe.title = "Google Slides presentation";
+                  iframe.frameBorder = "0";
+                  iframe.allowFullscreen = true;
+                  iframe.style.maxWidth = '100%';
+                  iframe.style.borderRadius = '0.5rem';
                   newElement = iframe;
               } else if (/\.(jpe?g|png|gif|webp)$/i.test(url)) {
                   const img = document.createElement('img');
@@ -1573,7 +1587,3 @@ const handleGenerateDiagram = async () => {
     </div>
   );
 }
-
-    
-
-    
