@@ -166,19 +166,25 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
 
   const getActivePage = () => {
     const { binderId, notebookId, pageId } = params;
-    if (!binderId || !notebookId || !pageId) return null;
-    const binder = data.find(b => b.id === binderId);
-    if (!binder) { // maybe it's a shared binder
-        const sharedBinder = data.find(b => b.isShared);
-        if(!sharedBinder) return null;
-        const notebook = sharedBinder.notebooks.find(n => n.id === notebookId || `shared-notebook-from-${n.pages.find(p=>p.id === pageId)?.notebook_id}` === notebookId);
-         if (!notebook) return null;
-        return notebook.pages.find(p => p.id === pageId) || null;
+    if (!binderId || !notebookId || !pageId || typeof binderId !== 'string' || typeof notebookId !== 'string' || typeof pageId !== 'string') return null;
+
+    for (const binder of data) {
+      // Handle shared pages which have a synthetic notebook ID
+      if (binder.id === 'shared-binder') {
+          for (const notebook of binder.notebooks) {
+              const foundPage = notebook.pages.find(p => p.id === pageId);
+              if (foundPage) return foundPage;
+          }
+      } else { // Handle regular pages
+          const notebook = binder.notebooks.find(n => n.id === notebookId);
+          if (notebook) {
+              const foundPage = notebook.pages.find(p => p.id === pageId);
+              if (foundPage) return foundPage;
+          }
+      }
     }
-    const notebook = binder.notebooks.find(n => n.id === notebookId);
-    if (!notebook) return null;
-    return notebook.pages.find(p => p.id === pageId) || null;
-  }
+    return null;
+}
 
   const currentPage = getActivePage();
   
@@ -230,10 +236,12 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
     }
     
     // Find the original binderId for the active notebook
-    let originalBinderId = activeBinderId;
-    if (!originalBinderId) {
-        const binder = data.find(b => b.notebooks.some(n => n.id === activeNotebookId));
-        if (binder) originalBinderId = binder.id;
+    let originalBinderId: string | undefined;
+    for (const binder of data) {
+        if(binder.notebooks.some(n => n.id === activeNotebookId)) {
+            originalBinderId = binder.id;
+            break;
+        }
     }
 
     if (!originalBinderId) {
@@ -436,17 +444,20 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
   );
 
   const getLinkForPage = (page: Page) => {
+    // Find the binder and notebook containing the page
     for (const binder of data) {
         for (const notebook of binder.notebooks) {
-            if (notebook.pages.some(p => p.id === page.id)) {
-                return `/dashboard/${binder.id}/${notebook.id}/${page.id}`;
+             if (notebook.pages.some(p => p.id === page.id)) {
+                // For shared pages, the URL structure is different
+                if (binder.id === 'shared-binder') {
+                     return `/dashboard/${binder.id}/${notebook.id}/${page.id}`;
+                } else {
+                     return `/dashboard/${binder.id}/${notebook.id}/${page.id}`;
+                }
             }
         }
     }
-    // Fallback for pages in "Shared with me"
-    if (page.isShared) {
-        return `/dashboard/shared-binder/${page.notebook_id}/${page.id}`;
-    }
+    // Fallback if page isn't found in the loop (should not happen with correct data)
     return `/dashboard`;
   }
 
@@ -525,7 +536,7 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
                   <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
                     <div className="pl-4">
                       {binder.notebooks.map((notebook: Notebook) => (
-                        <Collapsible key={notebook.id} className="w-full" defaultOpen={notebook.id === params.notebookId}>
+                        <Collapsible key={notebook.id} className="w-full" defaultOpen={notebook.id === params.notebookId || notebook.id === `shared-notebook-from-${user?.id}`}>
                             <div className={cn("flex items-center justify-between group", notebook.isShared && "opacity-75")}>
                                 <SidebarMenuItem className="flex-1">
                                     <CollapsibleTrigger asChild>
@@ -559,8 +570,8 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
                             <div className="pl-6">
                               {notebook.pages.map((page: Page) => (
                                 <SidebarMenuItem key={page.id}>
-                                   <div className={cn("flex items-center group", page.isShared && "opacity-75")}>
-                                      <Link href={getLinkForPage(page)} className="flex-1">
+                                   <div className={cn("flex items-center group w-full", page.isShared && "opacity-75")}>
+                                      <Link href={getLinkForPage(page)} className="flex-1 overflow-hidden">
                                         <SidebarMenuButton
                                           isActive={params.pageId === page.id}
                                         >

@@ -51,8 +51,9 @@ export async function getBinders(userId: number): Promise<Binder[]> {
     for (const item of sharedItems) {
         if (item.item_type === 'page') {
             const ownerName = item.owner_name;
-            if (!ownerGroupedNotebooks[ownerName]) {
-                 ownerGroupedNotebooks[ownerName] = {
+            const ownerKey = `user-${item.owner_id}`;
+            if (!ownerGroupedNotebooks[ownerKey]) {
+                 ownerGroupedNotebooks[ownerKey] = {
                     id: `shared-notebook-from-${item.owner_id}`,
                     title: ownerName,
                     icon: 'User',
@@ -62,13 +63,13 @@ export async function getBinders(userId: number): Promise<Binder[]> {
                     isShared: true,
                 };
             }
-            ownerGroupedNotebooks[ownerName].pages.push({
+            ownerGroupedNotebooks[ownerKey].pages.push({
                 id: item.item_id,
                 title: item.page_title,
                 icon: item.page_icon,
                 type: item.page_type,
-                notebook_id: item.page_notebook_id,
-                is_public: item.page_is_public,
+                notebook_id: `shared-notebook-from-${item.owner_id}`,
+                is_public: !!item.page_is_public,
                 isShared: true,
                 permission: item.permission,
             });
@@ -118,13 +119,16 @@ export async function getBinders(userId: number): Promise<Binder[]> {
 export async function getPage(pageId: string): Promise<Page | null> {
     const db = await getDb();
     const page = await db.get<Page>('SELECT * FROM pages WHERE id = ?', pageId);
+    if (page) {
+        page.is_public = !!page.is_public;
+    }
     return page || null;
 }
 
 export async function getPageAndOwner(pageId: string): Promise<{ page: Page, owner: User } | null> {
     const db = await getDb();
     const result = await db.get<{
-        id: string; title: string; icon: string; type: 'document' | 'diagram'; content: string | null; is_public: boolean;
+        id: string; title: string; icon: string; type: 'document' | 'diagram'; content: string | null; is_public: number; notebook_id: string;
         owner_id: number; owner_name: string; owner_email: string;
     }>(`
         SELECT p.*, u.id as owner_id, u.name as owner_name, u.email as owner_email
@@ -139,6 +143,7 @@ export async function getPageAndOwner(pageId: string): Promise<{ page: Page, own
     
     const page: Page = {
         id: result.id,
+        notebook_id: result.notebook_id,
         title: result.title,
         icon: result.icon,
         type: result.type,

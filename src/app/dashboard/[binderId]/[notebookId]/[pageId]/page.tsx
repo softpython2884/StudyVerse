@@ -8,11 +8,8 @@ import { AccessDenied } from "@/components/error-pages/access-denied";
 
 export default async function Page({ params }: { params: { binderId: string, notebookId: string, pageId: string } }) {
     const user = await protectedRoute();
-    const { binderId, notebookId, pageId } = params;
+    const { pageId } = params;
 
-    // A bit of a hack to check if we are in a shared context
-    const isSharedContext = binderId === 'shared-binder';
-    
     const pageData = await getPageAndOwner(pageId);
     
     if (!pageData) {

@@ -267,7 +267,7 @@ export async function updatePagePublicAccess(values: z.infer<typeof UpdatePagePu
     }
 
     try {
-        await db.run('UPDATE pages SET is_public = ? WHERE id = ?', isPublic, pageId);
+        await db.run('UPDATE pages SET is_public = ? WHERE id = ?', isPublic ? 1 : 0, pageId);
         revalidatePath(`/public/page/${pageId}`);
         revalidatePath('/dashboard');
         return { success: true, message: `Page is now ${isPublic ? 'public' : 'private'}.` };
