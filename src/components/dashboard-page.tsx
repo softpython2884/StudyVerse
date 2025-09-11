@@ -22,6 +22,7 @@ import {
   Trash2,
   type LucideIcon,
   Network,
+  Share2,
 } from "lucide-react";
 import {
   SidebarProvider,
@@ -303,9 +304,13 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
             <DropdownMenuItem onClick={() => openRenameDialog(id, title, type)}>
                 <Edit className="mr-2 h-4 w-4" /> Rename
             </DropdownMenuItem>
+             <DropdownMenuItem disabled>
+                <Share2 className="mr-2 h-4 w-4" /> Share
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <AlertDialog>
                 <AlertDialogTrigger asChild>
-                    <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
                         <Trash2 className="mr-2 h-4 w-4" /> Delete
                     </DropdownMenuItem>
                 </AlertDialogTrigger>
@@ -318,7 +323,7 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => handleDelete(id, type)}>Continue</AlertDialogAction>
+                        <AlertDialogAction onClick={() => handleDelete(id, type)} className="bg-destructive hover:bg-destructive/90">Continue</AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
@@ -600,3 +605,5 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
     </SidebarProvider>
   );
 }
+
+    
