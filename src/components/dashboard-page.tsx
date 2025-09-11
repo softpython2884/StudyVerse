@@ -471,7 +471,7 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
           </SidebarFooter>
         </Sidebar>
 
-        <SidebarInset className="p-0">
+        <SidebarInset className="p-0 flex flex-col">
             <header className="flex items-center justify-between p-4 md:p-6 lg:p-8 border-b bg-background">
                 <div className="flex items-center gap-4">
                     <SidebarTrigger>
