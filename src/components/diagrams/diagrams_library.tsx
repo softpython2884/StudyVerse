@@ -236,7 +236,7 @@ export const MindMap = ({ nodes, edges = [] }: { nodes: any[], edges?: any[] }) 
                 title={typeof node.label === "string" ? node.label : undefined}
               >
                 <div className="font-bold text-sm mb-1">{node.label}</div>
-                <div className="text-xs text-muted-foreground">{node.description}</div>
+                <div className="text-xs text-card-foreground/80">{node.description}</div>
               </div>
             </motion.div>
           );
