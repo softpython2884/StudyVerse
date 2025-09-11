@@ -6,22 +6,10 @@ import {
   Save,
   Share2,
   Download,
-  Plus,
   LoaderCircle,
   Bot,
-  Palette,
-  Group,
-  Ungroup,
-  RectangleHorizontal,
-  MoveDownRight,
-  MoveUpLeft,
   Image,
   FileText,
-  Spline,
-  Minus,
-  MoveVertical,
-  Waypoints,
-  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,11 +26,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuPortal,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Label } from "./ui/label";
@@ -59,160 +42,53 @@ import { useToast } from "@/hooks/use-toast";
 import { updatePageContent } from "@/lib/actions";
 import { generateDiagram } from "@/ai/flows/generate-diagrams-from-text";
 import type { Page } from "@/lib/types";
-import ReactFlow, {
-  Background,
-  Controls,
-  MiniMap,
-  type Node,
-  type Edge,
-  type ProOptions,
-  useReactFlow,
-  useNodesState,
-  useEdgesState,
-  addEdge,
-  type Connection,
-  useOnSelectionChange,
-  MarkerType,
-} from 'reactflow';
 import { toPng } from 'html-to-image';
-import { useCallback, useState } from "react";
-import { DiagramEditorSidebar } from "./diagram-editor-sidebar";
 
-const proOptions: ProOptions = { hideAttribution: true };
+import { DiagramShell, MindMap, Flowchart, OrgChart } from './diagrams/diagrams_library.jsx';
+
 const diagramTypes = ['MindMap', 'Flowchart', 'OrgChart'];
-const nodeColors = [
-    { name: "Default", color: "#ffffff" },
-    { name: "Red", color: "#ffcdd2" },
-    { name: "Green", color: "#c8e6c9" },
-    { name: "Blue", color: "#bbdefb" },
-    { name: "Yellow", color: "#fff9c4" },
-    { name: "Purple", color: "#e1bee7" },
-];
+
+interface DiagramData {
+    nodes: any[];
+    edges: any[];
+}
 
 interface DiagramEditorProps {
   page: Page;
 }
 
 export function DiagramEditor({ page }: DiagramEditorProps) {
-  const [nodes, setNodes, onNodesChange] = useNodesState([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [data, setData] = React.useState<DiagramData>({ nodes: [], edges: [] });
   const [isSaving, setIsSaving] = React.useState(false);
   const [isGenerating, setIsGenerating] = React.useState(false);
 
   const [diagramContext, setDiagramContext] = React.useState("");
   const [diagramPrompt, setDiagramPrompt] = React.useState("");
   const [diagramType, setDiagramType] = React.useState<(typeof diagramTypes)[number]>("MindMap");
-
-  const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   
-  const [contextMenu, setContextMenu] = useState<{
-    id: string;
-    type: 'node' | 'edge';
-    top: number;
-    left: number;
-    right: number;
-    bottom: number;
-  } | null>(null);
-  const ref = React.useRef<HTMLDivElement>(null);
+  const diagramContainerRef = React.useRef<HTMLDivElement>(null);
 
   const { toast } = useToast();
-  const reactFlowInstance = useReactFlow();
-
-  const getSelectedNode = () => {
-    if (selectedNodeIds.length !== 1) return null;
-    return nodes.find(n => n.id === selectedNodeIds[0]) || null;
-  };
-
-  useOnSelectionChange({
-    onChange: ({ nodes }) => {
-      setSelectedNodeIds(nodes.map((node) => node.id));
-    },
-  });
 
   React.useEffect(() => {
     if (page.content) {
       try {
-        const data = JSON.parse(page.content);
-        if (data.nodes) setNodes(data.nodes);
-        if (data.edges) setEdges(data.edges);
+        const parsedData = JSON.parse(page.content);
+        setData(parsedData);
       } catch (e) {
-        setNodes([]);
-        setEdges([]);
+        setData({ nodes: [], edges: [] });
         console.error("Failed to parse page content as diagram data", e);
       }
     } else {
-        setNodes([]);
-        setEdges([]);
+        setData({ nodes: [], edges: [] });
     }
-  }, [page, setNodes, setEdges]);
-  
-  const onConnect = useCallback(
-    (params: Edge | Connection) => setEdges((eds) => addEdge({ ...params, type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed } }, eds)),
-    [setEdges]
-  );
-  
-  const onNodeDoubleClick = useCallback((event: React.MouseEvent, node: Node) => {
-    const newLabel = prompt("Enter new label:", node.data.label);
-    if (newLabel !== null && newLabel.trim() !== '') {
-      setNodes((nds) =>
-        nds.map((n) => {
-          if (n.id === node.id) {
-            return {
-              ...n,
-              data: {
-                ...n.data,
-                label: newLabel,
-              },
-            };
-          }
-          return n;
-        })
-      );
-    }
-  }, [setNodes]);
-
-  const onNodeContextMenu = useCallback(
-    (event: React.MouseEvent, node: Node) => {
-      event.preventDefault();
-      const pane = ref.current?.getBoundingClientRect();
-      if (!pane) return;
-      setContextMenu({
-        id: node.id,
-        type: 'node',
-        top: event.clientY,
-        left: event.clientX,
-        right: pane.width - event.clientX,
-        bottom: pane.height - event.clientY,
-      });
-    },
-    [setContextMenu]
-  );
-  
-  const onEdgeContextMenu = useCallback(
-    (event: React.MouseEvent, edge: Edge) => {
-      event.preventDefault();
-      const pane = ref.current?.getBoundingClientRect();
-      if (!pane) return;
-      setContextMenu({
-        id: edge.id,
-        type: 'edge',
-        top: event.clientY,
-        left: event.clientX,
-        right: pane.width - event.clientX,
-        bottom: pane.height - event.clientY,
-      });
-    },
-    [setContextMenu]
-  );
-
-  const onPaneClick = useCallback(() => setContextMenu(null), [setContextMenu]);
+  }, [page]);
 
   const handleSaveContent = async () => {
     setIsSaving(true);
-    const diagramData = { nodes: reactFlowInstance.getNodes(), edges: reactFlowInstance.getEdges() };
     const result = await updatePageContent({
       pageId: page.id,
-      content: JSON.stringify(diagramData, null, 2),
+      content: JSON.stringify(data, null, 2),
     });
 
     if (result.success) {
@@ -239,9 +115,24 @@ export function DiagramEditor({ page }: DiagramEditorProps) {
     try {
         const fullPrompt = `${diagramContext}\n\nPROMPT: ${diagramPrompt}`;
         const result = await generateDiagram({ text: fullPrompt, diagramType });
-        const data = JSON.parse(result.diagramData);
-        setNodes(data.nodes || []);
-        setEdges(data.edges || []);
+        const diagramData = JSON.parse(result.diagramData);
+        
+        // The library uses different prop names, so we need to adapt.
+        const adaptedData = {
+            nodes: diagramData.nodes.map((n: any) => ({
+                id: n.id,
+                label: n.data.label,
+                x: n.position.x / 10, // Adjust coordinates for the new library
+                y: n.position.y / 10,
+                color: n.style?.backgroundColor
+            })),
+            edges: diagramData.edges.map((e: any) => ({
+                from: e.source,
+                to: e.target
+            }))
+        };
+
+        setData(adaptedData);
         toast({ title: "Success", description: "Diagram generated." });
     } catch (error) {
         console.error("Error generating diagram:", error);
@@ -250,145 +141,15 @@ export function DiagramEditor({ page }: DiagramEditorProps) {
         setIsGenerating(false);
     }
   };
-  
-  const handleAddNode = () => {
-    if (reactFlowInstance.width === 0) {
-      // React Flow instance not ready yet
-      toast({ title: "Info", description: "Editor is initializing, please try again in a moment." });
-      return;
-    }
-
-    const newNodeId = `node-${nodes.length + 1}`;
-    const viewport = reactFlowInstance.getViewport();
-    const position = {
-        x: ( -viewport.x + reactFlowInstance.width / 2) / viewport.zoom,
-        y: ( -viewport.y + reactFlowInstance.height / 2) / viewport.zoom
-    };
-
-    const newNode: Node = {
-      id: newNodeId,
-      position,
-      data: { label: `New Node ${nodes.length + 1}` },
-      type: 'default',
-    };
-    setNodes((nds) => nds.concat(newNode));
-  };
-  
-  const setNodeStyle = (color: string) => {
-    if (!contextMenu) return;
-    setNodes((nds) =>
-      nds.map((n) => {
-        if (n.id === contextMenu.id) {
-          return { ...n, style: { ...n.style, backgroundColor: color } };
-        }
-        return n;
-      })
-    );
-    setContextMenu(null);
-  };
-
-  const setNodeType = (type: string) => {
-    if (!contextMenu) return;
-    setNodes((nds) =>
-      nds.map((n) => {
-        if (n.id === contextMenu.id) {
-          return { ...n, type };
-        }
-        return n;
-      })
-    );
-    setContextMenu(null);
-  };
-
-  const setEdgeStyle = (style: Partial<Edge>) => {
-    if (!contextMenu) return;
-    setEdges((eds) => 
-        eds.map((e) => {
-            if (e.id === contextMenu.id) {
-                const newEdge = { ...e, ...style };
-                if (style.style) {
-                    newEdge.style = { ...e.style, ...style.style };
-                }
-                return newEdge;
-            }
-            return e;
-        })
-    );
-    setContextMenu(null);
-  };
-
-  const handleGroupNodes = () => {
-    if (selectedNodeIds.length <= 1) {
-        toast({ title: "Info", description: "Select multiple nodes to group them." });
-        return;
-    }
-    const groupId = `group-${Date.now()}`;
-    const selectedNodes = nodes.filter(n => selectedNodeIds.includes(n.id) && !n.parentNode);
-
-    const minX = Math.min(...selectedNodes.map(n => n.position.x));
-    const minY = Math.min(...selectedNodes.map(n => n.position.y));
-    const maxX = Math.max(...selectedNodes.map(n => n.position.x + (n.width || 150)));
-    const maxY = Math.max(...selectedNodes.map(n => n.position.y + (n.height || 40)));
-
-    const groupNode: Node = {
-      id: groupId,
-      type: 'group',
-      position: { x: minX - 20, y: minY - 40 },
-      data: { label: 'New Group' },
-      style: {
-        width: maxX - minX + 40,
-        height: maxY - minY + 60,
-        backgroundColor: 'rgba(128, 128, 128, 0.1)',
-        borderColor: 'rgba(128, 128, 128, 0.3)',
-      },
-    };
-
-    setNodes(prevNodes => [
-      ...prevNodes.map(n => {
-        if (selectedNodeIds.includes(n.id)) {
-          return { ...n, parentNode: groupId, extent: 'parent' as const };
-        }
-        return n;
-      }),
-      groupNode,
-    ]);
-    
-    setContextMenu(null);
-  };
-
-  const handleUngroupNode = () => {
-    if (!contextMenu) return;
-    const nodeToUngroup = nodes.find(n => n.id === contextMenu.id);
-    if (!nodeToUngroup || !nodeToUngroup.parentNode) return;
-
-    setNodes(prevNodes =>
-      prevNodes.map(n => {
-        if (n.id === nodeToUngroup.id) {
-          const { parentNode, extent, ...rest } = n;
-          return rest;
-        }
-        return n;
-      })
-    );
-    setContextMenu(null);
-  };
-
-  const isNodeInGroup = () => {
-      if (!contextMenu) return false;
-      const node = nodes.find(n => n.id === contextMenu.id);
-      return !!node?.parentNode;
-  };
-  
     
     const handleExport = (format: 'png' | 'pdf') => {
-        const diagramNode = document.querySelector('.react-flow') as HTMLElement;
-        if (!diagramNode) {
+        if (!diagramContainerRef.current) {
             toast({ title: "Error", description: "Could not find diagram to export.", variant: "destructive" });
             return;
         }
 
         if (format === 'png') {
-            toPng(diagramNode, { cacheBust: true })
+            toPng(diagramContainerRef.current, { cacheBust: true })
                 .then((dataUrl) => {
                     const link = document.createElement('a');
                     link.download = `${page.title || 'diagram'}.png`;
@@ -406,55 +167,11 @@ export function DiagramEditor({ page }: DiagramEditorProps) {
 
 
   return (
-    <div className="flex h-full bg-background">
-      <div className="flex flex-col flex-1 h-full">
+    <div className="flex flex-col h-full bg-background">
         <header className="p-2 print-hidden sticky top-0 bg-background z-10 border-b">
             <div className="flex items-center justify-between p-2 rounded-t-md bg-secondary/50 flex-wrap">
               <div className="flex items-center gap-2 flex-wrap">
-                  <Dialog>
-                      <DialogTrigger asChild>
-                          <Button variant="ghost" size="sm">
-                              <Bot className="mr-2 h-4 w-4" />
-                              Generate with AI
-                          </Button>
-                      </DialogTrigger>
-                      <DialogContent className="sm:max-w-[425px]">
-                          <DialogHeader>
-                              <DialogTitle>Generate Diagram</DialogTitle>
-                              <DialogDescription>Create a diagram from text using AI.</DialogDescription>
-                          </DialogHeader>
-                          <div className="grid gap-4 py-4">
-                             <div className="grid gap-2">
-                                  <Label htmlFor="diagram-prompt">Generation Prompt</Label>
-                                  <Input id="diagram-prompt" value={diagramPrompt} onChange={(e) => setDiagramPrompt(e.target.value)} placeholder="e.g., Org chart of the British Royal Family" />
-                              </div>
-                              <div className="grid gap-2">
-                                  <Label htmlFor="diagram-text">Context (Optional)</Label>
-                                  <Textarea id="diagram-text" value={diagramContext} onChange={(e) => setDiagramContext(e.target.value)} placeholder="Paste your course notes or any relevant text here..." />
-                              </div>
-                              <div className="grid gap-2">
-                                  <Label htmlFor="diagram-type">Diagram Type</Label>
-                                  <Select onValueChange={(value: (typeof diagramTypes)[number]) => setDiagramType(value)} defaultValue={diagramType}>
-                                      <SelectTrigger><SelectValue /></SelectTrigger>
-                                      <SelectContent>
-                                      {diagramTypes.map(type => (
-                                          <SelectItem key={type} value={type}>{type}</SelectItem>
-                                      ))}
-                                      </SelectContent>
-                                  </Select>
-                              </div>
-                          </div>
-                          <DialogFooter>
-                              <DialogClose asChild><Button type="button" variant="secondary">Close</Button></DialogClose>
-                              <DialogClose asChild>
-                                  <Button onClick={handleGenerateDiagram} disabled={isGenerating}>
-                                      {isGenerating ? <LoaderCircle className="animate-spin" /> : "Generate"}
-                                  </Button>
-                              </DialogClose>
-                          </DialogFooter>
-                      </DialogContent>
-                  </Dialog>
-                  <Button variant="ghost" size="sm" onClick={handleAddNode}><Plus className="mr-2 h-4 w-4" />Add Node</Button>
+                  {/* AI Chat button will be placed here in a future step */}
               </div>
 
               <div className="flex items-center gap-2">
@@ -484,142 +201,13 @@ export function DiagramEditor({ page }: DiagramEditorProps) {
           </div>
         </header>
 
-        <main ref={ref} className="flex-1 w-full h-full printable-area">
-          <ReactFlow
-              nodes={nodes}
-              edges={edges}
-              onNodesChange={onNodesChange}
-              onEdgesChange={onEdgesChange}
-              onConnect={onConnect}
-              onPaneClick={onPaneClick}
-              onNodeContextMenu={onNodeContextMenu}
-              onEdgeContextMenu={onEdgeContextMenu}
-              onNodeDoubleClick={onNodeDoubleClick}
-              deleteKeyCode={['Backspace', 'Delete']}
-              fitView
-              proOptions={proOptions}
-          >
-              <Background />
-              <Controls />
-          </ReactFlow>
-          
-          {contextMenu && (
-              <DropdownMenu open onOpenChange={() => setContextMenu(null)}>
-                   <DropdownMenuPortal>
-                      <DropdownMenuContent
-                          className="w-48"
-                          style={{ top: contextMenu.top, left: contextMenu.left }}
-                          onCloseAutoFocus={(e) => e.preventDefault()}
-                      >
-                           {contextMenu.type === 'node' && (
-                                <>
-                                    <DropdownMenuSub>
-                                        <DropdownMenuSubTrigger>
-                                            <Palette className="mr-2 h-4 w-4" />
-                                            <span>Change Color</span>
-                                        </DropdownMenuSubTrigger>
-                                        <DropdownMenuPortal>
-                                            <DropdownMenuSubContent>
-                                                {nodeColors.map(({ name, color }) => (
-                                                    <DropdownMenuItem key={name} onClick={() => setNodeStyle(color)}>
-                                                        <div className="w-4 h-4 rounded-full mr-2" style={{ backgroundColor: color, border: '1px solid #ccc' }} />
-                                                        {name}
-                                                    </DropdownMenuItem>
-                                                ))}
-                                            </DropdownMenuSubContent>
-                                        </DropdownMenuPortal>
-                                    </DropdownMenuSub>
-                                    <DropdownMenuSub>
-                                        <DropdownMenuSubTrigger>
-                                            <RectangleHorizontal className="mr-2 h-4 w-4" />
-                                            <span>Change Shape</span>
-                                        </DropdownMenuSubTrigger>
-                                        <DropdownMenuPortal>
-                                            <DropdownMenuSubContent>
-                                                <DropdownMenuItem onClick={() => setNodeType('default')}>
-                                                    <RectangleHorizontal className="mr-2 h-4 w-4" /> Default
-                                                </DropdownMenuItem>
-                                                <DropdownMenuItem onClick={() => setNodeType('input')}>
-                                                    <MoveDownRight className="mr-2 h-4 w-4" /> Input
-                                                </DropdownMenuItem>
-                                                <DropdownMenuItem onClick={() => setNodeType('output')}>
-                                                    <MoveUpLeft className="mr-2 h-4 w-4" /> Output
-                                                </DropdownMenuItem>
-                                            </DropdownMenuSubContent>
-                                        </DropdownMenuPortal>
-                                    </DropdownMenuSub>
-
-                                    <DropdownMenuSeparator />
-
-                                    <DropdownMenuItem onClick={handleGroupNodes} disabled={selectedNodeIds.length <= 1}>
-                                        <Group className="mr-2 h-4 w-4" />
-                                        Group Selection
-                                    </DropdownMenuItem>
-                                    {isNodeInGroup() && (
-                                        <DropdownMenuItem onClick={handleUngroupNode}>
-                                            <Ungroup className="mr-2 h-4 w-4" />
-                                            Ungroup Node
-                                        </DropdownMenuItem>
-                                    )}
-                                </>
-                           )}
-                           {contextMenu.type === 'edge' && (
-                                <>
-                                    <DropdownMenuSub>
-                                        <DropdownMenuSubTrigger><Waypoints className="mr-2 h-4 w-4" /><span>Type de tracé</span></DropdownMenuSubTrigger>
-                                        <DropdownMenuPortal>
-                                            <DropdownMenuSubContent>
-                                                <DropdownMenuItem onClick={() => setEdgeStyle({ type: 'default' })}>Bézier</DropdownMenuItem>
-                                                <DropdownMenuItem onClick={() => setEdgeStyle({ type: 'smoothstep' })}>Arrondi</DropdownMenuItem>
-                                                <DropdownMenuItem onClick={() => setEdgeStyle({ type: 'step' })}>Orthogonal</DropdownMenuItem>
-                                                <DropdownMenuItem onClick={() => setEdgeStyle({ type: 'straight' })}>Droit</DropdownMenuItem>
-                                            </DropdownMenuSubContent>
-                                        </DropdownMenuPortal>
-                                    </DropdownMenuSub>
-                                    <DropdownMenuSub>
-                                        <DropdownMenuSubTrigger><Spline className="mr-2 h-4 w-4" /><span>Style de ligne</span></DropdownMenuSubTrigger>
-                                        <DropdownMenuPortal>
-                                            <DropdownMenuSubContent>
-                                                <DropdownMenuItem onClick={() => setEdgeStyle({ style: { strokeDasharray: undefined } })}>Plein</DropdownMenuItem>
-                                                <DropdownMenuItem onClick={() => setEdgeStyle({ style: { strokeDasharray: '5 5' } })}>Pointillés</DropdownMenuItem>
-                                                <DropdownMenuItem onClick={() => setEdgeStyle({ style: { strokeDasharray: '10 5' } })}>Tirets</DropdownMenuItem>
-                                            </DropdownMenuSubContent>
-                                        </DropdownMenuPortal>
-                                    </DropdownMenuSub>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem onClick={() => setEdgeStyle({ animated: true })}>
-                                        <Sparkles className="mr-2 h-4 w-4" /> Animer
-                                    </DropdownMenuItem>
-                                     <DropdownMenuItem onClick={() => setEdgeStyle({ animated: false })}>
-                                        <Minus className="mr-2 h-4 w-4" /> Stopper animation
-                                    </DropdownMenuItem>
-                                </>
-                           )}
-                      </DropdownMenuContent>
-                  </DropdownMenuPortal>
-              </DropdownMenu>
-          )}
-
+        <main ref={diagramContainerRef} className="flex-1 w-full h-full printable-area">
+          <DiagramShell>
+              {diagramType === 'MindMap' && <MindMap nodes={data.nodes} edges={data.edges} />}
+              {diagramType === 'Flowchart' && <Flowchart nodes={data.nodes} edges={data.edges} />}
+              {diagramType === 'OrgChart' && <OrgChart nodes={data.nodes} />}
+          </DiagramShell>
         </main>
-      </div>
-
-       <DiagramEditorSidebar
-            selectedNode={getSelectedNode()}
-            onNodeDataChange={(newData) => {
-                const selectedNode = getSelectedNode();
-                if (!selectedNode) return;
-                setNodes((nds) =>
-                    nds.map((n) => {
-                        if (n.id === selectedNode.id) {
-                            return { ...n, data: { ...n.data, ...newData } };
-                        }
-                        return n;
-                    })
-                );
-            }}
-        />
     </div>
   );
 }
-
-    
