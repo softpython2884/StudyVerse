@@ -225,3 +225,8 @@ body {
 .z-50.min-w-\[180px\] {
   @apply rounded-lg;
 }
+
+/* Hide React Flow attribution */
+.react-flow__attribution {
+  display: none !important;
+}

@@ -3,39 +3,26 @@
 
 import * as React from "react";
 import {
-  Save,
-  Share2,
-  Download,
   Bot,
-  Image,
-  FileText,
-  X,
-  Send,
   LoaderCircle,
+  Send,
+  X,
 } from "lucide-react";
 import ReactFlow, {
-  Controls,
   Background,
-  type Node,
+  Controls,
   type Edge,
+  type Node,
 } from "reactflow";
 
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { useToast } from "@/hooks/use-toast";
-import { updatePageContent } from "@/lib/actions";
-import type { Page } from "@/lib/types";
-import { toPng } from 'html-to-image';
 import { generateDiagram } from "@/ai/flows/generate-diagrams-from-text";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import { Input } from "./ui/input";
-import { ScrollArea } from "./ui/scroll-area";
-import { Avatar, AvatarFallback } from "./ui/avatar";
+import type { Page } from "@/lib/types";
+import { useToast } from "@/hooks/use-toast";
 
 interface DiagramData {
     nodes: Node[];
@@ -51,10 +38,23 @@ type ChatMessage = {
     content: string;
 };
 
+// Custom Node Component
+function CustomNode({ data }: { data: { label: string; description?: string } }) {
+  return (
+    <div className="p-4 rounded-lg shadow-md border border-border bg-card text-card-foreground min-w-[150px] max-w-xs">
+      <div className="font-bold text-sm mb-1">{data.label}</div>
+      {data.description && <p className="text-xs text-muted-foreground">{data.description}</p>}
+    </div>
+  );
+}
+
+const nodeTypes = {
+  custom: CustomNode,
+};
+
+
 export function DiagramEditor({ page }: DiagramEditorProps) {
   const [data, setData] = React.useState<DiagramData>({ nodes: [], edges: [] });
-  const [isSaving, setIsSaving] = React.useState(false);
-  const diagramContainerRef = React.useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
   // AI Panel State
@@ -66,9 +66,14 @@ export function DiagramEditor({ page }: DiagramEditorProps) {
   React.useEffect(() => {
     if (page.content) {
       try {
-        const parsedData = JSON.parse(page.content);
-        if (parsedData.nodes && parsedData.edges) {
-          setData(parsedData);
+        const parsedData: DiagramData = JSON.parse(page.content);
+         if (parsedData.nodes && parsedData.edges) {
+          // Ensure all nodes have a type, defaulting to 'custom'
+          const typedNodes = parsedData.nodes.map(node => ({
+            ...node,
+            type: node.type || 'custom',
+          }));
+          setData({ ...parsedData, nodes: typedNodes });
         } else {
           setData({ nodes: [], edges: [] });
         }
@@ -78,61 +83,11 @@ export function DiagramEditor({ page }: DiagramEditorProps) {
       }
     } else {
         setData({ nodes: [], edges: [] });
+        // Start with a helpful message in chat if the diagram is empty
+        setMessages([{ role: 'assistant', content: "I'm ready to help you build a diagram. What should we create first?" }]);
     }
   }, [page]);
-
-  const handleSaveContent = async () => {
-    setIsSaving(true);
-    const result = await updatePageContent({
-      pageId: page.id,
-      content: JSON.stringify(data, null, 2),
-    });
-
-    if (result.success) {
-      toast({
-        title: "Saved",
-        description: "Your diagram has been saved.",
-      });
-    } else {
-      toast({
-        title: "Error",
-        description: result.message,
-        variant: "destructive",
-      });
-    }
-    setIsSaving(false);
-  };
-    
-  const handleExport = (format: 'png' | 'pdf') => {
-      if (!diagramContainerRef.current) {
-          toast({ title: "Error", description: "Could not find diagram to export.", variant: "destructive" });
-          return;
-      }
-      
-      // Select the react-flow viewport for accurate export
-      const viewport = diagramContainerRef.current.querySelector('.react-flow__viewport');
-      if (!viewport) {
-           toast({ title: "Error", description: "Could not find diagram viewport.", variant: "destructive" });
-           return;
-      }
-
-      if (format === 'png') {
-          toPng(viewport as HTMLElement, { cacheBust: true, pixelRatio: 2 })
-              .then((dataUrl) => {
-                  const link = document.createElement('a');
-                  link.download = `${page.title || 'diagram'}.png`;
-                  link.href = dataUrl;
-                  link.click();
-              })
-              .catch((err) => {
-                  console.error(err);
-                  toast({ title: "Error", description: "Failed to export as PNG.", variant: "destructive" });
-              });
-      } else if (format === 'pdf') {
-          window.print();
-      }
-  };
-
+  
   const handleAiSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!userInput.trim() || isGenerating) return;
@@ -151,8 +106,13 @@ export function DiagramEditor({ page }: DiagramEditorProps) {
         });
 
         if (result.diagramData) {
-            const newDiagramData = JSON.parse(result.diagramData);
-            setData(newDiagramData);
+            const newDiagramData: DiagramData = JSON.parse(result.diagramData);
+            // Ensure all nodes have a 'custom' type to be rendered correctly
+            const typedNodes = newDiagramData.nodes.map(node => ({
+                ...node,
+                type: node.type || 'custom',
+            }));
+            setData({ ...newDiagramData, nodes: typedNodes });
         }
 
         const assistantMessage: ChatMessage = { role: 'assistant', content: result.response };
@@ -175,10 +135,11 @@ export function DiagramEditor({ page }: DiagramEditorProps) {
 
   return (
     <div className="flex h-full w-full bg-background relative">
-        <main ref={diagramContainerRef} className="flex-1 w-full h-full printable-area">
+        <main className="flex-1 w-full h-full printable-area">
              <ReactFlow
                 nodes={data.nodes}
                 edges={data.edges}
+                nodeTypes={nodeTypes}
                 fitView
                 className="bg-secondary/20"
              >
