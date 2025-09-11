@@ -1,8 +1,8 @@
 'use server';
 /**
- * @fileOverview AI agent that generates diagram data from text for React Flow.
+ * @fileOverview AI agent that generates and modifies diagram data from text for React Flow.
  *
- * - generateDiagram - A function that generates diagrams from text.
+ * - generateDiagram - A function that generates or modifies diagrams from text.
  * - GenerateDiagramInput - The input type for the generateDiagram function.
  * - GenerateDiagramOutput - The return type for the generateDiagram function.
  */
@@ -11,10 +11,12 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const GenerateDiagramInputSchema = z.object({
-  text: z.string().describe('The text to generate a diagram from.'),
   diagramType: z
     .enum(['MindMap', 'Flowchart', 'OrgChart'])
     .describe('The desired type of diagram to generate.'),
+  instruction: z.string().describe('The user instruction for what to generate or modify.'),
+  currentDiagram: z.string().optional().describe('A JSON string representing the current diagram data (nodes and edges). This is used for modifications.'),
+  chatHistory: z.string().optional().describe('A JSON string of the previous conversation history, for context.')
 });
 export type GenerateDiagramInput = z.infer<typeof GenerateDiagramInputSchema>;
 
@@ -22,8 +24,9 @@ const GenerateDiagramOutputSchema = z.object({
   diagramData: z
     .string()
     .describe(
-      'A JSON string representing the diagram data, compatible with the React Flow library. It must contain "nodes" and "edges" arrays.'
+      'A JSON string representing the final, complete diagram data, compatible with the React Flow library. It must contain "nodes" and "edges" arrays.'
     ),
+  response: z.string().describe("A conversational response to the user explaining what was done.")
 });
 export type GenerateDiagramOutput = z.infer<typeof GenerateDiagramOutputSchema>;
 
@@ -37,44 +40,43 @@ const prompt = ai.definePrompt({
   name: 'generateDiagramPrompt',
   input: {schema: GenerateDiagramInputSchema},
   output: {schema: GenerateDiagramOutputSchema},
-  prompt: `You are an expert data structure generator for diagrams, specifically for the React Flow library.
-Your task is to convert a natural language description into a valid JSON string that represents the data for a specified diagram type.
-The JSON must contain 'nodes' and 'edges' arrays.
-
-The user wants to generate a {{{diagramType}}} based on the following text:
-Text: {{{text}}}
+  prompt: `You are an expert AI assistant specializing in creating and modifying diagrams for the React Flow library.
+Your task is to interpret a user's instruction and generate or update a valid JSON string that represents the diagram data.
 
 CRITICAL INSTRUCTIONS:
-1.  **Analyze the text** to identify key concepts, entities, and their relationships.
-2.  **Create a deep, hierarchical structure**, especially for MindMap and OrgChart. Go at least 3-4 levels deep if the text allows.
-3.  **Generate 'nodes' array:**
-    - Each node MUST have a unique \`id\` (string).
-    - Each node MUST have a \`data.label\` (string) for its title.
-    - Each node MUST have a \`data.description\` (string) containing a detailed, researched explanation of that concept.
-    - Each node MUST have a \`position\` object with \`x\` and \`y\` coordinates. You must calculate logical positions to create a clean, readable, and non-overlapping layout. For a mind map, this is typically a radial layout. For a flowchart or org chart, this is typically top-down.
-    - For OrgChart, you can also add a \`data.parent\` field with the parent node ID.
-    - Advanced: You can add a 'type' for nodes (e.g., 'input', 'output', 'default') and a 'style' object for custom appearances (e.g., backgroundColor, borderColor).
-4.  **Generate 'edges' array:**
-    - Each edge MUST have a unique \`id\` (e.g., "e1-2").
-    - Each edge MUST have a \`source\` (the parent node's id).
-    - Each edge MUST have a \`target\` (the child node's id).
-    - Edges should have \`type: 'smoothstep'\` for better curves.
-    - Advanced: You can add a \`label\` to an edge to describe the relationship.
+1.  **Analyze the user's instruction** in the context of the chat history and the current diagram state.
+2.  **Output Format:** Your final output MUST be a single, valid JSON object containing two keys: "diagramData" and "response".
+    - \`diagramData\`: This MUST be a JSON-escaped string containing the complete, updated nodes and edges for the diagram. Do NOT output a partial diagram or just the changes. Output the full final state.
+    - \`response\`: This MUST be a friendly, conversational string explaining what you did.
 
-The output MUST be a single, valid JSON string, with no additional text, explanations, or markdown.
+3.  **Diagram Generation (if currentDiagram is empty):**
+    - Create a deep, hierarchical structure. Go at least 3-4 levels deep if the instruction allows.
+    - **Nodes:** Each node MUST have a unique \`id\`, a \`position\` {x, y}, and \`data\` containing a \`label\` and a detailed \`description\`. Calculate logical positions for a clean layout (radial for MindMap, top-down for Flowchart/OrgChart).
+    - **Edges:** Each edge MUST have a unique \`id\`, a \`source\`, and a \`target\`. Use \`type: 'smoothstep'\`.
 
-Example React Flow JSON:
-{
-  "nodes": [
-    { "id": "1", "type": "default", "data": { "label": "Central Idea", "description": "This is the core concept..." }, "position": { "x": 250, "y": 5 }, "style": { "backgroundColor": "#ffcc00" } },
-    { "id": "2", "type": "default", "data": { "label": "Branch 1", "description": "Explanation for branch 1..." }, "position": { "x": 100, "y": 100 } }
-  ],
-  "edges": [
-    { "id": "e1-2", "source": "1", "target": "2", "type": "smoothstep", "label": "leads to" }
-  ]
-}
+4.  **Diagram Modification (if currentDiagram is provided):**
+    - Parse the \`currentDiagram\` JSON string to understand the existing structure.
+    - Apply the user's instruction (add, remove, or modify nodes/edges).
+    - **Recalculate positions** of affected nodes to maintain a clean and readable layout. Do not let nodes overlap.
+    - **Maintain existing IDs** for nodes that are not removed. Generate new unique IDs for new nodes/edges.
+    - Return the **entire, new state** of the diagram in the \`diagramData\` field.
 
-Now, analyze the user's text and produce the corresponding JSON string.
+5.  **User Interaction:**
+    - The \`instruction\` is the latest request from the user.
+    - The \`chatHistory\` provides context for the conversation. Use it to understand follow-up requests.
+    - Your \`response\` should be concise and helpful.
+
+**CONTEXT FOR THIS REQUEST:**
+- **Diagram Type:** {{{diagramType}}}
+- **Chat History:**
+{{{chatHistory}}}
+- **Current Diagram JSON:**
+\`\`\`json
+{{{currentDiagram}}}
+\`\`\`
+- **User's Latest Instruction:** "{{{instruction}}}"
+
+Now, fulfill the user's request. Remember to provide the complete, updated diagram in the "diagramData" field and a friendly message in the "response" field.
 `,
 });
 
@@ -86,7 +88,13 @@ const generateDiagramFlow = ai.defineFlow(
   },
   async input => {
     try {
-      const {output} = await prompt(input);
+        // Provide default empty values if not present
+        const flowInput = {
+            ...input,
+            currentDiagram: input.currentDiagram || '{ "nodes": [], "edges": [] }',
+            chatHistory: input.chatHistory || '[]'
+        };
+      const {output} = await prompt(flowInput);
       return output!;
     } catch (e: any) {
         console.error("Error in generateDiagramFlow", e);
