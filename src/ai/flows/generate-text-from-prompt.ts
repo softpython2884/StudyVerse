@@ -1,8 +1,8 @@
 'use server';
 /**
- * @fileOverview An AI agent that generates text from a given prompt.
+ * @fileOverview An AI agent that generates or modifies text based on a prompt.
  *
- * - generateTextFromPrompt - A function that generates a detailed response to a prompt.
+ * - generateTextFromPrompt - A function that generates a detailed response to a prompt, potentially modifying a selection.
  * - GenerateTextFromPromptInput - The input type for the function.
  * - GenerateTextFromPromptOutput - The return type for the function.
  */
@@ -11,7 +11,8 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const GenerateTextFromPromptInputSchema = z.object({
-  prompt: z.string().describe('The user prompt to generate text from.'),
+  prompt: z.string().describe('The user instruction.'),
+  selection: z.string().optional().describe('The currently selected text (HTML format) to be modified. If empty, generate new content.'),
 });
 export type GenerateTextFromPromptInput = z.infer<
   typeof GenerateTextFromPromptInputSchema
@@ -20,7 +21,7 @@ export type GenerateTextFromPromptInput = z.infer<
 const GenerateTextFromPromptOutputSchema = z.object({
   response: z
     .string()
-    .describe('The generated text response. Should be well-formatted.'),
+    .describe('The generated or modified text, in HTML format.'),
 });
 export type GenerateTextFromPromptOutput = z.infer<
   typeof GenerateTextFromPromptOutputSchema
@@ -33,20 +34,27 @@ export async function generateTextFromPrompt(
 }
 
 const prompt = ai.definePrompt({
-  name: 'generateTextPrompt',
+  name: 'generateOrEditTextPrompt',
   input: {schema: GenerateTextFromPromptInputSchema},
   output: {schema: GenerateTextFromPromptOutputSchema},
-  prompt: `You are an expert writer and researcher. Your task is to generate a comprehensive, well-structured, and detailed document based on the user's prompt.
+  prompt: `You are an expert writing assistant. Your task is to process a user's prompt and either generate new content or modify existing content.
 
-Follow these steps:
-1.  Thoroughly analyze the user's prompt to understand the core topic and requirements.
-2.  If the topic is complex, break it down into logical main sections.
-3.  For each main section, create detailed subsections and even sub-subsections if necessary to cover the topic exhaustively.
-4.  Write detailed, informative, and engaging content for each section and subsection.
-5.  Format the entire output in clean, simple HTML, using appropriate tags like <h1>, <h2>, <h3>, <p>, <ul>, <ol>, <li>, <b>, and <i>.
-6.  The final output should be a complete document, ready to be inserted into a rich text editor. Do not include any explanations, only the HTML content.
+CRITICAL INSTRUCTIONS:
+1.  **Analyze the user's prompt** to understand their intent.
+2.  **Check for existing content:**
+    -   **If "selection" is provided:** Modify the HTML content in "selection" according to the user's "prompt". PRESERVE the original HTML structure and tags as much as possible, only changing the text content as requested.
+    -   **If "selection" is empty:** Generate a new, comprehensive document based on the user's "prompt". Structure the output with appropriate HTML tags (<h1>, <h2>, <p>, <ul>, etc.).
+3.  **Output Format:** Your final output MUST be a single, valid JSON object with a "response" field containing the complete, resulting HTML. Do not include any explanations, markdown, or any text outside of the JSON structure.
 
-Prompt: {{{prompt}}}
+USER PROMPT:
+"{{{prompt}}}"
+
+{{#if selection}}
+EXISTING CONTENT TO MODIFY:
+\`\`\`html
+{{{selection}}}
+\`\`\`
+{{/if}}
 `,
 });
 
@@ -57,7 +65,15 @@ const generateTextFromPromptFlow = ai.defineFlow(
     outputSchema: GenerateTextFromPromptOutputSchema,
   },
   async input => {
-    const {output} = await prompt(input);
-    return output!;
+     try {
+      const {output} = await prompt(input);
+      return output!;
+    } catch (e: any) {
+        console.error("Error in generateTextFromPromptFlow", e);
+        if (e.message && (e.message.includes('503') || e.message.toLowerCase().includes('model is overloaded'))) {
+            throw new Error("The AI service is currently overloaded. Please wait a moment and try again.");
+        }
+        throw new Error("An unexpected error occurred while generating the text.");
+    }
   }
 );

@@ -41,6 +41,7 @@ import {
   Subscript,
   MessageSquarePlus,
   Bot,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -74,6 +75,7 @@ import showdown from 'showdown';
 import { generateDiagram } from "@/ai/flows/generate-diagrams-from-text";
 import { DiagramRenderer } from "./diagram-renderer";
 import { CustomContextMenu } from "./custom-context-menu";
+import { generateTextFromPrompt } from "@/ai/flows/generate-text-from-prompt";
 
 interface EditorProps {
   page: Page;
@@ -118,6 +120,12 @@ export function Editor({ page }: EditorProps) {
       selectedText: '',
       selectedHtml: ''
   });
+  
+  // --- AI Palette State ---
+  const [isAiPaletteOpen, setIsAiPaletteOpen] = React.useState(false);
+  const [aiPalettePrompt, setAiPalettePrompt] = React.useState("");
+  const [isGeneratingText, setIsGeneratingText] = React.useState(false);
+
 
   // --- SELECTION MARKER HELPERS ---
   const savedSelection = React.useRef<Range | null>(null);
@@ -202,7 +210,7 @@ export function Editor({ page }: EditorProps) {
         const { nodes, edges } = data;
         
         const diagramElement = (
-            <DiagramRenderer type={type} initialNodes={nodes} initialEdges={edges} />
+            <DiagramRenderer type={type} initialNodes={nodes} edges={initialEdges} />
         );
 
         const root = createRoot(container);
@@ -609,8 +617,58 @@ const handleGenerateDiagram = async () => {
     }
 };
 
+  const handleGenerateText = async () => {
+    if (!aiPalettePrompt) {
+        toast({ title: "Error", description: "A prompt is required.", variant: "destructive" });
+        return;
+    }
+    
+    setIsGeneratingText(true);
+    restoreSelection();
+    
+    const selection = window.getSelection();
+    let selectedHtml = '';
+
+    if (selection && selection.rangeCount > 0 && !selection.getRangeAt(0).collapsed) {
+        const range = selection.getRangeAt(0);
+        const container = document.createElement("div");
+        container.appendChild(range.cloneContents());
+        selectedHtml = container.innerHTML;
+    }
+
+    try {
+      const result = await generateTextFromPrompt({
+        prompt: aiPalettePrompt,
+        selection: selectedHtml || undefined,
+      });
+
+      if (result.response) {
+        editorRef.current?.focus();
+        document.execCommand('insertHTML', false, result.response);
+        toast({ title: "Success", description: "Text has been updated." });
+      } else {
+        throw new Error("The AI did not return a response.");
+      }
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally {
+      setIsGeneratingText(false);
+      setIsAiPaletteOpen(false);
+      setAiPalettePrompt("");
+    }
+  };
+
+
   // KeyDown handles shortcuts + Enter special behavior + checklist/tab navigation + headings via Ctrl+Shift+N
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    
+     if (event.ctrlKey && event.key === ' ') {
+      event.preventDefault();
+      saveSelection();
+      setIsAiPaletteOpen(true);
+      return;
+    }
+    
     // Enter key logic
     if (event.key === 'Enter' && !event.shiftKey) {
         const sel = window.getSelection();
@@ -1345,6 +1403,28 @@ const handleGenerateDiagram = async () => {
           </div>
         </DialogContent>
       </Dialog>
+      
+      <Dialog open={isAiPaletteOpen} onOpenChange={setIsAiPaletteOpen}>
+          <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                  <DialogTitle>Ask AI</DialogTitle>
+                  <DialogDescription>Enter an instruction to generate or modify text.</DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                 <div className="grid gap-2">
+                      <Label htmlFor="ai-prompt">Your Instruction</Label>
+                      <Textarea id="ai-prompt" value={aiPalettePrompt} onChange={(e) => setAiPalettePrompt(e.target.value)} placeholder="e.g., Summarize the selected text..." />
+                  </div>
+              </div>
+              <DialogFooter>
+                  <Button type="button" variant="secondary" onClick={() => setIsAiPaletteOpen(false)}>Close</Button>
+                  <Button onClick={handleGenerateText} disabled={isGeneratingText}>
+                      {isGeneratingText ? <Sparkles className="animate-spin" /> : "Generate"}
+                  </Button>
+              </DialogFooter>
+          </DialogContent>
+      </Dialog>
+
 
       <Dialog open={diagramState.isOpen} onOpenChange={(isOpen) => setDiagramState({ ...diagramState, isOpen })}>
           <DialogContent className="sm:max-w-[425px]">
