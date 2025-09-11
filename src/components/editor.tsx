@@ -115,7 +115,8 @@ export function Editor({ page }: EditorProps) {
       open: false,
       x: 0,
       y: 0,
-      selectedText: ''
+      selectedText: '',
+      selectedHtml: ''
   });
 
   // --- SELECTION MARKER HELPERS ---
@@ -1051,11 +1052,15 @@ const handleGenerateDiagram = async () => {
     }
   }, [toc]);
 
-  const handleReplaceText = (newText: string) => {
+  const handleReplaceText = (newText: string, isHtml: boolean = false) => {
     restoreSelection();
     editorRef.current?.focus();
     setTimeout(() => {
-        document.execCommand('insertHTML', false, newText);
+        if (isHtml) {
+             document.execCommand('insertHTML', false, newText);
+        } else {
+            document.execCommand('insertText', false, newText);
+        }
     }, 0);
   };
 
@@ -1063,11 +1068,21 @@ const handleGenerateDiagram = async () => {
       e.preventDefault();
       saveSelection();
       const selection = window.getSelection();
+      
+      let html = '';
+      if (selection && selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        const container = document.createElement('div');
+        container.appendChild(range.cloneContents());
+        html = container.innerHTML;
+      }
+      
       setContextMenu({
           open: true,
           x: e.clientX,
           y: e.clientY,
-          selectedText: selection?.toString().trim() || ''
+          selectedText: selection?.toString().trim() || '',
+          selectedHtml: html,
       });
   };
 

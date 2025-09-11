@@ -11,7 +11,7 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const SpellCheckInputSchema = z.object({
-  text: z.string().describe('The text to be checked.'),
+  text: z.string().describe('The HTML text to be checked.'),
 });
 export type SpellCheckInput = z.infer<typeof SpellCheckInputSchema>;
 
@@ -19,7 +19,7 @@ const SpellCheckOutputSchema = z.object({
   correctedText: z
     .string()
     .describe(
-      'The corrected text. If there are no corrections, return the original text.'
+      'The corrected HTML text. If there are no corrections, return the original HTML text.'
     ),
 });
 export type SpellCheckOutput = z.infer<typeof SpellCheckOutputSchema>;
@@ -39,12 +39,13 @@ const prompt = ai.definePrompt({
   input: {schema: SpellCheckInputSchema},
   output: {schema: SpellCheckOutputSchema},
   prompt: `You are an expert spell and grammar checker.
-First, automatically detect the language of the text.
-Then, correct the spelling and grammar of the following text in its detected language.
-Only return the corrected text, without any preamble, explanation, or markdown.
-If no corrections are needed, return the original text.
+First, automatically detect the language of the provided HTML content.
+Then, correct the spelling and grammar of the text content within the HTML.
+CRITICAL: Only modify the text content. Do NOT alter any HTML tags, attributes, or the overall structure.
+Only return the corrected HTML, without any preamble, explanation, or markdown.
+If no corrections are needed, return the original HTML text.
 
-Text: {{{text}}}
+HTML Text: {{{text}}}
 `,
 });
 

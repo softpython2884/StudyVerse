@@ -19,6 +19,7 @@ import { translateText } from '@/ai/flows/translate-text';
 import { useToast } from '@/hooks/use-toast';
 import { useState } from 'react';
 import { Loader2, PenLine, Sparkles, Wand, Languages, Scissors, Copy, ClipboardPaste } from 'lucide-react';
+import { Button } from './ui/button';
 
 interface CustomContextMenuProps {
   open: boolean;
@@ -26,7 +27,8 @@ interface CustomContextMenuProps {
   x: number;
   y: number;
   selectedText: string;
-  onReplaceText: (newText: string) => void;
+  selectedHtml: string;
+  onReplaceText: (newText: string, isHtml?: boolean) => void;
 }
 
 const targetLanguages = ['English', 'Spanish', 'German', 'Japanese', 'Chinese'];
@@ -37,6 +39,7 @@ export function CustomContextMenu({
   x,
   y,
   selectedText,
+  selectedHtml,
   onReplaceText,
 }: CustomContextMenuProps) {
   const { toast } = useToast();
@@ -47,10 +50,18 @@ export function CustomContextMenu({
         try {
             const clipboardItems = await navigator.clipboard.read();
             for (const item of clipboardItems) {
+                // Prefer HTML content if available
+                if (item.types.includes("text/html")) {
+                    const blob = await item.getType("text/html");
+                    const html = await blob.text();
+                    onReplaceText(html, true);
+                    break;
+                }
+                // Fallback to plain text
                 if (item.types.includes("text/plain")) {
                     const blob = await item.getType("text/plain");
                     const text = await blob.text();
-                    onReplaceText(text);
+                    onReplaceText(text, false);
                     break;
                 }
             }
@@ -66,30 +77,60 @@ export function CustomContextMenu({
     }
     onOpenChange(false);
   }
+  
+  const showSuggestionToast = (title: string, suggestion: string) => {
+    toast({
+      title: title,
+      description: "Review the suggestion below.",
+      duration: 10000,
+      action: (
+        <div className="flex flex-col gap-2 items-start w-full">
+            <div className="p-2 border rounded-md bg-secondary text-secondary-foreground max-h-20 overflow-y-auto w-full">
+                <div dangerouslySetInnerHTML={{ __html: suggestion }}></div>
+            </div>
+            <Button
+                size="sm"
+                onClick={() => {
+                    onReplaceText(suggestion, true);
+                    toast().dismiss();
+                }}
+            >
+            Accept
+          </Button>
+        </div>
+      ),
+    });
+  }
+
 
   const handleAiAction = async (actionType: 'spellcheck' | 'answer' | 'refine' | 'translate', lang?: string) => {
-    if (!selectedText) return;
+    const textToProcess = actionType === 'answer' ? selectedText : selectedHtml;
+    if (!textToProcess) return;
 
     const loadingId = lang ? `${actionType}:${lang}` : actionType;
     setIsLoading(loadingId);
     try {
         switch (actionType) {
             case 'spellcheck':
-                const spellResult = await spellCheck({ text: selectedText });
-                onReplaceText(spellResult.correctedText);
+                const spellResult = await spellCheck({ text: textToProcess });
+                if (spellResult.correctedText.trim() !== textToProcess.trim()) {
+                     showSuggestionToast("Correction Suggestion", spellResult.correctedText);
+                } else {
+                    toast({ title: "No corrections found." });
+                }
                 break;
-            case 'answer':
-                const answerResult = await getBriefAnswer({ question: selectedText });
-                toast({ title: 'Brief Answer', description: answerResult.answer });
+            case 'answer': // This still uses plain text
+                const answerResult = await getBriefAnswer({ question: textToProcess });
+                toast({ title: 'Brief Answer', description: answerResult.answer, duration: 10000 });
                 break;
             case 'refine':
-                const refineResult = await refineAndStructureNotes({ rawNotes: selectedText });
-                onReplaceText(refineResult.refinedNotes);
+                const refineResult = await refineAndStructureNotes({ rawNotes: textToProcess });
+                 showSuggestionToast("Refinement Suggestion", refineResult.refinedNotes);
                 break;
             case 'translate':
                  if (lang) {
-                    const translateResult = await translateText({ text: selectedText, targetLanguage: lang });
-                    onReplaceText(translateResult.translatedText);
+                    const translateResult = await translateText({ text: textToProcess, targetLanguage: lang });
+                    showSuggestionToast(`Translation to ${lang}`, translateResult.translatedText);
                 }
                 break;
         }
