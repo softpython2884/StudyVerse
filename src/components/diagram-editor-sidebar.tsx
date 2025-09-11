@@ -1,6 +1,7 @@
 
 "use client";
 
+import * as React from "react";
 import { useEffect, useState } from "react";
 import { type Node } from "reactflow";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
