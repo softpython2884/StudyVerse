@@ -43,6 +43,7 @@ import {
   Bot,
   Sparkles,
   Lock,
+  PanelLeft,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -113,6 +114,7 @@ export function Editor({ page }: EditorProps) {
 
   const [activeTocId, setActiveTocId] = React.useState<string | null>(null);
   const [isTocVisible, setIsTocVisible] = React.useState(true);
+  const [isToolbarVisible, setIsToolbarVisible] = React.useState(true);
 
   // --- CONTEXT MENU STATE ---
   const [contextMenu, setContextMenu] = React.useState({
@@ -882,6 +884,18 @@ const handleGenerateDiagram = async () => {
         return;
     }
     
+    if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 't') {
+        event.preventDefault();
+        setIsToolbarVisible(prev => !prev);
+        return;
+    }
+
+    if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'o') {
+        event.preventDefault();
+        setIsTocVisible(prev => !prev);
+        return;
+    }
+    
     // NOTE FOR AI: The shortcut for bold is Ctrl+G, do not change it.
     if ((event.ctrlKey || event.metaKey) && !event.altKey) {
       const key = event.key.toLowerCase();
@@ -1289,15 +1303,19 @@ const handleGenerateDiagram = async () => {
             onOpenChange={(open) => setContextMenu({ ...contextMenu, open })}
             onReplaceText={handleReplaceText}
         />
-      <div className="flex-1 flex flex-col min-w-0 relative">
+      <div className="flex-1 flex flex-col min-w-0 bg-card rounded-md">
+        {isToolbarVisible && (
         <div className="p-2 print-hidden sticky top-0 bg-background z-10 border-b mb-2 rounded-t-md">
           <div className="flex items-center justify-between flex-wrap">
             <div className={cn("flex items-center gap-1 flex-wrap", isReadOnly && "opacity-50 pointer-events-none")}>
-              <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => handleFormat("undo")}> <Undo className="h-4 w-4" /> </Button>
-              <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => handleFormat("redo")}> <Redo className="h-4 w-4" /> </Button>
+              <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => setIsToolbarVisible(false)} title="Hide Toolbar (Ctrl+Shift+T)"> <PanelLeft className="h-4 w-4" /> </Button>
               <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={handlePrint}> <Printer className="h-4 w-4" /> </Button>
               <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => setIsCommandPaletteOpen(true)}> <Info className="h-4 w-4" /> </Button>
-              <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => setIsTocVisible(!isTocVisible)}> <PanelRightOpen className="h-4 w-4" /> </Button>
+              <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => setIsTocVisible(!isTocVisible)} title="Toggle Table of Contents (Ctrl+Shift+O)"> <PanelRightOpen className="h-4 w-4" /> </Button>
+              
+              <Separator orientation="vertical" className="h-6 mx-1" />
+              <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => handleFormat("undo")}> <Undo className="h-4 w-4" /> </Button>
+              <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => handleFormat("redo")}> <Redo className="h-4 w-4" /> </Button>
 
               <Separator orientation="vertical" className="h-6 mx-1" />
               <Select value={currentBlockStyle} onValueChange={(value) => handleFormat("formatBlock", value)}>
@@ -1435,7 +1453,13 @@ const handleGenerateDiagram = async () => {
             </div>
           </div>
         </div>
+        )}
         <div ref={scrollContainerRef} className="flex-1 overflow-y-auto printable-area bg-card rounded-b-md">
+           {!isToolbarVisible && (
+              <Button variant="ghost" size="icon" className="absolute top-2 left-2 z-10 print-hidden" onMouseDown={onToolbarMouseDown} onClick={() => setIsToolbarVisible(true)} title="Show Toolbar (Ctrl+Shift+T)">
+                <PanelLeft className="h-4 w-4" />
+              </Button>
+            )}
           <div
             ref={editorRef}
             key={page.id}
@@ -1493,6 +1517,11 @@ const handleGenerateDiagram = async () => {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2 text-sm">
+            <h3 className="font-semibold">General</h3>
+            <ul className="list-disc list-inside text-muted-foreground">
+               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Shift+T</kbd> - Toggle Toolbar</li>
+               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+Shift+O</kbd> - Toggle Table of Contents</li>
+            </ul>
             <h3 className="font-semibold">Text Formatting</h3>
             <ul className="list-disc list-inside text-muted-foreground">
               <li><kbd className="p-1 bg-muted rounded-md">Ctrl+G</kbd> - Bold</li>
@@ -1589,3 +1618,5 @@ const handleGenerateDiagram = async () => {
     </div>
   );
 }
+
+    
