@@ -15,6 +15,7 @@ const GenerateDiagramInputSchema = z.object({
     .enum(['MindMap', 'Flowchart', 'OrgChart'])
     .describe('The desired type of diagram to generate.'),
   instruction: z.string().describe('The user instruction for what to generate or modify.'),
+  complexity: z.enum(['Simple', 'Detailed', 'Exhaustive']).optional().describe('The desired complexity and level of detail for the diagram.'),
   existingDiagramData: z.string().optional().describe('A JSON string of the existing diagram data (nodes and edges) to be modified. If this is provided, the instruction should be treated as a modification request.'),
 });
 export type GenerateDiagramInput = z.infer<typeof GenerateDiagramInputSchema>;
@@ -44,22 +45,26 @@ Your task is to interpret a user's instruction, research the topic thoroughly, a
 
 CRITICAL INSTRUCTIONS:
 1.  **Analyze and Research:** Deeply analyze the user's instruction. Use your internal knowledge base as if you were searching the internet (like Wikipedia) to gather comprehensive information on the topic. Your goal is to produce a rich, educational diagram.
-2.  **Generate Detailed Content:** For each node in the diagram, you MUST provide a detailed \`description\`. This is not optional. The description should be a comprehensive summary explaining the "what, why, how," and the history of the item. For example, if the user asks for "major figures of the Spanish colonization," for each person, describe who they were, what they did, their motivations, goals, and historical impact.
-3.  **Check for Existing Data:**
+2.  **Adhere to Complexity:** The user has specified a desired complexity level. You MUST adhere to it.
+    - **Simple:** Provide a high-level overview. Include only the most critical points (approx. 5-10 nodes).
+    - **Detailed:** Provide a comprehensive diagram. Go 2-3 levels deep with significant detail (approx. 15-30 nodes). This is the default.
+    - **Exhaustive:** Create a very deep, hierarchical structure. Go 4+ levels deep, covering the topic extensively (40+ nodes).
+3.  **Generate Detailed Content:** For each node in the diagram, you MUST provide a detailed \`description\`. This is not optional. The description should be a comprehensive summary explaining the "what, why, how," and the history of the item. For example, if the user asks for "major figures of the Spanish colonization," for each person, describe who they were, what they did, their motivations, goals, and historical impact.
+4.  **Check for Existing Data:**
     - **If "existingDiagramData" is provided:** You MUST treat this as a modification request. Modify the provided JSON based on the new "instruction". Do not start from scratch. Add, remove, or change nodes and edges as requested.
     - **If "existingDiagramData" is NOT provided:** Generate a new diagram from scratch based on the "instruction".
-4.  **Output Format:** Your final output MUST be a single, valid JSON object containing "diagramData" and "response".
+5.  **Output Format:** Your final output MUST be a single, valid JSON object containing "diagramData" and "response".
     - \`diagramData\`: This MUST be a JSON-escaped string containing the complete nodes and edges for the diagram.
     - \`response\`: A friendly, conversational string explaining what you did (e.g., "I've created a detailed mind map for you about Spanish Colonization.").
 
-5.  **Diagram Generation & Layout:**
-    - Create a deep, hierarchical structure. Go at least 3-4 levels deep, and feel free to go even deeper if the topic is complex and warrants it. You are encouraged to create very detailed diagrams.
-    - For new diagrams, create a clear, spatially-aware layout. For mind maps, radiate from a central point. **CRITICAL: Ensure nodes do not overlap. Assume each node is about 200px wide and 100px high and leave ample space between them.**
+6.  **Diagram Generation & Layout:**
+    - Create a clear, spatially-aware layout. For mind maps, radiate from a central point. **CRITICAL: Ensure nodes do not overlap. Assume each node is about 200px wide and 100px high and leave ample space between them.**
     - **Nodes:** Each node MUST have a unique \`id\`, a \`label\`, a detailed \`description\`, and a relative \`x\` and \`y\` position (from 0 to 100). You can also add a 'color' property (hex or tailwind color class) for thematic coloring.
     - **Edges:** Each edge MUST have a unique \`id\`, a \`from\`, and a \`to\` property, referencing node IDs.
 
 **CONTEXT FOR THIS REQUEST:**
 - **Diagram Type:** {{{diagramType}}}
+- **Desired Complexity:** {{{complexity}}}
 - **User's Instruction:** "{{{instruction}}}"
 {{#if existingDiagramData}}
 - **Existing Diagram Data to Modify:**
@@ -68,7 +73,7 @@ CRITICAL INSTRUCTIONS:
 \`\`\`
 {{/if}}
 
-Now, fulfill the user's request. Remember to research the topic thoroughly, provide a complete, updated diagram in the "diagramData" field, and a friendly message in the "response" field.
+Now, fulfill the user's request. Remember to adhere to the complexity level, research the topic thoroughly, provide a complete, updated diagram in the "diagramData" field, and a friendly message in the "response" field.
 `,
 });
 

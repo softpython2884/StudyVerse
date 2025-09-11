@@ -100,6 +100,7 @@ type TocItem = {
 };
 
 const diagramTypes = ['MindMap', 'Flowchart', 'OrgChart'];
+const diagramComplexities = ['Simple', 'Detailed', 'Exhaustive'];
 
 export function Editor({ page }: EditorProps) {
   const [isSaving, setIsSaving] = React.useState(false);
@@ -171,6 +172,7 @@ export function Editor({ page }: EditorProps) {
   const [diagramState, setDiagramState] = React.useState({
       instruction: "",
       type: "MindMap" as (typeof diagramTypes)[number],
+      complexity: "Detailed" as (typeof diagramComplexities)[number],
       isOpen: false,
       editingTarget: null as HTMLElement | null,
   });
@@ -608,6 +610,7 @@ const handleGenerateDiagram = async () => {
         const result = await generateDiagram({
             instruction: diagramState.instruction,
             diagramType: diagramState.type,
+            complexity: diagramState.complexity,
             existingDiagramData: existingData,
         });
 
@@ -658,7 +661,7 @@ const handleGenerateDiagram = async () => {
         toast({ title: "Error", description: `Failed to create diagram: ${e.message}`, variant: "destructive" });
     } finally {
         setIsGenerating(false);
-        setDiagramState({ isOpen: false, instruction: "", type: "MindMap", editingTarget: null });
+        setDiagramState({ ...diagramState, isOpen: false, instruction: "", editingTarget: null });
     }
 };
 
@@ -1202,6 +1205,7 @@ const handleGenerateDiagram = async () => {
               isOpen: true,
               type: type || 'MindMap',
               instruction: decodedInstruction,
+              complexity: 'Detailed', // Default to detailed when editing
               editingTarget: diagramContainer as HTMLElement,
           });
       } else {
@@ -1534,6 +1538,18 @@ const handleGenerateDiagram = async () => {
                           </SelectContent>
                       </Select>
                   </div>
+                   <div className="grid gap-2">
+                        <Label htmlFor="diagram-complexity">Complexity</Label>
+                        <Select onValueChange={(value: (typeof diagramComplexities)[number]) => setDiagramState({...diagramState, complexity: value})} value={diagramState.complexity}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                            {diagramComplexities.map(c => (
+                                <SelectItem key={c} value={c}>{c}</SelectItem>
+                            ))}
+                            </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">Exhaustive diagrams may take longer to generate.</p>
+                    </div>
               </div>
               <DialogFooter>
                   <Button type="button" variant="secondary" onClick={() => setDiagramState({...diagramState, isOpen: false, instruction: '', editingTarget: null})}>Close</Button>
