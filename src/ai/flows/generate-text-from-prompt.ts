@@ -70,10 +70,22 @@ const generateTextFromPromptFlow = ai.defineFlow(
       const {output} = await prompt(input);
       return output || { response: "" };
     } catch (e: any) {
-        console.error("Error in generateTextFromPromptFlow", e);
-        if (e.message && (e.message.includes('503') || e.message.toLowerCase().includes('model is overloaded'))) {
+        console.error("Error in generateTextFromPromptFlow:", e);
+        const errorMessage = e.message?.toLowerCase() || '';
+
+        if (errorMessage.includes('503') || errorMessage.includes('model is overloaded')) {
             return { response: "", error: "The AI service is currently overloaded. Please wait a moment and try again." };
         }
+        if (errorMessage.includes('429')) {
+             return { response: "", error: "You've made too many requests recently. Please wait a bit before trying again." };
+        }
+        if (errorMessage.includes('safety')) {
+            return { response: "", error: "The request was blocked due to safety concerns. Please modify your prompt and try again." };
+        }
+        if (errorMessage.includes('400')) {
+            return { response: "", error: "The request was invalid. Please check your instructions and try again." };
+        }
+
         return { response: "", error: "An unexpected error occurred while generating the text." };
     }
   }

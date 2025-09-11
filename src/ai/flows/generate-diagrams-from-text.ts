@@ -83,10 +83,22 @@ const generateDiagramFlow = ai.defineFlow(
       const {output} = await prompt(input);
       return output!;
     } catch (e: any) {
-        console.error("Error in generateDiagramFlow", e);
-        if (e.message && (e.message.includes('503') || e.message.toLowerCase().includes('model is overloaded'))) {
+        console.error("Error in generateDiagramFlow:", e);
+        const errorMessage = e.message?.toLowerCase() || '';
+
+        if (errorMessage.includes('503') || errorMessage.includes('model is overloaded')) {
             throw new Error("The AI service is currently overloaded. Please wait a moment and try again.");
         }
+        if (errorMessage.includes('429')) {
+             throw new Error("You've made too many requests recently. Please wait a bit before trying again.");
+        }
+        if (errorMessage.includes('safety')) {
+            throw new Error("The request was blocked due to safety concerns. Please modify your prompt and try again.");
+        }
+        if (errorMessage.includes('400')) {
+            throw new Error("The request was invalid. Please check your instructions and try again.");
+        }
+
         throw new Error("An unexpected error occurred while generating the diagram.");
     }
   }
