@@ -41,13 +41,6 @@ import {
   Superscript,
   Subscript,
   MessageSquarePlus,
-  Copy,
-  Scissors,
-  ClipboardPaste,
-  Sparkles,
-  LoaderCircle,
-  MessageCircleQuestion,
-  Book,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -76,12 +69,8 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "./ui/label";
 import { Textarea } from "./ui/textarea";
-import { refineAndStructureNotes } from "@/ai/flows/refine-and-structure-notes";
 import { cn } from "@/lib/utils";
 import showdown from 'showdown';
-import { spellCheck } from "@/ai/flows/spell-check-flow";
-import { generateTextFromPrompt } from "@/ai/flows/generate-text-from-prompt";
-import { getBriefAnswer } from "@/ai/flows/get-brief-answer";
 import { useParams, useRouter } from "next/navigation";
 
 interface EditorProps {
@@ -103,12 +92,6 @@ type TocItem = {
   id: string;
   level: number;
   text: string;
-};
-
-type AiSuggestion = {
-    originalRange: Range;
-    suggestionText: string;
-    position: { top: number; left: number };
 };
 
 const diagramTypes = ['MindMap', 'Flowchart', 'OrgChart'];
@@ -167,7 +150,6 @@ export function Editor({ page }: EditorProps) {
 
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [htmlToInsert, setHtmlToInsert] = React.useState("");
-  const [promptToGenerate, setPromptToGenerate] = React.useState("");
   
   const [diagramState, setDiagramState] = React.useState({
       title: "",
@@ -183,17 +165,7 @@ export function Editor({ page }: EditorProps) {
   const [isTablePopoverOpen, setIsTablePopoverOpen] = React.useState(false);
   const [tableGridSize, setTableGridSize] = React.useState({ rows: 0, cols: 0 });
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = React.useState(false);
-  const [isPromptDialogOpen, setIsPromptDialogOpen] = React.useState(false);
-
   
-  const [contextMenu, setContextMenu] = React.useState<{ x: number; y: number; visible: boolean; isTextSelected: boolean }>({
-    x: 0, y: 0, visible: false, isTextSelected: false
-  });
-  
-  const [isAiLoading, setIsAiLoading] = React.useState(false);
-  const [aiSuggestion, setAiSuggestion] = React.useState<AiSuggestion | null>(null);
-
-
   const [activeStyles, setActiveStyles] = React.useState<ActiveStyles>({
     bold: false,
     italic: false,
@@ -352,7 +324,6 @@ export function Editor({ page }: EditorProps) {
   }, [page.id, updateToolbarState, debouncedScrollHandler]);
 
   const handleFormat = (command: string, value?: string) => {
-    if (aiSuggestion) setAiSuggestion(null);
     editorRef.current?.focus();
     restoreSelection();
 
@@ -564,71 +535,6 @@ export function Editor({ page }: EditorProps) {
     debouncedUpdateToc();
   };
 
-  const handleAiAction = async (action: 'spellcheck' | 'refine' | 'brief-answer' | 'generate', promptValue?: string) => {
-    restoreSelection();
-    const selection = window.getSelection();
-    let originalRange: Range | undefined;
-    let selectedText: string | undefined;
-
-    if (selection && selection.rangeCount > 0) {
-        originalRange = selection.getRangeAt(0).cloneRange();
-        selectedText = selection.toString();
-    }
-    
-    if (action !== 'generate' && (!selectedText || !originalRange)) {
-        toast({ title: "Error", description: "Please select text to use this AI action.", variant: "destructive"});
-        return;
-    }
-
-    setIsAiLoading(true);
-    setContextMenu({ ...contextMenu, visible: false });
-
-    try {
-        let resultText: string | undefined;
-
-        if (action === 'spellcheck' && selectedText) {
-            const result = await spellCheck({ text: selectedText });
-            if (result.correctedText && result.correctedText.trim() !== selectedText.trim()) {
-                resultText = result.correctedText;
-            } else {
-                toast({ title: "No corrections", description: "The AI found no issues." });
-            }
-        } else if (action === 'refine' && selectedText) {
-            const result = await refineAndStructureNotes({ rawNotes: selectedText });
-            resultText = result.refinedNotes;
-        } else if (action === 'brief-answer' && selectedText) {
-            const result = await getBriefAnswer({ question: selectedText });
-            resultText = result.answer;
-        } else if (action === 'generate' && promptValue) {
-            const result = await generateTextFromPrompt({ prompt: promptValue });
-            resultText = result.response;
-        }
-        
-        if (resultText && originalRange) {
-             if (action === 'generate') {
-                document.execCommand('insertHTML', false, resultText);
-             } else {
-                const rangeRect = originalRange.getBoundingClientRect();
-                const scrollContainerRect = scrollContainerRef.current!.getBoundingClientRect();
-                setAiSuggestion({
-                    originalRange: originalRange,
-                    suggestionText: resultText,
-                    position: {
-                        top: rangeRect.bottom - scrollContainerRect.top + scrollContainerRef.current!.scrollTop,
-                        left: rangeRect.left - scrollContainerRect.left,
-                    }
-                });
-            }
-        }
-        
-    } catch (e) {
-        console.error(`AI action '${action}' failed:`, e);
-        toast({title: "AI Error", description: "The AI action failed to complete.", variant: "destructive"});
-    } finally {
-        setIsAiLoading(false);
-    }
-};
-
 const handleGenerateDiagram = async () => {
     if (!diagramState.title || !diagramState.prompt) {
         toast({ title: "Error", description: "Title and prompt are required to generate a diagram.", variant: "destructive" });
@@ -678,15 +584,6 @@ const handleGenerateDiagram = async () => {
 
   // KeyDown handles shortcuts + Enter special behavior + checklist/tab navigation + headings via Ctrl+Shift+N
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (aiSuggestion) {
-        if (event.key === 'Tab') {
-            event.preventDefault();
-            handleApplyAiSuggestion();
-            return;
-        }
-        setAiSuggestion(null); // Dismiss on any other key
-    }
-
     // Enter key logic
     if (event.key === 'Enter' && !event.shiftKey) {
         const sel = window.getSelection();
@@ -789,26 +686,7 @@ const handleGenerateDiagram = async () => {
       setIsCommandPaletteOpen(true);
       return;
     }
-
-    if (event.ctrlKey && event.key === ' ' && !event.shiftKey) {
-      event.preventDefault();
-      setIsPromptDialogOpen(true);
-      return;
-    }
-
-    if (event.ctrlKey && event.key === ';' && !event.shiftKey) {
-      event.preventDefault();
-      handleAiAction('brief-answer');
-      return;
-    }
     
-    if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 'c') {
-      event.preventDefault();
-      handleAiAction('spellcheck');
-      return;
-    }
-
-
     if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 'k') {
       event.preventDefault();
       const sel = window.getSelection();
@@ -895,45 +773,6 @@ const handleGenerateDiagram = async () => {
     }
   };
 
-  const handleContextMenu = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!editorRef.current) return;
-    if (aiSuggestion) setAiSuggestion(null);
-    e.preventDefault();
-    saveSelection();
-    
-    const sel = window.getSelection();
-    const isTextSelected = !!sel && !sel.isCollapsed;
-
-    const menuWidth = 200;
-    const menuHeight = 250;
-    let posX = e.clientX;
-    let posY = e.clientY;
-
-    if (posX + menuWidth > window.innerWidth) posX = window.innerWidth - menuWidth - 10;
-    if (posY + menuHeight > window.innerHeight) posY = window.innerHeight - menuHeight - 10;
-    
-    setContextMenu({ x: posX, y: posY, visible: true, isTextSelected });
-  };
-  
-  
-  const handleApplyAiSuggestion = () => {
-    if (!aiSuggestion) return;
-    const { originalRange, suggestionText } = aiSuggestion;
-    
-    // Restore selection to the original range to be replaced
-    const sel = window.getSelection();
-    if(sel){
-        sel.removeAllRanges();
-        sel.addRange(originalRange);
-    }
-
-    // Replace the content
-    document.execCommand('insertText', false, suggestionText);
-
-    setAiSuggestion(null);
-  }
-
-
   const handleApplyLink = () => {
     restoreSelection();
     editorRef.current?.focus();
@@ -1011,14 +850,6 @@ const handleGenerateDiagram = async () => {
           setHtmlToInsert("");
       }, 0);
   }
-  
-  const handleGenerateFromPrompt = async () => {
-        if (!promptToGenerate) return;
-        setIsPromptDialogOpen(false);
-        await handleAiAction('generate', promptToGenerate);
-        setPromptToGenerate("");
-  };
-
 
   const handleEditorClick = (e: React.MouseEvent) => {
     const editor = editorRef.current;
@@ -1090,9 +921,6 @@ const handleGenerateDiagram = async () => {
             sel?.addRange(range);
         }
     }
-
-    if (contextMenu.visible) setContextMenu({ ...contextMenu, visible: false });
-    if (aiSuggestion) setAiSuggestion(null);
   };
 
   const handleFocus = () => {
@@ -1225,7 +1053,7 @@ const handleGenerateDiagram = async () => {
 
   return (
     <div className="flex flex-row h-full bg-background p-1 sm:p-2 lg:p-4 gap-4">
-      <Card className="w-full flex-1 flex flex-col overflow-hidden">
+      <div className="w-full flex-1 flex flex-col overflow-hidden relative">
         <CardHeader className="p-2 print-hidden sticky top-0 bg-background z-10">
           <div className="flex items-center justify-between p-2 mb-2 border-b rounded-t-md bg-secondary/50 flex-wrap">
             <div className="flex items-center gap-1 flex-wrap">
@@ -1365,7 +1193,7 @@ const handleGenerateDiagram = async () => {
             </div>
           </div>
         </CardHeader>
-        <CardContent ref={scrollContainerRef} className="flex-1 overflow-y-auto p-0 printable-area relative">
+        <CardContent ref={scrollContainerRef} className="flex-1 overflow-y-auto p-0 printable-area">
           <div
             ref={editorRef}
             key={page.id}
@@ -1377,24 +1205,19 @@ const handleGenerateDiagram = async () => {
             onFocus={handleFocus}
             onBlur={handleBlur}
             onClick={handleEditorClick}
-            onContextMenu={handleContextMenu}
             onPaste={handlePaste}
             className="prose dark:prose-invert max-w-none w-full h-full bg-card p-4 sm:p-6 md:p-8 lg:p-12 focus:outline-none"
             style={{ direction: 'ltr' }}
           />
-        {aiSuggestion && (
-            <div
-                contentEditable={false}
-                style={{ position: 'absolute', top: aiSuggestion.position.top, left: aiSuggestion.position.left }}
-                className="z-10 bg-background border rounded-md shadow-lg px-3 py-1.5 text-sm flex items-center gap-2"
-            >
-                <span className="text-muted-foreground">{aiSuggestion.suggestionText}</span>
-                <Button size="sm" variant="ghost" onClick={handleApplyAiSuggestion} className="p-1 h-auto">Apply</Button>
-                <span className="text-xs text-muted-foreground border rounded-sm px-1 py-0.5">Tab</span>
-            </div>
-        )}
         </CardContent>
-      </Card>
+         <Button
+            onClick={() => { /* AI Chat logic will be here */ }}
+            className="absolute bottom-6 right-6 rounded-full h-14 w-14 shadow-lg z-10"
+        >
+            <Bot className="h-6 w-6" />
+            <span className="sr-only">Open AI Assistant</span>
+        </Button>
+      </div>
       
       {isTocVisible && (
       <Card className="w-64 h-full hidden lg:flex flex-col print-hidden">
@@ -1425,92 +1248,6 @@ const handleGenerateDiagram = async () => {
       </Card>
       )}
 
-      {contextMenu.visible && (
-        <div
-            role="menu"
-            aria-label="Editor context menu"
-            style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y }}
-            className="z-50 min-w-[180px] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95"
-            onContextMenu={(e) => e.preventDefault()} // prevent chained context menus
-            >
-            <button
-                role="menuitem"
-                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent disabled:opacity-50"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => { restoreSelection(); document.execCommand('copy'); setContextMenu({ ...contextMenu, visible: false }); }}
-                disabled={!contextMenu.isTextSelected}
-            >
-                <Copy className="h-4 w-4" /> Copy
-            </button>
-
-            <button
-                role="menuitem"
-                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent disabled:opacity-50"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => { restoreSelection(); document.execCommand('cut'); setContextMenu({ ...contextMenu, visible: false }); }}
-                disabled={!contextMenu.isTextSelected}
-            >
-                <Scissors className="h-4 w-4" /> Cut
-            </button>
-
-            <button
-                role="menuitem"
-                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => {
-                    document.execCommand('paste');
-                    setContextMenu({ ...contextMenu, visible: false });
-                }}
-            >
-                <ClipboardPaste className="h-4 w-4" /> Paste
-            </button>
-            
-            <Separator className="my-1" />
-
-            <div className="relative">
-                <p className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">AI Tools</p>
-                <button
-                    role="menuitem"
-                    className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent disabled:opacity-50"
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => handleAiAction('spellcheck')}
-                    disabled={!contextMenu.isTextSelected || isAiLoading}
-                >
-                    {isAiLoading ? <LoaderCircle className="h-4 w-4 animate-spin"/> : <Sparkles className="h-4 w-4" />}
-                     Spell Check
-                </button>
-                 <button
-                    role="menuitem"
-                    className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent disabled:opacity-50"
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => handleAiAction('refine')}
-                    disabled={!contextMenu.isTextSelected || isAiLoading}
-                >
-                    <Bot className="h-4 w-4" /> Refine Text
-                </button>
-                <button
-                    role="menuitem"
-                    className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent disabled:opacity-50"
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => handleAiAction('brief-answer')}
-                    disabled={!contextMenu.isTextSelected || isAiLoading}
-                >
-                    <MessageCircleQuestion className="h-4 w-4" /> Brief Answer
-                </button>
-                 <button
-                    role="menuitem"
-                    className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent disabled:opacity-50"
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => setIsPromptDialogOpen(true)}
-                    disabled={isAiLoading}
-                >
-                    <Book className="h-4 w-4" /> Ask AI to Write...
-                </button>
-            </div>
-
-            </div>
-      )}
-      
       <Dialog open={isCommandPaletteOpen} onOpenChange={setIsCommandPaletteOpen}>
         <DialogContent>
           <DialogHeader>
@@ -1548,29 +1285,6 @@ const handleGenerateDiagram = async () => {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isPromptDialogOpen} onOpenChange={setIsPromptDialogOpen}>
-        <DialogContent>
-            <DialogHeader>
-                <DialogTitle>Ask AI to write</DialogTitle>
-                <DialogDescription>Enter a prompt and the AI will generate text at your cursor's position.</DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-                <Textarea 
-                    placeholder="e.g., Write a short paragraph about the French Revolution"
-                    value={promptToGenerate}
-                    onChange={(e) => setPromptToGenerate(e.target.value)}
-                    className="min-h-[100px]"
-                />
-            </div>
-            <DialogFooter>
-                <Button variant="outline" onClick={() => setIsPromptDialogOpen(false)}>Cancel</Button>
-                <Button onClick={handleGenerateFromPrompt} disabled={isAiLoading}>
-                    {isAiLoading ? <LoaderCircle className="animate-spin" /> : 'Generate'}
-                </Button>
-            </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       <Dialog open={diagramState.isOpen} onOpenChange={(isOpen) => setDiagramState({ ...diagramState, isOpen })}>
           <DialogContent className="sm:max-w-[425px]">
               <DialogHeader>
@@ -1605,7 +1319,7 @@ const handleGenerateDiagram = async () => {
               <DialogFooter>
                   <Button type="button" variant="secondary" onClick={() => setDiagramState({...diagramState, isOpen: false})}>Close</Button>
                   <Button onClick={handleGenerateDiagram} disabled={isGenerating}>
-                      {isGenerating ? <LoaderCircle className="animate-spin" /> : "Generate & Insert Link"}
+                      {isGenerating ? <Bot className="animate-spin" /> : "Generate & Insert Link"}
                   </Button>
               </DialogFooter>
           </DialogContent>

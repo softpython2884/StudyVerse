@@ -1,3 +1,4 @@
+
 // diagrams-library.tsx
 // Single-file collection of reusable React + TypeScript + Tailwind + Framer Motion
 // components for building large, production-ready diagrams (mindmap, flowchart, orgchart, venn, timeline).
@@ -25,7 +26,7 @@ const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 // -------------------------
 export const DiagramShell = ({
   width = "100%",
-  height = "600px",
+  height = "100%",
   minZoom = 0.25,
   maxZoom = 3,
   initialZoom = 1,
@@ -486,3 +487,4 @@ export const Timeline = ({ items }: { items: any[] }) => {
 // -------------------------
 // End of file
 // -------------------------
+

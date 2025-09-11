@@ -6,47 +6,23 @@ import {
   Save,
   Share2,
   Download,
-  LoaderCircle,
   Bot,
   Image,
   FileText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter,
-  DialogClose,
-} from "@/components/ui/dialog";
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Label } from "./ui/label";
-import { Textarea } from "./ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "./ui/select";
-import { Input } from "./ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { updatePageContent } from "@/lib/actions";
-import { generateDiagram } from "@/ai/flows/generate-diagrams-from-text";
 import type { Page } from "@/lib/types";
 import { toPng } from 'html-to-image';
 
 import { DiagramShell, MindMap, Flowchart, OrgChart } from './diagrams/diagrams_library';
-
-const diagramTypes = ['MindMap', 'Flowchart', 'OrgChart'];
 
 interface DiagramData {
     nodes: any[];
@@ -60,12 +36,7 @@ interface DiagramEditorProps {
 export function DiagramEditor({ page }: DiagramEditorProps) {
   const [data, setData] = React.useState<DiagramData>({ nodes: [], edges: [] });
   const [isSaving, setIsSaving] = React.useState(false);
-  const [isGenerating, setIsGenerating] = React.useState(false);
 
-  const [diagramContext, setDiagramContext] = React.useState("");
-  const [diagramPrompt, setDiagramPrompt] = React.useState("");
-  const [diagramType, setDiagramType] = React.useState<(typeof diagramTypes)[number]>("MindMap");
-  
   const diagramContainerRef = React.useRef<HTMLDivElement>(null);
 
   const { toast } = useToast();
@@ -105,75 +76,35 @@ export function DiagramEditor({ page }: DiagramEditorProps) {
     }
     setIsSaving(false);
   };
-  
-  const handleGenerateDiagram = async () => {
-    if (!diagramPrompt) {
-        toast({ title: "Error", description: "Please enter a prompt for the diagram.", variant: "destructive" });
-        return;
-    }
-    setIsGenerating(true);
-    try {
-        const fullPrompt = `${diagramContext}\n\nPROMPT: ${diagramPrompt}`;
-        const result = await generateDiagram({ text: fullPrompt, diagramType });
-        const diagramData = JSON.parse(result.diagramData);
-        
-        // The library uses different prop names, so we need to adapt.
-        const adaptedData = {
-            nodes: diagramData.nodes.map((n: any) => ({
-                id: n.id,
-                label: n.data.label,
-                x: n.position.x / 10, // Adjust coordinates for the new library
-                y: n.position.y / 10,
-                color: n.style?.backgroundColor
-            })),
-            edges: diagramData.edges.map((e: any) => ({
-                from: e.source,
-                to: e.target
-            }))
-        };
-
-        setData(adaptedData);
-        toast({ title: "Success", description: "Diagram generated." });
-    } catch (error) {
-        console.error("Error generating diagram:", error);
-        toast({ title: "Error", description: "Failed to generate diagram data.", variant: "destructive" });
-    } finally {
-        setIsGenerating(false);
-    }
-  };
     
-    const handleExport = (format: 'png' | 'pdf') => {
-        if (!diagramContainerRef.current) {
-            toast({ title: "Error", description: "Could not find diagram to export.", variant: "destructive" });
-            return;
-        }
+  const handleExport = (format: 'png' | 'pdf') => {
+      if (!diagramContainerRef.current) {
+          toast({ title: "Error", description: "Could not find diagram to export.", variant: "destructive" });
+          return;
+      }
 
-        if (format === 'png') {
-            toPng(diagramContainerRef.current, { cacheBust: true })
-                .then((dataUrl) => {
-                    const link = document.createElement('a');
-                    link.download = `${page.title || 'diagram'}.png`;
-                    link.href = dataUrl;
-                    link.click();
-                })
-                .catch((err) => {
-                    console.error(err);
-                    toast({ title: "Error", description: "Failed to export as PNG.", variant: "destructive" });
-                });
-        } else if (format === 'pdf') {
-            window.print();
-        }
-    };
+      if (format === 'png') {
+          toPng(diagramContainerRef.current, { cacheBust: true })
+              .then((dataUrl) => {
+                  const link = document.createElement('a');
+                  link.download = `${page.title || 'diagram'}.png`;
+                  link.href = dataUrl;
+                  link.click();
+              })
+              .catch((err) => {
+                  console.error(err);
+                  toast({ title: "Error", description: "Failed to export as PNG.", variant: "destructive" });
+              });
+      } else if (format === 'pdf') {
+          window.print();
+      }
+  };
 
 
   return (
-    <div className="flex flex-col h-full bg-background">
+    <div className="flex flex-col h-full w-full bg-background relative">
         <header className="p-2 print-hidden sticky top-0 bg-background z-10 border-b">
-            <div className="flex items-center justify-between p-2 rounded-t-md bg-secondary/50 flex-wrap">
-              <div className="flex items-center gap-2 flex-wrap">
-                  {/* AI Chat button will be placed here in a future step */}
-              </div>
-
+            <div className="flex items-center justify-end p-2 rounded-t-md bg-secondary/50 flex-wrap">
               <div className="flex items-center gap-2">
                    <Button variant="ghost" size="sm" onClick={handleSaveContent} disabled={isSaving}>
                       <Save className="mr-2 h-4 w-4" />
@@ -202,12 +133,31 @@ export function DiagramEditor({ page }: DiagramEditorProps) {
         </header>
 
         <main ref={diagramContainerRef} className="flex-1 w-full h-full printable-area">
-          <DiagramShell>
-              {diagramType === 'MindMap' && <MindMap nodes={data.nodes} edges={data.edges} />}
-              {diagramType === 'Flowchart' && <Flowchart nodes={data.nodes} edges={data.edges} />}
-              {diagramType === 'OrgChart' && <OrgChart nodes={data.nodes} />}
-          </DiagramShell>
+            <DiagramShell>
+                {page.type === 'diagram' && (() => {
+                    const diagramType = data.nodes?.[0]?.type || 'MindMap';
+                    switch(diagramType) {
+                        case 'MindMap':
+                             return <MindMap nodes={data.nodes} edges={data.edges} />;
+                        case 'Flowchart':
+                             return <Flowchart nodes={data.nodes} edges={data.edges} />;
+                        case 'OrgChart':
+                             return <OrgChart nodes={data.nodes} />;
+                        default:
+                            return <MindMap nodes={data.nodes} edges={data.edges} />;
+                    }
+                })()}
+            </DiagramShell>
         </main>
+        
+        <Button
+            onClick={() => { /* AI Chat logic will be here */ }}
+            className="absolute bottom-6 right-6 rounded-full h-14 w-14 shadow-lg"
+        >
+            <Bot className="h-6 w-6" />
+            <span className="sr-only">Open AI Assistant</span>
+        </Button>
     </div>
   );
 }
+
