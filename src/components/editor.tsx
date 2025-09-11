@@ -1436,7 +1436,7 @@ const handleGenerateDiagram = async () => {
                 <Save className="mr-2 h-4 w-4" />
                 {isSaving ? "Saving..." : "Save"}
               </Button>
-              <Button variant="ghost" size="sm" disabled>
+              <Button variant="ghost" size="sm">
                 <Share2 className="mr-2 h-4 w-4" />
                 Share
               </Button>
