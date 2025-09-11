@@ -1,4 +1,3 @@
-
 // diagrams-library.tsx
 // Single-file collection of reusable React + TypeScript + Tailwind + Framer Motion
 // components for building large, production-ready diagrams (mindmap, flowchart, orgchart, venn, timeline).
@@ -176,17 +175,22 @@ export const DiagramShell = ({
 // -------------------------
 
 // Helper to get connection point
-const getEdgePath = (fromNode: any, toNode: any, fromEl: HTMLDivElement, toEl: HTMLDivElement) => {
-    if (!fromEl || !toEl) return { path: "", start: {x:0, y:0}, end: {x:0, y:0} };
+const getEdgePath = (fromEl: HTMLDivElement, toEl: HTMLDivElement) => {
+    const container = fromEl.closest('[data-diagram-container]');
+    if (!container) return { path: "", start: {x:0, y:0}, end: {x:0, y:0} };
 
-    const svgRect = fromEl.closest('svg[data-edge-container]')?.getBoundingClientRect();
-    if (!svgRect) return { path: "", start: {x:0, y:0}, end: {x:0, y:0} };
-
+    const containerRect = container.getBoundingClientRect();
     const fromRect = fromEl.getBoundingClientRect();
     const toRect = toEl.getBoundingClientRect();
 
-    const fromCenter = { x: fromRect.left - svgRect.left + fromRect.width / 2, y: fromRect.top - svgRect.top + fromRect.height / 2 };
-    const toCenter = { x: toRect.left - svgRect.left + toRect.width / 2, y: toRect.top - svgRect.top + toRect.height / 2 };
+    const fromCenter = { 
+      x: fromRect.left - containerRect.left + fromRect.width / 2, 
+      y: fromRect.top - containerRect.top + fromRect.height / 2 
+    };
+    const toCenter = { 
+      x: toRect.left - containerRect.left + toRect.width / 2, 
+      y: toRect.top - containerRect.top + toRect.height / 2 
+    };
     
     const dx = toCenter.x - fromCenter.x;
     const dy = toCenter.y - fromCenter.y;
@@ -207,14 +211,12 @@ export const MindMap = ({ nodes, edges = [] }: { nodes: any[], edges?: any[] }) 
     const calculatePaths = () => {
         const newPaths: any[] = [];
         edges.forEach((edge, index) => {
-            const fromNode = nodesById.get(edge.from);
-            const toNode = nodesById.get(edge.to);
             const fromEl = nodeRefs.current.get(edge.from);
             const toEl = nodeRefs.current.get(edge.to);
 
-            if (fromNode && toNode && fromEl && toEl) {
-                const { path, start, end } = getEdgePath(fromNode, toNode, fromEl, toEl);
-                newPaths.push({ id: edge.id || `edge-${index}`, path, start, end });
+            if (fromEl && toEl) {
+                const { path } = getEdgePath(fromEl, toEl);
+                newPaths.push({ id: edge.id || `edge-${index}`, path });
             }
         });
         setEdgePaths(newPaths);
@@ -227,8 +229,8 @@ export const MindMap = ({ nodes, edges = [] }: { nodes: any[], edges?: any[] }) 
   }, [nodes, edges, nodesById]);
 
   return (
-    <div className="relative w-full h-full">
-      <svg data-edge-container className="absolute inset-0 w-full h-full pointer-events-none">
+    <div className="relative w-full h-full" data-diagram-container>
+      <svg className="absolute inset-0 w-full h-full pointer-events-none">
         <defs>
           <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto-start-reverse">
             <path d="M0,0 L8,4 L0,8 z" fill="hsl(var(--border))" />
@@ -528,5 +530,3 @@ export const Timeline = ({ items }: { items: any[] }) => {
 // -------------------------
 // End of file
 // -------------------------
-
-    
