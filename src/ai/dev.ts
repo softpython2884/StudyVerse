@@ -7,3 +7,4 @@ import '@/ai/flows/refine-and-structure-notes.ts';
 import '@/ai/flows/spell-check-flow.ts';
 import '@/ai/flows/generate-text-from-prompt.ts';
 import '@/ai/flows/get-brief-answer.ts';
+import '@/ai/flows/translate-text.ts';
