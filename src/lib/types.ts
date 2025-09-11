@@ -1,9 +1,13 @@
+
 export type Page = {
   id: string;
   title: string;
   icon: string;
   type: 'document' | 'diagram';
   content?: string | null;
+  notebook_id?: string;
+  isShared?: boolean;
+  permission?: 'view' | 'edit';
 };
 
 export type Notebook = {
@@ -13,6 +17,7 @@ export type Notebook = {
   color: string;
   tags: string[];
   pages: Page[];
+  isShared?: boolean;
 };
 
 export type Binder = {
@@ -20,6 +25,7 @@ export type Binder = {
   title: string;
   icon: string;
   notebooks: Notebook[];
+  isShared?: boolean;
 };
 
 export interface User {

@@ -23,6 +23,7 @@ import {
   type LucideIcon,
   Network,
   Share2,
+  Users,
 } from "lucide-react";
 import {
   SidebarProvider,
@@ -79,14 +80,17 @@ import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Badge } from "./ui/badge";
 import { cn } from "@/lib/utils";
-import { createBinder, createNotebook, createPage, deleteBinder, deleteNotebook, deletePage, renameBinder, renameNotebook, renamePage } from "@/lib/actions";
+import { createBinder, createNotebook, createPage, deleteBinder, deleteNotebook, deletePage, renameBinder, renameNotebook, renamePage, sharePage } from "@/lib/actions";
 
 const icons: { [key: string]: LucideIcon } = {
   FolderKanban,
   BookOpen,
   FileText,
   StickyNote,
-  Network
+  Network,
+  Users,
+  User,
+  Share2,
 };
 
 const predefinedColors = [
@@ -112,12 +116,21 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
   const [isNotebookDialogOpen, setIsNotebookDialogOpen] = React.useState(false);
   const [isPageDialogOpen, setIsPageDialogOpen] = React.useState(false);
   const [isRenameDialogOpen, setIsRenameDialogOpen] = React.useState(false);
+  const [isShareDialogOpen, setIsShareDialogOpen] = React.useState(false);
+
 
   const [activeBinderId, setActiveBinderId] = React.useState<string | null>(null);
   const [activeNotebookId, setActiveNotebookId] = React.useState<string | null>(null);
 
   const [renameTarget, setRenameTarget] = React.useState<{ id: string; title: string; type: 'binder' | 'notebook' | 'page' } | null>(null);
   const [newTitle, setNewTitle] = React.useState("");
+  
+  const [shareState, setShareState] = React.useState({
+      itemId: "",
+      itemType: "page" as "page" | "notebook" | "binder",
+      email: "",
+      permission: "view" as "view" | "edit",
+  });
 
   React.useEffect(() => {
     setData(initialData);
@@ -212,8 +225,11 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
 
     if (result.success && result.pageId) {
         toast({ title: "Success", description: "Page created successfully."});
-        router.push(`/dashboard/${activeBinderId}/${activeNotebookId}/${result.pageId}`);
-        router.refresh();
+        const originalBinder = data.find(b => b.notebooks.some(n => n.id === activeNotebookId));
+        if (originalBinder) {
+          router.push(`/dashboard/${originalBinder.id}/${activeNotebookId}/${result.pageId}`);
+          router.refresh();
+        }
     } else {
         toast({ title: "Error", description: result.message, variant: "destructive" });
     }
@@ -264,10 +280,43 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
       }
   };
 
+  const handleShare = async () => {
+    if (!shareState.itemId || !shareState.email) {
+        toast({ title: "Error", description: "Email is required.", variant: "destructive" });
+        return;
+    }
+
+    let result;
+    if (shareState.itemType === 'page') {
+        result = await sharePage({
+            pageId: shareState.itemId,
+            email: shareState.email,
+            permission: shareState.permission,
+        });
+    } else {
+        // Placeholder for notebook/binder sharing
+        toast({ title: "Info", description: "Sharing for notebooks and binders is not yet implemented." });
+        return;
+    }
+    
+    if (result.success) {
+        toast({ title: "Success", description: result.message });
+    } else {
+        toast({ title: "Error", description: result.message, variant: "destructive" });
+    }
+
+    setIsShareDialogOpen(false);
+  };
+
   const openRenameDialog = (id: string, title: string, type: 'binder' | 'notebook' | 'page') => {
     setRenameTarget({ id, title, type });
     setNewTitle(title);
     setIsRenameDialogOpen(true);
+  };
+
+  const openShareDialog = (id: string, type: 'page' | 'notebook' | 'binder') => {
+    setShareState({ itemId: id, itemType: type, email: "", permission: "view" });
+    setIsShareDialogOpen(true);
   };
 
   const filteredData = React.useMemo(() => {
@@ -293,7 +342,7 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
     }).filter(Boolean) as Binder[];
   }, [searchQuery, data]);
 
-  const ItemMenu = ({ id, title, type }: { id: string, title: string, type: 'binder' | 'notebook' | 'page' }) => (
+  const ItemMenu = ({ id, title, type, isShared }: { id: string, title: string, type: 'binder' | 'notebook' | 'page', isShared?: boolean }) => (
     <DropdownMenu>
         <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100" onClick={e => e.stopPropagation()}>
@@ -301,35 +350,53 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
             </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent onClick={e => e.stopPropagation()}>
-            <DropdownMenuItem onClick={() => openRenameDialog(id, title, type)}>
-                <Edit className="mr-2 h-4 w-4" /> Rename
-            </DropdownMenuItem>
-             <DropdownMenuItem disabled>
-                <Share2 className="mr-2 h-4 w-4" /> Share
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <AlertDialog>
-                <AlertDialogTrigger asChild>
-                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
-                        <Trash2 className="mr-2 h-4 w-4" /> Delete
+            {!isShared && (
+                <>
+                    <DropdownMenuItem onClick={() => openRenameDialog(id, title, type)}>
+                        <Edit className="mr-2 h-4 w-4" /> Rename
                     </DropdownMenuItem>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            This action cannot be undone. This will permanently delete the {type} and all its contents.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => handleDelete(id, type)} className="bg-destructive hover:bg-destructive/90">Continue</AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+                    <DropdownMenuItem onClick={() => openShareDialog(id, type)} disabled={type !== 'page'}>
+                        <Share2 className="mr-2 h-4 w-4" /> Share
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
+                                <Trash2 className="mr-2 h-4 w-4" /> Delete
+                            </DropdownMenuItem>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    This action cannot be undone. This will permanently delete the {type} and all its contents.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => handleDelete(id, type)} className="bg-destructive hover:bg-destructive/90">Continue</AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                </>
+            )}
+            {isShared && (
+                 <DropdownMenuItem disabled>
+                    <Trash2 className="mr-2 h-4 w-4" /> Leave Share
+                </DropdownMenuItem>
+            )}
         </DropdownMenuContent>
     </DropdownMenu>
   );
+
+  const findBinderForNotebook = (notebookId: string) => {
+    for (const binder of data) {
+        if (binder.notebooks.some(n => n.id === notebookId)) {
+            return binder;
+        }
+    }
+    return null;
+  }
 
   return (
     <SidebarProvider>
@@ -381,8 +448,8 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
 
             <SidebarMenu>
               {filteredData.map((binder: Binder) => (
-                <Collapsible key={binder.id} className="w-full" defaultOpen={binder.id === params.binderId}>
-                  <div className="flex items-center justify-between group">
+                <Collapsible key={binder.id} className="w-full" defaultOpen={binder.id === params.binderId || binder.isShared}>
+                  <div className={cn("flex items-center justify-between group", binder.isShared && "opacity-75")}>
                       <SidebarMenuItem className="flex-1">
                           <CollapsibleTrigger asChild>
                               <SidebarMenuButton className="font-semibold w-full pr-0" isActive={false}>
@@ -400,19 +467,20 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
                                   </Button>
                               </DialogTrigger>
                           </Dialog>
-                          <ItemMenu id={binder.id} title={binder.title} type="binder" />
+                          <ItemMenu id={binder.id} title={binder.title} type="binder" isShared={binder.isShared} />
                        </div>
                   </div>
                   <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
                     <div className="pl-4">
                       {binder.notebooks.map((notebook: Notebook) => (
                         <Collapsible key={notebook.id} className="w-full" defaultOpen={notebook.id === params.notebookId}>
-                            <div className="flex items-center justify-between group">
+                            <div className={cn("flex items-center justify-between group", notebook.isShared && "opacity-75")}>
                                 <SidebarMenuItem className="flex-1">
                                     <CollapsibleTrigger asChild>
                                         <SidebarMenuButton isActive={false} className="w-full pr-0">
                                             <div className="flex items-center gap-2 w-full">
-                                                <span className={cn("h-3 w-3 mt-1 rounded-full flex-shrink-0", notebook.color)}></span>
+                                                {!notebook.isShared && <span className={cn("h-3 w-3 mt-1 rounded-full flex-shrink-0", notebook.color)}></span>}
+                                                {notebook.isShared && <Icon name={notebook.icon} />}
                                                 <div className="flex-1 flex items-center justify-between overflow-hidden">
                                                     <span className="truncate">{notebook.title}</span>
                                                     <div className="flex items-center gap-1 ml-2 flex-shrink-0">
@@ -432,28 +500,32 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
                                             </Button>
                                         </DialogTrigger>
                                     </Dialog>
-                                    <ItemMenu id={notebook.id} title={notebook.title} type="notebook" />
+                                    <ItemMenu id={notebook.id} title={notebook.title} type="notebook" isShared={notebook.isShared} />
                                 </div>
                             </div>
                           <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
                             <div className="pl-6">
-                              {notebook.pages.map((page: Page) => (
+                              {notebook.pages.map((page: Page) => {
+                                const originalBinder = page.isShared ? findBinderForNotebook(page.notebook_id!) : binder;
+                                return(
                                 <SidebarMenuItem key={page.id}>
-                                   <div className="flex items-center group">
-                                      <Link href={`/dashboard/${binder.id}/${notebook.id}/${page.id}`} className="flex-1">
+                                   <div className={cn("flex items-center group", page.isShared && "opacity-75")}>
+                                      <Link href={`/dashboard/${originalBinder?.id}/${page.notebook_id}/${page.id}`} className="flex-1">
                                         <SidebarMenuButton
                                           isActive={params.pageId === page.id}
                                         >
                                           <Icon name={page.icon} />
                                           <span className="truncate">{page.title}</span>
+                                          {page.isShared && <Share2 className="ml-auto h-3 w-3 text-muted-foreground" />}
                                         </SidebarMenuButton>
                                       </Link>
                                       <div className="pr-2">
-                                        <ItemMenu id={page.id} title={page.title} type="page" />
+                                        <ItemMenu id={page.id} title={page.title} type="page" isShared={page.isShared} />
                                       </div>
                                   </div>
                                 </SidebarMenuItem>
-                              ))}
+                                )
+                              })}
                             </div>
                           </CollapsibleContent>
                         </Collapsible>
@@ -601,9 +673,41 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
             </DialogContent>
         </Dialog>
 
+        {/* Share Dialog */}
+        <Dialog open={isShareDialogOpen} onOpenChange={setIsShareDialogOpen}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Share {shareState.itemType}</DialogTitle>
+                    <DialogDescription>
+                        Enter the email of the user you want to share with.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                    <div>
+                        <Label htmlFor="share-email">Email Address</Label>
+                        <Input id="share-email" type="email" placeholder="name@example.com" value={shareState.email} onChange={e => setShareState({...shareState, email: e.target.value})} />
+                    </div>
+                    <div>
+                        <Label>Permission</Label>
+                         <Select onValueChange={(value: 'view' | 'edit') => setShareState({...shareState, permission: value})} defaultValue={shareState.permission}>
+                            <SelectTrigger>
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="view">Can view</SelectItem>
+                                <SelectItem value="edit">Can edit</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsShareDialogOpen(false)}>Cancel</Button>
+                    <Button onClick={handleShare}>Share</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+
       </div>
     </SidebarProvider>
   );
 }
-
-    

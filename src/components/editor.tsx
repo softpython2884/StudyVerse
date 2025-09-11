@@ -42,6 +42,7 @@ import {
   MessageSquarePlus,
   Bot,
   Sparkles,
+  Lock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -192,6 +193,7 @@ export function Editor({ page }: EditorProps) {
   });
 
   const { toast } = useToast();
+  const isReadOnly = page.permission === 'view';
 
     const renderDiagramsInEditor = React.useCallback(() => {
     if (!editorRef.current) return;
@@ -283,7 +285,7 @@ export function Editor({ page }: EditorProps) {
 
 
   const updateToolbarState = React.useCallback(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || isReadOnly) return;
 
     const queryCommandState = (command: string) => document.queryCommandState(command);
 
@@ -347,7 +349,7 @@ export function Editor({ page }: EditorProps) {
         }
       }
     }
-  }, []);
+  }, [isReadOnly]);
 
   // init + listeners
   React.useEffect(() => {
@@ -372,6 +374,7 @@ export function Editor({ page }: EditorProps) {
   }, [page.id, updateToolbarState, debouncedScrollHandler]);
 
   const handleFormat = (command: string, value?: string) => {
+    if (isReadOnly) return;
     editorRef.current?.focus();
     restoreSelection();
 
@@ -441,6 +444,7 @@ export function Editor({ page }: EditorProps) {
   
   // KeyUp handles markdown-like transforms (# headings, urls) and updates toolbar
   const handleKeyUp = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (isReadOnly) return;
      if (event.key === ' ' || event.key === 'Enter') {
       
       const sel = window.getSelection();
@@ -584,6 +588,7 @@ a.href = url;
   };
 
 const handleGenerateDiagram = async () => {
+    if (isReadOnly) return;
     if (!diagramState.instruction) {
         toast({ title: "Error", description: "An instruction is required to generate a diagram.", variant: "destructive" });
         return;
@@ -644,6 +649,7 @@ const handleGenerateDiagram = async () => {
 };
 
   const handleGenerateText = async () => {
+    if (isReadOnly) return;
     if (!aiPalettePrompt) {
         toast({ title: "Error", description: "A prompt is required.", variant: "destructive" });
         return;
@@ -691,6 +697,10 @@ const handleGenerateDiagram = async () => {
 
   // KeyDown handles shortcuts + Enter special behavior + checklist/tab navigation + headings via Ctrl+Shift+N
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (isReadOnly) {
+        event.preventDefault();
+        return;
+    }
     
      if ((event.ctrlKey || event.metaKey) && event.key === ' ') {
       event.preventDefault();
@@ -889,6 +899,7 @@ const handleGenerateDiagram = async () => {
   };
 
   const handleApplyLink = () => {
+    if (isReadOnly) return;
     restoreSelection();
     editorRef.current?.focus();
     setTimeout(() => {
@@ -903,6 +914,7 @@ const handleGenerateDiagram = async () => {
   };
 
   const handleInsertTable = () => {
+    if (isReadOnly) return;
     editorRef.current?.focus();
     restoreSelection();
     setTimeout(() => {
@@ -924,7 +936,7 @@ const handleGenerateDiagram = async () => {
   };
 
   const handleSaveContent = async () => {
-    if (!editorRef.current) return;
+    if (isReadOnly || !editorRef.current) return;
     setIsSaving(true);
     const currentContent = editorRef.current.innerHTML;
     const result = await updatePageContent({ pageId: page.id, content: currentContent });
@@ -948,6 +960,7 @@ const handleGenerateDiagram = async () => {
   };
 
   const handleInsertChecklist = () => {
+    if (isReadOnly) return;
     restoreSelection();
     editorRef.current?.focus();
     setTimeout(() => {
@@ -958,6 +971,7 @@ const handleGenerateDiagram = async () => {
   };
 
   const handleInsertHtml = () => {
+      if (isReadOnly) return;
       restoreSelection();
       editorRef.current?.focus();
       setTimeout(() => {
@@ -967,6 +981,7 @@ const handleGenerateDiagram = async () => {
   }
 
   const handleEditorClick = (e: React.MouseEvent) => {
+    if (isReadOnly) return;
     const editor = editorRef.current;
     if (!editor) return;
     const target = e.target as HTMLElement;
@@ -1052,6 +1067,10 @@ const handleGenerateDiagram = async () => {
   };
 
   const handlePaste = (event: React.ClipboardEvent<HTMLDivElement>) => {
+    if (isReadOnly) {
+        event.preventDefault();
+        return;
+    }
     event.preventDefault();
     const clipboardData = event.clipboardData;
     let paste = clipboardData.getData('text/html');
@@ -1141,6 +1160,7 @@ const handleGenerateDiagram = async () => {
   }, [toc]);
 
   const handleReplaceText = (newText: string, isHtml: boolean = false) => {
+    if (isReadOnly) return;
     restoreSelection();
     editorRef.current?.focus();
     setTimeout(() => {
@@ -1154,6 +1174,7 @@ const handleGenerateDiagram = async () => {
 
   const handleContextMenu = (e: React.MouseEvent) => {
       e.preventDefault();
+      if (isReadOnly) return;
 
       const target = e.target as HTMLElement;
       const diagramContainer = target.closest('div[data-diagram-type]');
@@ -1226,7 +1247,7 @@ const handleGenerateDiagram = async () => {
       <div className="flex-1 flex flex-col min-w-0 relative">
         <div className="p-2 print-hidden sticky top-0 bg-background z-10 border-b mb-2 rounded-t-md">
           <div className="flex items-center justify-between flex-wrap">
-            <div className="flex items-center gap-1 flex-wrap">
+            <div className={cn("flex items-center gap-1 flex-wrap", isReadOnly && "opacity-50 pointer-events-none")}>
               <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => handleFormat("undo")}> <Undo className="h-4 w-4" /> </Button>
               <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => handleFormat("redo")}> <Redo className="h-4 w-4" /> </Button>
               <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={handlePrint}> <Printer className="h-4 w-4" /> </Button>
@@ -1352,11 +1373,17 @@ const handleGenerateDiagram = async () => {
               }} />
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm" onClick={handleSaveContent} disabled={isSaving}>
+                {isReadOnly && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground bg-secondary px-3 py-1.5 rounded-md">
+                        <Lock className="h-4 w-4" />
+                        <span>View Only</span>
+                    </div>
+                )}
+              <Button variant="ghost" size="sm" onClick={handleSaveContent} disabled={isSaving || isReadOnly}>
                 <Save className="mr-2 h-4 w-4" />
                 {isSaving ? "Saving..." : "Save"}
               </Button>
-              <Button variant="ghost" size="sm">
+              <Button variant="ghost" size="sm" disabled>
                 <Share2 className="mr-2 h-4 w-4" />
                 Share
               </Button>
@@ -1367,7 +1394,7 @@ const handleGenerateDiagram = async () => {
           <div
             ref={editorRef}
             key={page.id}
-            contentEditable
+            contentEditable={!isReadOnly}
             suppressContentEditableWarning
             spellCheck={true}
             onKeyDown={handleKeyDown}

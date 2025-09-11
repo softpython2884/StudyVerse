@@ -51,5 +51,19 @@ export const DDL_STATEMENTS = [
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (notebook_id) REFERENCES notebooks(id) ON DELETE CASCADE
     );
+  `,
+  `
+    CREATE TABLE IF NOT EXISTS shares (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        item_id TEXT NOT NULL,
+        item_type TEXT NOT NULL CHECK(item_type IN ('page', 'notebook', 'binder')),
+        owner_user_id INTEGER NOT NULL,
+        shared_with_user_id INTEGER NOT NULL,
+        permission TEXT NOT NULL CHECK(permission IN ('view', 'edit')),
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (shared_with_user_id) REFERENCES users(id) ON DELETE CASCADE,
+        UNIQUE(item_id, shared_with_user_id)
+    );
   `
 ];

@@ -6,6 +6,8 @@ import { z } from 'zod';
 import { getDb } from './db';
 import { protectedRoute } from './session';
 import { revalidatePath } from 'next/cache';
+import { getPageAndOwner } from './data';
+import { User } from './types';
 
 // --- Binder Actions ---
 const CreateBinderSchema = z.object({
@@ -214,15 +216,30 @@ const UpdatePageContentSchema = z.object({
 });
 
 export async function updatePageContent(values: z.infer<typeof UpdatePageContentSchema>) {
-    await protectedRoute();
-    
-    const validatedFields = UpdatePageContentSchema.safeParse(values);
-    if (!validatedFields.success) {
-        return { success: false, message: 'Invalid data.' };
-    }
-    const { pageId, content } = validatedFields.data;
+    const user = await protectedRoute();
+    const { pageId, content } = values;
     
     const db = await getDb();
+
+    // Check if the user has permission to edit this page
+    const pageData = await getPageAndOwner(pageId);
+    if (!pageData) {
+        return { success: false, message: "Page not found." };
+    }
+    
+    let hasPermission = false;
+    if (pageData.owner.id === user.id) {
+        hasPermission = true;
+    } else {
+        const share = await db.get('SELECT permission FROM shares WHERE item_id = ? AND shared_with_user_id = ?', pageId, user.id);
+        if (share?.permission === 'edit') {
+            hasPermission = true;
+        }
+    }
+
+    if (!hasPermission) {
+        return { success: false, message: "You don't have permission to edit this page." };
+    }
     
     try {
         await db.run('UPDATE pages SET content = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', content, pageId);
@@ -231,5 +248,49 @@ export async function updatePageContent(values: z.infer<typeof UpdatePageContent
     } catch (error) {
         console.error("Failed to update page content:", error);
         return { success: false, message: 'Database error.' };
+    }
+}
+
+const SharePageSchema = z.object({
+  pageId: z.string(),
+  email: z.string().email("Invalid email address."),
+  permission: z.enum(['view', 'edit']),
+});
+
+export async function sharePage(values: z.infer<typeof SharePageSchema>) {
+    const currentUser = await protectedRoute();
+    const { pageId, email, permission } = values;
+
+    const db = await getDb();
+
+    // 1. Verify current user owns the page
+    const pageData = await getPageAndOwner(pageId);
+    if (!pageData || pageData.owner.id !== currentUser.id) {
+        return { success: false, message: "You can only share pages you own." };
+    }
+
+    // 2. Find the user to share with
+    const sharedWithUser = await db.get<User>('SELECT id FROM users WHERE email = ?', email);
+    if (!sharedWithUser) {
+        return { success: false, message: "User with that email does not exist." };
+    }
+    if (sharedWithUser.id === currentUser.id) {
+        return { success: false, message: "You cannot share an item with yourself." };
+    }
+
+    // 3. Insert or update the share record
+    try {
+        await db.run(
+            `INSERT INTO shares (item_id, item_type, owner_user_id, shared_with_user_id, permission) 
+             VALUES (?, 'page', ?, ?, ?)
+             ON CONFLICT(item_id, shared_with_user_id) 
+             DO UPDATE SET permission = excluded.permission`,
+            pageId, currentUser.id, sharedWithUser.id, permission
+        );
+        revalidatePath('/dashboard');
+        return { success: true, message: `Page successfully shared with ${email}.` };
+    } catch (error) {
+        console.error("Failed to share page:", error);
+        return { success: false, message: 'Database error occurred during sharing.' };
     }
 }
