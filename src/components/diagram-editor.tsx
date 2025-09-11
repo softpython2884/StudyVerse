@@ -44,7 +44,7 @@ import { generateDiagram } from "@/ai/flows/generate-diagrams-from-text";
 import type { Page } from "@/lib/types";
 import { toPng } from 'html-to-image';
 
-import { DiagramShell, MindMap, Flowchart, OrgChart } from './diagrams/diagrams_library.jsx';
+import { DiagramShell, MindMap, Flowchart, OrgChart } from './diagrams/diagrams_library';
 
 const diagramTypes = ['MindMap', 'Flowchart', 'OrgChart'];
 
