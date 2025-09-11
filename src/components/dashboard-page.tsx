@@ -163,7 +163,13 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
     const { binderId, notebookId, pageId } = params;
     if (!binderId || !notebookId || !pageId) return null;
     const binder = data.find(b => b.id === binderId);
-    if (!binder) return null;
+    if (!binder) { // maybe it's a shared binder
+        const sharedBinder = data.find(b => b.isShared);
+        if(!sharedBinder) return null;
+        const notebook = sharedBinder.notebooks.find(n => n.id === notebookId || `shared-notebook-from-${n.pages.find(p=>p.id === pageId)?.notebook_id}` === notebookId);
+         if (!notebook) return null;
+        return notebook.pages.find(p => p.id === pageId) || null;
+    }
     const notebook = binder.notebooks.find(n => n.id === notebookId);
     if (!notebook) return null;
     return notebook.pages.find(p => p.id === pageId) || null;
@@ -213,10 +219,23 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
   };
 
   const handleCreatePage = async () => {
-    if (!newItem.title || !activeBinderId || !activeNotebookId) {
+    if (!newItem.title || !activeNotebookId) {
         toast({ title: "Error", description: "Page title and active notebook are required.", variant: "destructive" });
         return;
     }
+    
+    // Find the original binderId for the active notebook
+    let originalBinderId = activeBinderId;
+    if (!originalBinderId) {
+        const binder = data.find(b => b.notebooks.some(n => n.id === activeNotebookId));
+        if (binder) originalBinderId = binder.id;
+    }
+
+    if (!originalBinderId) {
+         toast({ title: "Error", description: "Could not determine the binder for the page.", variant: "destructive" });
+         return;
+    }
+
      const result = await createPage({ 
           title: newItem.title, 
           notebookId: activeNotebookId,
@@ -225,11 +244,8 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
 
     if (result.success && result.pageId) {
         toast({ title: "Success", description: "Page created successfully."});
-        const originalBinder = data.find(b => b.notebooks.some(n => n.id === activeNotebookId));
-        if (originalBinder) {
-          router.push(`/dashboard/${originalBinder.id}/${activeNotebookId}/${result.pageId}`);
-          router.refresh();
-        }
+        router.push(`/dashboard/${originalBinderId}/${activeNotebookId}/${result.pageId}`);
+        router.refresh();
     } else {
         toast({ title: "Error", description: result.message, variant: "destructive" });
     }
@@ -296,6 +312,7 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
     } else {
         // Placeholder for notebook/binder sharing
         toast({ title: "Info", description: "Sharing for notebooks and binders is not yet implemented." });
+        setIsShareDialogOpen(false);
         return;
     }
     
@@ -355,7 +372,7 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
                     <DropdownMenuItem onClick={() => openRenameDialog(id, title, type)}>
                         <Edit className="mr-2 h-4 w-4" /> Rename
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => openShareDialog(id, type)} disabled={type !== 'page'}>
+                    <DropdownMenuItem onClick={() => openShareDialog(id, type)}>
                         <Share2 className="mr-2 h-4 w-4" /> Share
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
@@ -389,13 +406,19 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
     </DropdownMenu>
   );
 
-  const findBinderForNotebook = (notebookId: string) => {
+  const getLinkForPage = (page: Page) => {
     for (const binder of data) {
-        if (binder.notebooks.some(n => n.id === notebookId)) {
-            return binder;
+        for (const notebook of binder.notebooks) {
+            if (notebook.pages.some(p => p.id === page.id)) {
+                return `/dashboard/${binder.id}/${notebook.id}/${page.id}`;
+            }
         }
     }
-    return null;
+    // Fallback for pages in "Shared with me"
+    if (page.isShared) {
+        return `/dashboard/shared-binder/${page.notebook_id}/${page.id}`;
+    }
+    return `/dashboard`;
   }
 
   return (
@@ -484,7 +507,7 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
                                                 <div className="flex-1 flex items-center justify-between overflow-hidden">
                                                     <span className="truncate">{notebook.title}</span>
                                                     <div className="flex items-center gap-1 ml-2 flex-shrink-0">
-                                                        {notebook.tags.map(tag => <Badge key={tag} variant="secondary" className="h-4 text-[10px]">{tag}</Badge>)}
+                                                        {notebook.tags.map(tag => <Badge key={tag} variant="secondary" className={cn("h-4 text-[10px]", tag === 'shared' && 'bg-green-100 text-green-800')}>{tag}</Badge>)}
                                                     </div>
                                                 </div>
                                             </div>
@@ -505,12 +528,10 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
                             </div>
                           <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
                             <div className="pl-6">
-                              {notebook.pages.map((page: Page) => {
-                                const originalBinder = page.isShared ? findBinderForNotebook(page.notebook_id!) : binder;
-                                return(
+                              {notebook.pages.map((page: Page) => (
                                 <SidebarMenuItem key={page.id}>
                                    <div className={cn("flex items-center group", page.isShared && "opacity-75")}>
-                                      <Link href={`/dashboard/${originalBinder?.id}/${page.notebook_id}/${page.id}`} className="flex-1">
+                                      <Link href={getLinkForPage(page)} className="flex-1">
                                         <SidebarMenuButton
                                           isActive={params.pageId === page.id}
                                         >
@@ -525,7 +546,7 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
                                   </div>
                                 </SidebarMenuItem>
                                 )
-                              })}
+                              )}
                             </div>
                           </CollapsibleContent>
                         </Collapsible>
@@ -557,7 +578,7 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
                     </SidebarTrigger>
                     <div>
                         <h1 className="text-2xl font-bold font-headline">{currentPage?.title || "Welcome"}</h1>
-                        <p className="text-sm text-muted-foreground">{currentPage ? 'Select a page to start editing.' : 'What will you learn today?'}</p>
+                        <p className="text-sm text-muted-foreground">{!currentPage ? 'What will you learn today?' : (currentPage.isShared ? `Shared page • ${currentPage.permission === 'edit' ? 'Can edit' : 'View only'}` : 'Select a page to start editing.')}</p>
                     </div>
                 </div>
                  <DropdownMenu>

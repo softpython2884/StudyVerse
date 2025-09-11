@@ -1,4 +1,5 @@
 
+
 'use server'
 
 import { getDb } from "./db";
@@ -26,53 +27,88 @@ export async function getBinders(userId: number): Promise<Binder[]> {
     const sharedItems = await db.all<any[]>(`
         SELECT 
             s.item_id, s.item_type, s.permission,
-            p.title as page_title, p.icon as page_icon, p.type as page_type, p.notebook_id,
-            u.name as owner_name
+            p.title as page_title, p.icon as page_icon, p.type as page_type, p.notebook_id as page_notebook_id,
+            n.title as notebook_title, n.icon as notebook_icon, n.color as notebook_color, n.binder_id as notebook_binder_id,
+            b.title as binder_title, b.icon as binder_icon,
+            owner.name as owner_name, owner.id as owner_id
         FROM shares s
-        JOIN pages p ON s.item_id = p.id AND s.item_type = 'page'
-        JOIN users u ON s.owner_user_id = u.id
+        LEFT JOIN pages p ON s.item_id = p.id AND s.item_type = 'page'
+        LEFT JOIN notebooks n ON s.item_id = n.id AND s.item_type = 'notebook'
+        LEFT JOIN binders b ON s.item_id = b.id AND s.item_type = 'binder'
+        JOIN users owner ON s.owner_user_id = owner.id
         WHERE s.shared_with_user_id = ?
     `, userId);
 
-    if (sharedItems.length > 0) {
-        const sharedBinder: Binder = {
-            id: 'shared-binder',
-            title: 'Shared with me',
-            icon: 'Users',
-            notebooks: [],
-            isShared: true,
-        };
+    const sharedWithMeBinder: Binder = {
+        id: 'shared-binder',
+        title: 'Shared with me',
+        icon: 'Users',
+        notebooks: [],
+        isShared: true,
+    };
+    const ownerGroupedNotebooks: { [key: string]: Notebook } = {};
 
-        const notebooksByOwner: { [key: string]: Notebook } = {};
-
-        for (const item of sharedItems) {
-            if (item.item_type === 'page') {
-                const ownerName = item.owner_name;
-                if (!notebooksByOwner[ownerName]) {
-                    notebooksByOwner[ownerName] = {
-                        id: `shared-notebook-${item.owner_user_id}`,
-                        title: ownerName,
-                        icon: 'User',
-                        color: 'bg-gray-400',
-                        tags: ['shared'],
-                        pages: [],
-                        isShared: true,
-                    };
-                }
-                notebooksByOwner[ownerName].pages.push({
-                    id: item.item_id,
-                    title: item.page_title,
-                    icon: item.page_icon,
-                    type: item.page_type,
-                    notebook_id: item.notebook_id, // This is the original notebook_id
+    for (const item of sharedItems) {
+        if (item.item_type === 'page') {
+            const ownerName = item.owner_name;
+            if (!ownerGroupedNotebooks[ownerName]) {
+                 ownerGroupedNotebooks[ownerName] = {
+                    id: `shared-notebook-from-${item.owner_id}`,
+                    title: ownerName,
+                    icon: 'User',
+                    color: 'bg-gray-400',
+                    tags: ['shared'],
+                    pages: [],
                     isShared: true,
-                    permission: item.permission,
-                });
+                };
             }
+            ownerGroupedNotebooks[ownerName].pages.push({
+                id: item.item_id,
+                title: item.page_title,
+                icon: item.page_icon,
+                type: item.page_type,
+                notebook_id: item.page_notebook_id,
+                isShared: true,
+                permission: item.permission,
+            });
+        } else if (item.item_type === 'notebook') {
+             const notebook: Notebook = {
+                id: item.item_id,
+                title: item.notebook_title,
+                icon: item.notebook_icon,
+                color: item.notebook_color,
+                tags: ['shared'], // Add shared tag
+                pages: await db.all<Page[]>('SELECT id, title, icon, type, notebook_id FROM pages WHERE notebook_id = ? ORDER BY created_at DESC', item.item_id),
+                isShared: true,
+                permission: item.permission,
+            };
+            sharedWithMeBinder.notebooks.push(notebook);
+
+        } else if (item.item_type === 'binder') {
+            const sharedBinderToAdd: Binder = {
+                id: item.item_id,
+                title: item.binder_title,
+                icon: item.binder_icon,
+                notebooks: await db.all<Notebook[]>('SELECT * FROM notebooks WHERE binder_id = ? ORDER BY created_at DESC', item.item_id),
+                isShared: true,
+                permission: item.permission,
+            };
+            for (const notebook of sharedBinderToAdd.notebooks) {
+                 const tags = await db.all<{tag: string}[]>('SELECT tag FROM notebook_tags WHERE notebook_id = ?', notebook.id);
+                 notebook.tags = tags.map(t => t.tag);
+                 if (!notebook.tags.includes('shared')) {
+                     notebook.tags.push('shared');
+                 }
+                 notebook.pages = await db.all<Page[]>('SELECT id, title, icon, type, notebook_id FROM pages WHERE notebook_id = ? ORDER BY created_at DESC', notebook.id);
+            }
+            binders.push(sharedBinderToAdd);
         }
-        
-        sharedBinder.notebooks = Object.values(notebooksByOwner);
-        binders.push(sharedBinder);
+    }
+    
+    sharedWithMeBinder.notebooks.push(...Object.values(ownerGroupedNotebooks));
+
+    if (sharedWithMeBinder.notebooks.length > 0) {
+        binders.push(sharedWithMeBinder);
     }
 
     return binders;
