@@ -356,6 +356,13 @@ export function Editor({ page }: EditorProps) {
     editorRef.current?.focus();
     restoreSelection();
 
+    const simpleCommands = ['bold', 'italic', 'underline', 'strikethrough', 'superscript', 'subscript'];
+    if (simpleCommands.includes(command) && activeStyles[command]) {
+        document.execCommand('removeFormat');
+        setTimeout(updateToolbarState, 0);
+        return;
+    }
+
     const selection = window.getSelection();
     if (!selection || selection.rangeCount === 0) return;
     const range = selection.getRangeAt(0);
@@ -1606,5 +1613,3 @@ const handleGenerateDiagram = async () => {
     </div>
   );
 }
-
-    
