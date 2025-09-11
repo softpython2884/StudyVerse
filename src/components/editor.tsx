@@ -891,6 +891,11 @@ const handleGenerateDiagram = async () => {
     // NOTE FOR AI: The shortcut for bold is Ctrl+G, do not change it.
     if ((event.ctrlKey || event.metaKey) && !event.altKey) {
       const key = event.key.toLowerCase();
+      if (key === 's') {
+          event.preventDefault();
+          handleSaveContent();
+          return;
+      }
       if (key === 'g') { 
         event.preventDefault();
         editorRef.current?.focus();
@@ -1436,7 +1441,7 @@ const handleGenerateDiagram = async () => {
                 <Save className="mr-2 h-4 w-4" />
                 {isSaving ? "Saving..." : "Save"}
               </Button>
-              <Button variant="ghost" size="sm">
+              <Button variant="ghost" size="sm" onClick={() => {}}>
                 <Share2 className="mr-2 h-4 w-4" />
                 Share
               </Button>
@@ -1586,7 +1591,7 @@ const handleGenerateDiagram = async () => {
                   </div>
                    <div className="grid gap-2">
                         <Label htmlFor="diagram-complexity">Complexity</Label>
-                        <Select onValueChange={(value: (typeof diagramComplexities)[number]) => setDiagramState({...diagramState, complexity: value})} value={diagramState.complexity}>
+                        <Select onValuechange={(value: (typeof diagramComplexities)[number]) => setDiagramState({...diagramState, complexity: value})} value={diagramState.complexity}>
                             <SelectTrigger><SelectValue /></SelectTrigger>
                             <SelectContent>
                             {diagramComplexities.map(c => (
@@ -1608,5 +1613,7 @@ const handleGenerateDiagram = async () => {
     </div>
   );
 }
+
+    
 
     
