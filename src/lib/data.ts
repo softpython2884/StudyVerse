@@ -3,7 +3,7 @@
 'use server'
 
 import { getDb } from "./db";
-import { Binder, Notebook, Page, User } from "./types";
+import { Binder, Notebook, Notification, Page, User } from "./types";
 
 export async function getBinders(userId: number): Promise<Binder[]> {
     const db = await getDb();
@@ -158,4 +158,14 @@ export async function getPageAndOwner(pageId: string): Promise<{ page: Page, own
     };
 
     return { page, owner };
+}
+
+
+export async function getNotifications(userId: number): Promise<Notification[]> {
+    const db = await getDb();
+    const notifications = await db.all<Notification[]>(
+        'SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC',
+        userId
+    );
+    return notifications.map(n => ({ ...n, is_read: !!n.is_read }));
 }

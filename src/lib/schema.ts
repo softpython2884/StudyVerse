@@ -66,5 +66,16 @@ export const DDL_STATEMENTS = [
         FOREIGN KEY (shared_with_user_id) REFERENCES users(id) ON DELETE CASCADE,
         UNIQUE(item_id, shared_with_user_id)
     );
+  `,
+  `
+    CREATE TABLE IF NOT EXISTS notifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      content TEXT NOT NULL,
+      link TEXT,
+      is_read BOOLEAN DEFAULT FALSE,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
   `
 ];

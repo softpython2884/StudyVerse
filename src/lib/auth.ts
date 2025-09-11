@@ -44,6 +44,13 @@ export async function registerUser(data: unknown) {
         return { success: false, message: 'Failed to retrieve user ID after registration.' };
     }
 
+    // Create a welcome notification
+    await db.run(
+        'INSERT INTO notifications (user_id, content) VALUES (?, ?)',
+        userId,
+        'Welcome to StudyVerse! Explore the features and start organizing your knowledge.'
+    );
+
     // Auto-login the user
     await createSession(userId, durationInDays);
 

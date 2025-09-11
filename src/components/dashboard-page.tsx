@@ -73,7 +73,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import type { Binder, Notebook, Page, User as UserType } from "@/lib/types";
+import type { Binder, Notebook, Page, User as UserType, Notification } from "@/lib/types";
 import { useParams, useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
@@ -84,6 +84,7 @@ import { cn } from "@/lib/utils";
 import { createBinder, createNotebook, createPage, deleteBinder, deleteNotebook, deletePage, renameBinder, renameNotebook, renamePage, shareBinder, shareNotebook, sharePage, updatePagePublicAccess } from "@/lib/actions";
 import { Switch } from "./ui/switch";
 import { Separator } from "./ui/separator";
+import { NotificationsCenter } from "./notifications-center";
 
 const icons: { [key: string]: LucideIcon } = {
   FolderKanban,
@@ -104,10 +105,20 @@ const predefinedColors = [
 const Icon = ({ name }: { name: string }) => {
     const LucideIcon = icons[name];
     if (!LucideIcon) return null;
-    return <LucideIcon className="h-4 w-4" />;
+    return <LucideIcon className="h-4 w-4" />
 }
 
-export function DashboardPage({ initialData, children, user }: { initialData: Binder[], children: React.ReactNode, user: UserType | null }) {
+export function DashboardPage({ 
+    initialData, 
+    children, 
+    user,
+    initialNotifications
+}: { 
+    initialData: Binder[], 
+    children: React.ReactNode, 
+    user: UserType | null,
+    initialNotifications: Notification[],
+}) {
   const params = useParams();
   const router = useRouter();
   const { toast } = useToast();
@@ -621,6 +632,8 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
                         <p className="text-sm text-muted-foreground">{!currentPage ? 'What will you learn today?' : (currentPage.isShared ? `Shared page • ${currentPage.permission === 'edit' ? 'Can edit' : 'View only'}` : 'Select a page to start editing.')}</p>
                     </div>
                 </div>
+                <div className="flex items-center gap-2">
+                 <NotificationsCenter initialNotifications={initialNotifications} />
                  <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" className="flex items-center gap-2 rounded-full h-9">
@@ -650,6 +663,7 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
                     </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
+                </div>
             </header>
           
             <main className="flex-1 overflow-auto">

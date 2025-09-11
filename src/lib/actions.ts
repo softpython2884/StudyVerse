@@ -355,3 +355,37 @@ export async function shareNotebook(values: Omit<z.infer<typeof ShareItemSchema>
 export async function shareBinder(values: Omit<z.infer<typeof ShareItemSchema>, 'itemType'> & { binderId: string }) {
     return shareItem({ ...values, itemId: values.binderId, itemType: 'binder' });
 }
+
+// --- Notification Actions ---
+
+const MarkNotificationAsReadSchema = z.object({
+  notificationId: z.number(),
+});
+
+export async function markNotificationAsRead(values: z.infer<typeof MarkNotificationAsReadSchema>) {
+    const user = await protectedRoute();
+    const { notificationId } = values;
+    const db = await getDb();
+
+    try {
+        await db.run('UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?', notificationId, user.id);
+        revalidatePath('/dashboard');
+        return { success: true };
+    } catch (error) {
+        console.error("Failed to mark notification as read:", error);
+        return { success: false, message: 'Database error.' };
+    }
+}
+
+export async function markAllNotificationsAsRead() {
+    const user = await protectedRoute();
+    const db = await getDb();
+    try {
+        await db.run('UPDATE notifications SET is_read = 1 WHERE user_id = ?', user.id);
+        revalidatePath('/dashboard');
+        return { success: true };
+    } catch (error) {
+        console.error("Failed to mark all notifications as read:", error);
+        return { success: false, message: 'Database error.' };
+    }
+}

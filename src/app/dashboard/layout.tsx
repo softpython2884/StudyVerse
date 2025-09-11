@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { DashboardPage } from '@/components/dashboard-page';
 import { protectedRoute } from '@/lib/session';
-import { getBinders } from '@/lib/data';
+import { getBinders, getNotifications } from '@/lib/data';
 
 export default async function DashboardLayout({
   children,
@@ -12,9 +12,10 @@ export default async function DashboardLayout({
 }) {
   const user = await protectedRoute();
   const binders = await getBinders(user.id);
+  const notifications = await getNotifications(user.id);
 
   return (
-    <DashboardPage user={user} initialData={binders}>
+    <DashboardPage user={user} initialData={binders} initialNotifications={notifications}>
         {children}
     </DashboardPage>
   );

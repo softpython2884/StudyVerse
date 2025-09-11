@@ -19,6 +19,7 @@ export type Notebook = {
   tags: string[];
   pages: Page[];
   isShared?: boolean;
+  permission?: 'view' | 'edit';
 };
 
 export type Binder = {
@@ -27,6 +28,7 @@ export type Binder = {
   icon: string;
   notebooks: Notebook[];
   isShared?: boolean;
+  permission?: 'view' | 'edit';
 };
 
 export interface User {
@@ -34,4 +36,13 @@ export interface User {
   name: string;
   email: string;
   avatarUrl?: string;
+}
+
+export interface Notification {
+    id: number;
+    user_id: number;
+    content: string;
+    link?: string;
+    is_read: boolean;
+    created_at: string;
 }
