@@ -310,7 +310,6 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
             permission: shareState.permission,
         });
     } else {
-        // Placeholder for notebook/binder sharing
         toast({ title: "Info", description: "Sharing for notebooks and binders is not yet implemented." });
         setIsShareDialogOpen(false);
         return;
@@ -332,6 +331,13 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
   };
 
   const openShareDialog = (id: string, type: 'page' | 'notebook' | 'binder') => {
+    if (type !== 'page') {
+        toast({
+            title: "Fonctionnalité en cours de développement",
+            description: "Le partage de classeurs et de carnets sera bientôt disponible.",
+        });
+        return;
+    }
     setShareState({ itemId: id, itemType: type, email: "", permission: "view" });
     setIsShareDialogOpen(true);
   };
