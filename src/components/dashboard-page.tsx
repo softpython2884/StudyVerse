@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import * as React from "react";
@@ -126,7 +127,7 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
       title: "",
       color: predefinedColors[0],
       tags: "",
-      type: "document" as "document" | "diagram"
+      type: "document" as "document" // Type is always document now
   });
 
   const handleLogout = async () => {
@@ -205,7 +206,7 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
      const result = await createPage({ 
           title: newItem.title, 
           notebookId: activeNotebookId,
-          type: newItem.type
+          type: "document" // Always create a document
       });
 
     if (result.success && result.pageId) {
@@ -560,23 +561,13 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
                 <DialogHeader>
                     <DialogTitle>Create New Page</DialogTitle>
                     <DialogDescription>
-                        Pages are where your content lives. Choose a title and type.
+                        Pages are where your content lives.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4">
                     <div>
                         <Label htmlFor="page-title">Title</Label>
                         <Input id="page-title" value={newItem.title} onChange={e => setNewItem({...newItem, title: e.target.value})} placeholder="e.g., Lecture 1: Intro" />
-                    </div>
-                    <div>
-                        <Label>Page Type</Label>
-                        <Select onValueChange={(value: "document" | "diagram") => setNewItem({...newItem, type: value})} defaultValue={newItem.type}>
-                             <SelectTrigger><SelectValue placeholder="Select a type" /></SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="document"><FileText className="inline-block mr-2 h-4 w-4" /> Document</SelectItem>
-                                <SelectItem value="diagram"><Network className="inline-block mr-2 h-4 w-4" /> Diagram</SelectItem>
-                            </SelectContent>
-                        </Select>
                     </div>
                 </div>
                 <DialogFooter>

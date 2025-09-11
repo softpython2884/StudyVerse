@@ -24,7 +24,6 @@ import {
   Redo,
   Printer,
   Save,
-  Bot,
   Network,
   Share2,
   Strikethrough,
@@ -41,6 +40,7 @@ import {
   Superscript,
   Subscript,
   MessageSquarePlus,
+  Bot,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -54,7 +54,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { Input } from "./ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { createPageWithDiagram, updatePageContent } from "@/lib/actions";
+import { updatePageContent } from "@/lib/actions";
 import { SpeechToText } from "./speech-to-text";
 import { Card, CardContent, CardHeader } from "./ui/card";
 import {
@@ -71,7 +71,8 @@ import { Label } from "./ui/label";
 import { Textarea } from "./ui/textarea";
 import { cn } from "@/lib/utils";
 import showdown from 'showdown';
-import { useParams, useRouter } from "next/navigation";
+import { generateDiagram } from "@/ai/flows/generate-diagrams-from-text";
+import { DiagramRenderer } from "./diagram-renderer";
 
 interface EditorProps {
   page: Page;
@@ -107,8 +108,6 @@ export function Editor({ page }: EditorProps) {
 
   const [activeTocId, setActiveTocId] = React.useState<string | null>(null);
   const [isTocVisible, setIsTocVisible] = React.useState(true);
-  const router = useRouter();
-  const params = useParams();
 
 
   // --- SELECTION MARKER HELPERS ---
@@ -152,9 +151,7 @@ export function Editor({ page }: EditorProps) {
   const [htmlToInsert, setHtmlToInsert] = React.useState("");
   
   const [diagramState, setDiagramState] = React.useState({
-      title: "",
-      prompt: "",
-      context: "",
+      instruction: "",
       type: "MindMap" as (typeof diagramTypes)[number],
       isOpen: false
   });
@@ -177,6 +174,37 @@ export function Editor({ page }: EditorProps) {
   });
 
   const { toast } = useToast();
+
+    const renderDiagramsInEditor = React.useCallback(() => {
+    if (!editorRef.current) return;
+    const diagramPlaceholders = editorRef.current.querySelectorAll('div[data-diagram-type]');
+
+    diagramPlaceholders.forEach(container => {
+      // Prevent re-rendering if a root already exists
+      if ((container as any)._reactRootContainer) return;
+
+      const type = container.getAttribute('data-diagram-type');
+      const encodedData = container.getAttribute('data-diagram-data');
+      if (!type || !encodedData) return;
+
+      try {
+        const dataStr = decodeURIComponent(escape(atob(encodedData)));
+        const data = JSON.parse(dataStr);
+        const { nodes, edges } = data;
+        
+        const diagramElement = (
+            <DiagramRenderer type={type} initialNodes={nodes} initialEdges={edges} />
+        );
+
+        const root = createRoot(container);
+        root.render(diagramElement);
+
+      } catch (e) {
+        console.error("Failed to parse or render diagram", e);
+        container.textContent = "Error rendering diagram.";
+      }
+    });
+  }, []);
 
   const updateToc = React.useCallback(() => {
     if (!editorRef.current) return;
@@ -536,49 +564,39 @@ export function Editor({ page }: EditorProps) {
   };
 
 const handleGenerateDiagram = async () => {
-    if (!diagramState.title || !diagramState.prompt) {
-        toast({ title: "Error", description: "Title and prompt are required to generate a diagram.", variant: "destructive" });
+    if (!diagramState.instruction) {
+        toast({ title: "Error", description: "An instruction is required to generate a diagram.", variant: "destructive" });
         return;
     }
     setIsGenerating(true);
     try {
-        const result = await createPageWithDiagram({
-            notebookId: params.notebookId as string,
-            diagramTitle: diagramState.title,
-            diagramType: diagramState.type,
-            generationText: diagramState.context,
-            generationPrompt: diagramState.prompt,
+        const result = await generateDiagram({
+            instruction: diagramState.instruction,
+            diagramType: diagramState.type
         });
 
-        if (result.success && result.pageId) {
-            const { binderId, notebookId } = params;
-            const diagramUrl = `/dashboard/${binderId}/${notebookId}/${result.pageId}`;
-            const embedHtml = `
-                <p>
-                    <a href="${diagramUrl}" class="diagram-embed" target="_blank" rel="noopener noreferrer">
-                        <span class="diagram-embed-icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-network"><rect x="16" y="16" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"/><path d="M12 12V8"/></svg></span>
-                        <span class="diagram-embed-text">
-                            <span class="diagram-embed-title">Diagram: ${diagramState.title}</span>
-                            <span class="diagram-embed-link">Click to open</span>
-                        </span>
-                    </a>
-                </p>
-            `;
+        if (result.diagramData) {
+            const encodedData = btoa(unescape(encodeURIComponent(result.diagramData)));
+            const diagramHtml = `<div data-diagram-type="${diagramState.type}" data-diagram-data="${encodedData}" contenteditable="false" class="bg-card p-2 rounded-md my-4 min-h-[400px]"></div><p>&#8203;</p>`;
+            
             restoreSelection();
             editorRef.current?.focus();
-            document.execCommand('insertHTML', false, embedHtml);
-            toast({ title: "Success", description: `Diagram page "${diagramState.title}" created and linked.` });
-            router.refresh(); // Refresh sidebar
-        } else {
-            throw new Error(result.message || "Failed to create diagram page.");
-        }
+            document.execCommand('insertHTML', false, diagramHtml);
 
+            setTimeout(() => {
+                renderDiagramsInEditor();
+            }, 0);
+
+            toast({ title: "Success", description: `Diagram inserted into the document.` });
+        } else {
+            throw new Error("The AI did not return any diagram data.");
+        }
     } catch (e: any) {
         console.error("Failed to generate and embed diagram", e);
         toast({ title: "Error", description: `Failed to create diagram: ${e.message}`, variant: "destructive" });
     } finally {
         setIsGenerating(false);
-        setDiagramState({ ...diagramState, isOpen: false });
+        setDiagramState({ ...diagramState, isOpen: false, instruction: "" });
     }
 };
 
@@ -1010,11 +1028,12 @@ const handleGenerateDiagram = async () => {
                 }
             }
         });
+        renderDiagramsInEditor();
         updateToc();
         updateActiveTocOnScroll(); // Initial check
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page.id]);
+  }, [page.id, renderDiagramsInEditor]);
 
   React.useEffect(() => {
     if (toc.length > 0) {
@@ -1140,7 +1159,7 @@ const handleGenerateDiagram = async () => {
                 </PopoverContent>
               </Popover>
               <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => document.execCommand('insertHTML', false, '<hr><p>&#8203;</p>')}> <Minus className="h-4 w-4" /> </Button>
-               <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => setDiagramState({...diagramState, isOpen: true})}>
+              <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => setDiagramState({...diagramState, isOpen: true})}>
                 <Network className="h-4 w-4" />
               </Button>
               <Dialog>
@@ -1210,13 +1229,6 @@ const handleGenerateDiagram = async () => {
             style={{ direction: 'ltr' }}
           />
         </div>
-         <Button
-            onClick={() => { /* AI Chat logic will be here */ }}
-            className="absolute bottom-6 right-6 rounded-full h-14 w-14 shadow-lg z-10"
-        >
-            <Bot className="h-6 w-6" />
-            <span className="sr-only">Open AI Assistant</span>
-        </Button>
       </div>
       
       {isTocVisible && (
@@ -1289,20 +1301,12 @@ const handleGenerateDiagram = async () => {
           <DialogContent className="sm:max-w-[425px]">
               <DialogHeader>
                   <DialogTitle>Insert New Diagram</DialogTitle>
-                  <DialogDescription>A new diagram page will be created and linked in your document.</DialogDescription>
+                  <DialogDescription>Describe the diagram you want the AI to create.</DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
                  <div className="grid gap-2">
-                      <Label htmlFor="diagram-title">Diagram Title</Label>
-                      <Input id="diagram-title" value={diagramState.title} onChange={(e) => setDiagramState({...diagramState, title: e.target.value})} placeholder="e.g., British Royal Family" />
-                  </div>
-                 <div className="grid gap-2">
-                      <Label htmlFor="diagram-prompt">Generation Prompt</Label>
-                      <Input id="diagram-prompt" value={diagramState.prompt} onChange={(e) => setDiagramState({...diagramState, prompt: e.target.value})} placeholder="e.g., An org chart of..." />
-                  </div>
-                  <div className="grid gap-2">
-                      <Label htmlFor="diagram-context">Context (Optional)</Label>
-                      <Textarea id="diagram-context" value={diagramState.context} onChange={(e) => setDiagramState({...diagramState, context: e.target.value})} placeholder="Paste your course notes or any relevant text here..." />
+                      <Label htmlFor="diagram-instruction">Instruction</Label>
+                      <Textarea id="diagram-instruction" value={diagramState.instruction} onChange={(e) => setDiagramState({...diagramState, instruction: e.target.value})} placeholder="e.g., Create a mind map about the solar system..." />
                   </div>
                   <div className="grid gap-2">
                       <Label htmlFor="diagram-type">Diagram Type</Label>
@@ -1317,9 +1321,9 @@ const handleGenerateDiagram = async () => {
                   </div>
               </div>
               <DialogFooter>
-                  <Button type="button" variant="secondary" onClick={() => setDiagramState({...diagramState, isOpen: false})}>Close</Button>
+                  <Button type="button" variant="secondary" onClick={() => setDiagramState({...diagramState, isOpen: false, instruction: ''})}>Close</Button>
                   <Button onClick={handleGenerateDiagram} disabled={isGenerating}>
-                      {isGenerating ? <Bot className="animate-spin" /> : "Generate & Insert Link"}
+                      {isGenerating ? <Bot className="animate-spin" /> : "Generate & Insert"}
                   </Button>
               </DialogFooter>
           </DialogContent>
@@ -1327,4 +1331,3 @@ const handleGenerateDiagram = async () => {
     </div>
   );
 }
-
