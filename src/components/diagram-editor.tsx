@@ -118,6 +118,11 @@ export function DiagramEditor({ page }: DiagramEditorProps) {
   const { toast } = useToast();
   const reactFlowInstance = useReactFlow();
 
+  const getSelectedNode = () => {
+    if (selectedNodeIds.length !== 1) return null;
+    return nodes.find(n => n.id === selectedNodeIds[0]) || null;
+  };
+
   useOnSelectionChange({
     onChange: ({ nodes }) => {
       setSelectedNodeIds(nodes.map((node) => node.id));
@@ -374,10 +379,6 @@ export function DiagramEditor({ page }: DiagramEditorProps) {
       return !!node?.parentNode;
   };
   
-    const getSelectedNode = () => {
-        if (selectedNodeIds.length !== 1) return null;
-        return nodes.find(n => n.id === selectedNodeIds[0]) || null;
-    };
     
     const handleExport = (format: 'png' | 'pdf') => {
         const diagramNode = document.querySelector('.react-flow') as HTMLElement;
@@ -500,7 +501,6 @@ export function DiagramEditor({ page }: DiagramEditorProps) {
           >
               <Background />
               <Controls />
-              <MiniMap nodeStrokeWidth={3} zoomable pannable />
           </ReactFlow>
           
           {contextMenu && (
@@ -606,10 +606,11 @@ export function DiagramEditor({ page }: DiagramEditorProps) {
        <DiagramEditorSidebar
             selectedNode={getSelectedNode()}
             onNodeDataChange={(newData) => {
-                if (!getSelectedNode()) return;
+                const selectedNode = getSelectedNode();
+                if (!selectedNode) return;
                 setNodes((nds) =>
                     nds.map((n) => {
-                        if (n.id === getSelectedNode()!.id) {
+                        if (n.id === selectedNode.id) {
                             return { ...n, data: { ...n.data, ...newData } };
                         }
                         return n;
@@ -620,3 +621,5 @@ export function DiagramEditor({ page }: DiagramEditorProps) {
     </div>
   );
 }
+
+    

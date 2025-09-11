@@ -37,7 +37,7 @@ export function DiagramEditorSidebar({ selectedNode, onNodeDataChange }: Diagram
         clearTimeout(debounceTimerRef.current);
     }
     debounceTimerRef.current = setTimeout(() => {
-        if (selectedNode) {
+        if (selectedNode && (label !== selectedNode.data.label || description !== selectedNode.data.description)) {
             onNodeDataChange({ label, description });
         }
     }, 300); // 300ms debounce
@@ -89,3 +89,4 @@ export function DiagramEditorSidebar({ selectedNode, onNodeDataChange }: Diagram
   );
 }
 
+    
