@@ -247,6 +247,12 @@ export function DiagramEditor({ page }: DiagramEditorProps) {
   };
   
   const handleAddNode = () => {
+    if (reactFlowInstance.width === 0) {
+      // React Flow instance not ready yet
+      toast({ title: "Info", description: "Editor is initializing, please try again in a moment." });
+      return;
+    }
+
     const newNodeId = `node-${nodes.length + 1}`;
     const viewport = reactFlowInstance.getViewport();
     const position = {
@@ -614,5 +620,3 @@ export function DiagramEditor({ page }: DiagramEditorProps) {
     </div>
   );
 }
-
-    
