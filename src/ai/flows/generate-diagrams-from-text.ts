@@ -39,19 +39,20 @@ const prompt = ai.definePrompt({
   name: 'generateDiagramPrompt',
   input: {schema: GenerateDiagramInputSchema},
   output: {schema: GenerateDiagramOutputSchema},
-  prompt: `You are an expert AI assistant specializing in creating and modifying diagrams.
-Your task is to interpret a user's instruction and generate a valid JSON string that represents the diagram data.
+  prompt: `You are an expert AI assistant and researcher specializing in creating and modifying diagrams.
+Your task is to interpret a user's instruction, research the topic thoroughly, and generate a valid, highly-detailed JSON string that represents the diagram data.
 
 CRITICAL INSTRUCTIONS:
-1.  **Analyze the user's instruction** to understand the entities and their relationships.
-2.  **Check for Existing Data:**
+1.  **Analyze and Research:** Deeply analyze the user's instruction. Use your internal knowledge base as if you were searching the internet (like Wikipedia) to gather comprehensive information on the topic. Your goal is to produce a rich, educational diagram.
+2.  **Generate Detailed Content:** For each node in the diagram, you MUST provide a detailed \`description\`. This is not optional. The description should be a comprehensive summary explaining the "what, why, how," and the history of the item. For example, if the user asks for "major figures of the Spanish colonization," for each person, describe who they were, what they did, their motivations, goals, and historical impact.
+3.  **Check for Existing Data:**
     - **If "existingDiagramData" is provided:** You MUST treat this as a modification request. Modify the provided JSON based on the new "instruction". Do not start from scratch. Add, remove, or change nodes and edges as requested.
     - **If "existingDiagramData" is NOT provided:** Generate a new diagram from scratch based on the "instruction".
-3.  **Output Format:** Your final output MUST be a single, valid JSON object containing "diagramData" and "response".
+4.  **Output Format:** Your final output MUST be a single, valid JSON object containing "diagramData" and "response".
     - \`diagramData\`: This MUST be a JSON-escaped string containing the complete nodes and edges for the diagram.
-    - \`response\`: A friendly, conversational string explaining what you did (e.g., "I've created the mind map for you." or "I've added a node for Pluto as you requested.").
+    - \`response\`: A friendly, conversational string explaining what you did (e.g., "I've created a detailed mind map for you about Spanish Colonization.").
 
-4.  **Diagram Generation & Layout:**
+5.  **Diagram Generation & Layout:**
     - Create a deep, hierarchical structure. Go at least 3-4 levels deep if the instruction allows.
     - For new diagrams, create a clear, spatially-aware layout. For mind maps, radiate from a central point. Avoid overlapping nodes.
     - **Nodes:** Each node MUST have a unique \`id\`, a \`label\`, a detailed \`description\`, and a relative \`x\` and \`y\` position (from 0 to 100). You can also add a 'color' property (hex or tailwind color class) for thematic coloring.
@@ -67,7 +68,7 @@ CRITICAL INSTRUCTIONS:
 \`\`\`
 {{/if}}
 
-Now, fulfill the user's request. Remember to provide the complete, updated diagram in the "diagramData" field and a friendly message in the "response" field.
+Now, fulfill the user's request. Remember to research the topic thoroughly, provide a complete, updated diagram in the "diagramData" field, and a friendly message in the "response" field.
 `,
 });
 
@@ -90,5 +91,3 @@ const generateDiagramFlow = ai.defineFlow(
     }
   }
 );
-
-    
