@@ -1,8 +1,8 @@
 'use server';
 /**
- * @fileOverview AI agent that generates diagram data from a text prompt.
+ * @fileOverview AI agent that generates or modifies diagram data from a text prompt.
  *
- * - generateDiagram - A function that generates diagram data.
+ * - generateDiagram - A function that generates or modifies diagram data.
  * - GenerateDiagramInput - The input type for the generateDiagram function.
  * - GenerateDiagramOutput - The return type for the generateDiagram function.
  */
@@ -14,7 +14,8 @@ const GenerateDiagramInputSchema = z.object({
   diagramType: z
     .enum(['MindMap', 'Flowchart', 'OrgChart'])
     .describe('The desired type of diagram to generate.'),
-  instruction: z.string().describe('The user instruction for what to generate.'),
+  instruction: z.string().describe('The user instruction for what to generate or modify.'),
+  existingDiagramData: z.string().optional().describe('A JSON string of the existing diagram data (nodes and edges) to be modified. If this is provided, the instruction should be treated as a modification request.'),
 });
 export type GenerateDiagramInput = z.infer<typeof GenerateDiagramInputSchema>;
 
@@ -22,7 +23,7 @@ const GenerateDiagramOutputSchema = z.object({
   diagramData: z
     .string()
     .describe(
-      'A JSON string representing the diagram data, compatible with the rendering library. It must contain "nodes" and "edges" arrays.'
+      'A JSON string representing the complete, updated diagram data, compatible with the rendering library. It must contain "nodes" and "edges" arrays.'
     ),
     response: z.string().describe("A conversational response to the user explaining what was done.")
 });
@@ -38,25 +39,35 @@ const prompt = ai.definePrompt({
   name: 'generateDiagramPrompt',
   input: {schema: GenerateDiagramInputSchema},
   output: {schema: GenerateDiagramOutputSchema},
-  prompt: `You are an expert AI assistant specializing in creating diagrams.
+  prompt: `You are an expert AI assistant specializing in creating and modifying diagrams.
 Your task is to interpret a user's instruction and generate a valid JSON string that represents the diagram data.
 
 CRITICAL INSTRUCTIONS:
 1.  **Analyze the user's instruction** to understand the entities and their relationships.
-2.  **Output Format:** Your final output MUST be a single, valid JSON object containing "diagramData" and "response".
+2.  **Check for Existing Data:**
+    - **If "existingDiagramData" is provided:** You MUST treat this as a modification request. Modify the provided JSON based on the new "instruction". Do not start from scratch. Add, remove, or change nodes and edges as requested.
+    - **If "existingDiagramData" is NOT provided:** Generate a new diagram from scratch based on the "instruction".
+3.  **Output Format:** Your final output MUST be a single, valid JSON object containing "diagramData" and "response".
     - \`diagramData\`: This MUST be a JSON-escaped string containing the complete nodes and edges for the diagram.
-    - \`response\`: A friendly, conversational string explaining what you did (e.g., "I've created the mind map for you.").
+    - \`response\`: A friendly, conversational string explaining what you did (e.g., "I've created the mind map for you." or "I've added a node for Pluto as you requested.").
 
-3.  **Diagram Generation:**
+4.  **Diagram Generation & Layout:**
     - Create a deep, hierarchical structure. Go at least 3-4 levels deep if the instruction allows.
+    - For new diagrams, create a clear, spatially-aware layout. For mind maps, radiate from a central point. Avoid overlapping nodes.
     - **Nodes:** Each node MUST have a unique \`id\`, a \`label\`, a detailed \`description\`, and a relative \`x\` and \`y\` position (from 0 to 100). You can also add a 'color' property (hex or tailwind color class) for thematic coloring.
     - **Edges:** Each edge MUST have a unique \`id\`, a \`from\`, and a \`to\` property, referencing node IDs.
 
 **CONTEXT FOR THIS REQUEST:**
 - **Diagram Type:** {{{diagramType}}}
 - **User's Instruction:** "{{{instruction}}}"
+{{#if existingDiagramData}}
+- **Existing Diagram Data to Modify:**
+\`\`\`json
+{{{existingDiagramData}}}
+\`\`\`
+{{/if}}
 
-Now, fulfill the user's request. Remember to provide the complete diagram in the "diagramData" field and a friendly message in the "response" field.
+Now, fulfill the user's request. Remember to provide the complete, updated diagram in the "diagramData" field and a friendly message in the "response" field.
 `,
 });
 
@@ -79,3 +90,5 @@ const generateDiagramFlow = ai.defineFlow(
     }
   }
 );
+
+    

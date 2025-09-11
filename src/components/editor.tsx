@@ -170,7 +170,8 @@ export function Editor({ page }: EditorProps) {
   const [diagramState, setDiagramState] = React.useState({
       instruction: "",
       type: "MindMap" as (typeof diagramTypes)[number],
-      isOpen: false
+      isOpen: false,
+      editingTarget: null as HTMLElement | null,
   });
 
 
@@ -586,25 +587,48 @@ const handleGenerateDiagram = async () => {
         return;
     }
     setIsGenerating(true);
+    
+    // Get existing diagram data if we are editing
+    let existingData: string | undefined;
+    if (diagramState.editingTarget) {
+        const encoded = diagramState.editingTarget.getAttribute('data-diagram-data');
+        if (encoded) {
+            existingData = decodeURIComponent(escape(atob(encoded)));
+        }
+    }
+    
     try {
         const result = await generateDiagram({
             instruction: diagramState.instruction,
-            diagramType: diagramState.type
+            diagramType: diagramState.type,
+            existingDiagramData: existingData,
         });
 
         if (result.diagramData) {
             const encodedData = btoa(unescape(encodeURIComponent(result.diagramData)));
-            const diagramHtml = `<div data-diagram-type="${diagramState.type}" data-diagram-data="${encodedData}" contenteditable="false" class="bg-card p-2 rounded-md my-4 min-h-[400px]"></div><p>&#8203;</p>`;
-            
-            restoreSelection();
-            editorRef.current?.focus();
-            document.execCommand('insertHTML', false, diagramHtml);
+            const encodedInstruction = btoa(unescape(encodeURIComponent(diagramState.instruction)));
 
-            setTimeout(() => {
-                renderDiagramsInEditor();
-            }, 0);
-
-            toast({ title: "Success", description: `Diagram inserted into the document.` });
+            if (diagramState.editingTarget) {
+                // Update existing diagram
+                diagramState.editingTarget.setAttribute('data-diagram-data', encodedData);
+                diagramState.editingTarget.setAttribute('data-diagram-instruction', encodedInstruction);
+                // Unmount and re-render the React component inside the div
+                const root = (diagramState.editingTarget as any)._reactRootContainer;
+                if (root) {
+                    root.unmount();
+                    (diagramState.editingTarget as any)._reactRootContainer = null;
+                }
+                setTimeout(() => renderDiagramsInEditor(), 0);
+                 toast({ title: "Success", description: `Diagram updated.` });
+            } else {
+                // Insert new diagram
+                const diagramHtml = `<div data-diagram-type="${diagramState.type}" data-diagram-data="${encodedData}" data-diagram-instruction="${encodedInstruction}" contenteditable="false" class="bg-card p-2 rounded-md my-4 min-h-[400px]"></div><p>&#8203;</p>`;
+                restoreSelection();
+                editorRef.current?.focus();
+                document.execCommand('insertHTML', false, diagramHtml);
+                setTimeout(() => renderDiagramsInEditor(), 0);
+                toast({ title: "Success", description: `Diagram inserted into the document.` });
+            }
         } else {
             throw new Error("The AI did not return any diagram data.");
         }
@@ -613,7 +637,7 @@ const handleGenerateDiagram = async () => {
         toast({ title: "Error", description: `Failed to create diagram: ${e.message}`, variant: "destructive" });
     } finally {
         setIsGenerating(false);
-        setDiagramState({ ...diagramState, isOpen: false, instruction: "" });
+        setDiagramState({ isOpen: false, instruction: "", type: "MindMap", editingTarget: null });
     }
 };
 
@@ -1124,24 +1148,39 @@ const handleGenerateDiagram = async () => {
 
   const handleContextMenu = (e: React.MouseEvent) => {
       e.preventDefault();
-      saveSelection();
-      const selection = window.getSelection();
-      
-      let html = '';
-      if (selection && selection.rangeCount > 0) {
-        const range = selection.getRangeAt(0);
-        const container = document.createElement('div');
-        container.appendChild(range.cloneContents());
-        html = container.innerHTML;
+
+      const target = e.target as HTMLElement;
+      const diagramContainer = target.closest('div[data-diagram-type]');
+
+      if (diagramContainer) {
+          const type = diagramContainer.getAttribute('data-diagram-type') as any;
+          const instruction = diagramContainer.getAttribute('data-diagram-instruction') || '';
+          const decodedInstruction = decodeURIComponent(escape(atob(instruction)));
+          
+          setDiagramState({
+              isOpen: true,
+              type: type || 'MindMap',
+              instruction: decodedInstruction,
+              editingTarget: diagramContainer as HTMLElement,
+          });
+      } else {
+          saveSelection();
+          const selection = window.getSelection();
+          let html = '';
+          if (selection && selection.rangeCount > 0) {
+            const range = selection.getRangeAt(0);
+            const container = document.createElement('div');
+            container.appendChild(range.cloneContents());
+            html = container.innerHTML;
+          }
+          setContextMenu({
+              open: true,
+              x: e.clientX,
+              y: e.clientY,
+              selectedText: selection?.toString().trim() || '',
+              selectedHtml: html,
+          });
       }
-      
-      setContextMenu({
-          open: true,
-          x: e.clientX,
-          y: e.clientY,
-          selectedText: selection?.toString().trim() || '',
-          selectedHtml: html,
-      });
   };
 
   if (!page) {
@@ -1265,7 +1304,7 @@ const handleGenerateDiagram = async () => {
                 </PopoverContent>
               </Popover>
               <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => document.execCommand('insertHTML', false, '<hr><p>&#8203;</p>')}> <Minus className="h-4 w-4" /> </Button>
-              <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => setDiagramState({...diagramState, isOpen: true})}>
+              <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => setDiagramState({...diagramState, isOpen: true, editingTarget: null, instruction: ''})}>
                 <Network className="h-4 w-4" />
               </Button>
               <Dialog>
@@ -1429,8 +1468,8 @@ const handleGenerateDiagram = async () => {
       <Dialog open={diagramState.isOpen} onOpenChange={(isOpen) => setDiagramState({ ...diagramState, isOpen })}>
           <DialogContent className="sm:max-w-[425px]">
               <DialogHeader>
-                  <DialogTitle>Insert New Diagram</DialogTitle>
-                  <DialogDescription>Describe the diagram you want the AI to create.</DialogDescription>
+                  <DialogTitle>{diagramState.editingTarget ? "Edit Diagram" : "Insert New Diagram"}</DialogTitle>
+                  <DialogDescription>Describe the diagram you want the AI to create or modify.</DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
                  <div className="grid gap-2">
@@ -1439,7 +1478,7 @@ const handleGenerateDiagram = async () => {
                   </div>
                   <div className="grid gap-2">
                       <Label htmlFor="diagram-type">Diagram Type</Label>
-                      <Select onValueChange={(value: (typeof diagramTypes)[number]) => setDiagramState({...diagramState, type: value})} defaultValue={diagramState.type}>
+                      <Select onValueChange={(value: (typeof diagramTypes)[number]) => setDiagramState({...diagramState, type: value})} value={diagramState.type}>
                           <SelectTrigger><SelectValue /></SelectTrigger>
                           <SelectContent>
                           {diagramTypes.map(type => (
@@ -1450,9 +1489,9 @@ const handleGenerateDiagram = async () => {
                   </div>
               </div>
               <DialogFooter>
-                  <Button type="button" variant="secondary" onClick={() => setDiagramState({...diagramState, isOpen: false, instruction: ''})}>Close</Button>
+                  <Button type="button" variant="secondary" onClick={() => setDiagramState({...diagramState, isOpen: false, instruction: '', editingTarget: null})}>Close</Button>
                   <Button onClick={handleGenerateDiagram} disabled={isGenerating}>
-                      {isGenerating ? <Bot className="animate-spin" /> : "Generate & Insert"}
+                      {isGenerating ? <Bot className="animate-spin" /> : diagramState.editingTarget ? "Update Diagram" : "Generate & Insert"}
                   </Button>
               </DialogFooter>
           </DialogContent>
@@ -1460,5 +1499,7 @@ const handleGenerateDiagram = async () => {
     </div>
   );
 }
+
+    
 
     
