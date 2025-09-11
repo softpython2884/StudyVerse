@@ -961,7 +961,7 @@ const handleGenerateDiagram = async () => {
     restoreSelection();
     setTimeout(() => {
       if (tableGridSize.rows > 0 && tableGridSize.cols > 0) {
-        let tableHtml = '<table style="border-collapse: collapse; width: 100%;">';
+        let tableHtml = '<table style="border-collapse: collapse; width: 100%;"><tbody>';
         for (let i = 0; i < tableGridSize.rows; i++) {
           tableHtml += '<tr>';
           for (let j = 0; j < tableGridSize.cols; j++) {
@@ -969,7 +969,7 @@ const handleGenerateDiagram = async () => {
           }
           tableHtml += '</tr>';
         }
-        tableHtml += '</table><p>&#8203;</p>';
+        tableHtml += '</tbody></table><p>&#8203;</p>';
         document.execCommand("insertHTML", false, tableHtml);
       }
       setIsTablePopoverOpen(false);
@@ -1083,15 +1083,17 @@ const handleGenerateDiagram = async () => {
       return;
     }
     if (target.closest('td')) {
-        const p = target.closest('td')?.querySelector('p');
-        if (p) {
-            const range = document.createRange();
-            const sel = window.getSelection();
-            range.selectNodeContents(p);
-            range.collapse(true);
-            sel?.removeAllRanges();
-            sel?.addRange(range);
-        }
+        const td = target.closest('td')!;
+        const p = td.querySelector('p');
+        const sel = window.getSelection();
+        const range = document.createRange();
+        
+        // If there's a p tag, focus on it. Otherwise, focus the td itself.
+        const focusTarget = p || td;
+        range.selectNodeContents(focusTarget);
+        range.collapse(false); // Move cursor to the end
+        sel?.removeAllRanges();
+        sel?.addRange(range);
     }
   };
 
