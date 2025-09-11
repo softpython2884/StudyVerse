@@ -1052,10 +1052,10 @@ const handleGenerateDiagram = async () => {
   };
 
   return (
-    <div className="flex flex-row h-full bg-background p-1 sm:p-2 lg:p-4 gap-4">
-      <div className="w-full flex-1 flex flex-col overflow-hidden relative">
-        <CardHeader className="p-2 print-hidden sticky top-0 bg-background z-10">
-          <div className="flex items-center justify-between p-2 mb-2 border-b rounded-t-md bg-secondary/50 flex-wrap">
+    <div className="flex h-full w-full bg-background p-1 sm:p-2 lg:p-4 gap-4">
+      <div className="flex-1 flex flex-col min-w-0 relative">
+        <div className="p-2 print-hidden sticky top-0 bg-background z-10 border-b mb-2 rounded-t-md">
+          <div className="flex items-center justify-between flex-wrap">
             <div className="flex items-center gap-1 flex-wrap">
               <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => handleFormat("undo")}> <Undo className="h-4 w-4" /> </Button>
               <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => handleFormat("redo")}> <Redo className="h-4 w-4" /> </Button>
@@ -1192,8 +1192,8 @@ const handleGenerateDiagram = async () => {
               </Button>
             </div>
           </div>
-        </CardHeader>
-        <CardContent ref={scrollContainerRef} className="flex-1 overflow-y-auto p-0 printable-area">
+        </div>
+        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto printable-area bg-card rounded-b-md">
           <div
             ref={editorRef}
             key={page.id}
@@ -1206,10 +1206,10 @@ const handleGenerateDiagram = async () => {
             onBlur={handleBlur}
             onClick={handleEditorClick}
             onPaste={handlePaste}
-            className="prose dark:prose-invert max-w-none w-full h-full bg-card p-4 sm:p-6 md:p-8 lg:p-12 focus:outline-none"
+            className="prose dark:prose-invert max-w-none w-full h-full p-4 sm:p-6 md:p-8 lg:p-12 focus:outline-none"
             style={{ direction: 'ltr' }}
           />
-        </CardContent>
+        </div>
          <Button
             onClick={() => { /* AI Chat logic will be here */ }}
             className="absolute bottom-6 right-6 rounded-full h-14 w-14 shadow-lg z-10"
@@ -1327,3 +1327,4 @@ const handleGenerateDiagram = async () => {
     </div>
   );
 }
+
