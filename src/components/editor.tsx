@@ -483,6 +483,7 @@ export function Editor({ page }: EditorProps) {
               
               let newElement: HTMLElement | null = null;
               const ytMatch = url.match(/(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([\w-]{11})/);
+              const sheetMatch = url.match(/https?:\/\/docs\.google\.com\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
 
               if (ytMatch) {
                   const videoId = ytMatch[1];
@@ -497,6 +498,16 @@ export function Editor({ page }: EditorProps) {
                   iframe.style.maxWidth = '100%';
                   iframe.style.borderRadius = '0.5rem';
                   newElement = iframe;
+              } else if (sheetMatch) {
+                  const sheetId = sheetMatch[1];
+                  const iframe = document.createElement('iframe');
+                  iframe.width = '100%';
+                  iframe.height = '480';
+                  // A more robust embed URL. widget=true&headers=false makes it cleaner
+                  iframe.src = `https://docs.google.com/spreadsheets/d/${sheetId}/edit?usp=sharing`;
+                  iframe.style.borderRadius = '0.5rem';
+                  iframe.style.border = '1px solid hsl(var(--border))';
+                  newElement = iframe;
               } else if (/\.(jpe?g|png|gif|webp)$/i.test(url)) {
                   const img = document.createElement('img');
                   img.src = url;
@@ -505,14 +516,14 @@ export function Editor({ page }: EditorProps) {
                   newElement = img;
               } else if (/\.(mp4|webm)$/i.test(url)) {
                   const video = document.createElement('video');
-video.src = url;
+                  video.src = url;
                   video.controls = true;
                   video.style.maxWidth = '100%';
                   video.style.borderRadius = '0.5rem';
                   newElement = video;
               } else {
                   const a = document.createElement('a');
-a.href = url;
+                  a.href = url;
                   a.textContent = url;
                   newElement = a;
               }
@@ -1562,3 +1573,5 @@ const handleGenerateDiagram = async () => {
     </div>
   );
 }
+
+    
