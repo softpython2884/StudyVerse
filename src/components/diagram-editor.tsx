@@ -23,6 +23,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import type { Page } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
+import { updatePageContent } from "@/lib/actions";
 
 interface DiagramData {
     nodes: Node[];
@@ -56,6 +57,8 @@ const nodeTypes = {
 export function DiagramEditor({ page }: DiagramEditorProps) {
   const [data, setData] = React.useState<DiagramData>({ nodes: [], edges: [] });
   const { toast } = useToast();
+  const debounceTimerRef = React.useRef<NodeJS.Timeout | null>(null);
+
 
   // AI Panel State
   const [isAiPanelOpen, setIsAiPanelOpen] = React.useState(false);
@@ -87,6 +90,16 @@ export function DiagramEditor({ page }: DiagramEditorProps) {
         setMessages([{ role: 'assistant', content: "I'm ready to help you build a diagram. What should we create first?" }]);
     }
   }, [page]);
+
+  const debouncedSave = React.useCallback((diagramData: DiagramData) => {
+    if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+    }
+    debounceTimerRef.current = setTimeout(async () => {
+        await updatePageContent({ pageId: page.id, content: JSON.stringify(diagramData) });
+        toast({ title: "Saved", description: "Diagram auto-saved."});
+    }, 1000); // Save 1 second after the last change
+  }, [page.id, toast]);
   
   const handleAiSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -112,7 +125,9 @@ export function DiagramEditor({ page }: DiagramEditorProps) {
                 ...node,
                 type: node.type || 'custom',
             }));
-            setData({ ...newDiagramData, nodes: typedNodes });
+            const finalData = { ...newDiagramData, nodes: typedNodes };
+            setData(finalData);
+            debouncedSave(finalData);
         }
 
         const assistantMessage: ChatMessage = { role: 'assistant', content: result.response };

@@ -175,18 +175,18 @@ const CreatePageWithDiagramSchema = z.object({
     notebookId: z.string(),
     diagramTitle: z.string().min(1),
     diagramType: z.enum(['MindMap', 'Flowchart', 'OrgChart']),
-    generationText: z.string(),
     generationPrompt: z.string().min(1),
+    generationText: z.string().optional(),
 });
 
 export async function createPageWithDiagram(values: z.infer<typeof CreatePageWithDiagramSchema>) {
     await protectedRoute();
-    const { notebookId, diagramTitle, diagramType, generationText, generationPrompt } = values;
+    const { notebookId, diagramTitle, diagramType, generationPrompt, generationText } = values;
 
     try {
         // 1. Generate diagram data from AI
-        const diagramData = await generateDiagram({
-            text: `${generationText}\n\nPROMPT: ${generationPrompt}`,
+        const { diagramData } = await generateDiagram({
+            instruction: `${generationPrompt}\n\n${generationText || ''}`,
             diagramType: diagramType
         });
 
@@ -202,7 +202,7 @@ export async function createPageWithDiagram(values: z.infer<typeof CreatePageWit
             diagramTitle, 
             icon, 
             'diagram', 
-            diagramData.diagramData
+            diagramData
         );
 
         revalidatePath('/dashboard');
