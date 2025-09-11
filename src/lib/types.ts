@@ -8,6 +8,7 @@ export type Page = {
   notebook_id?: string;
   isShared?: boolean;
   permission?: 'view' | 'edit';
+  is_public?: boolean;
 };
 
 export type Notebook = {

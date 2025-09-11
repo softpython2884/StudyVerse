@@ -251,6 +251,32 @@ export async function updatePageContent(values: z.infer<typeof UpdatePageContent
     }
 }
 
+const UpdatePagePublicAccessSchema = z.object({
+  pageId: z.string(),
+  isPublic: z.boolean(),
+});
+
+export async function updatePagePublicAccess(values: z.infer<typeof UpdatePagePublicAccessSchema>) {
+    const user = await protectedRoute();
+    const { pageId, isPublic } = values;
+    const db = await getDb();
+
+    const pageData = await getPageAndOwner(pageId);
+    if (!pageData || pageData.owner.id !== user.id) {
+        return { success: false, message: "You don't have permission to modify this page." };
+    }
+
+    try {
+        await db.run('UPDATE pages SET is_public = ? WHERE id = ?', isPublic, pageId);
+        revalidatePath(`/public/page/${pageId}`);
+        revalidatePath('/dashboard');
+        return { success: true, message: `Page is now ${isPublic ? 'public' : 'private'}.` };
+    } catch (error) {
+        console.error("Failed to update public access:", error);
+        return { success: false, message: 'Database error.' };
+    }
+}
+
 // --- Generic Sharing Actions ---
 
 const ShareItemSchema = z.object({

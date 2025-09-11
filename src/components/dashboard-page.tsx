@@ -24,6 +24,7 @@ import {
   Network,
   Share2,
   Users,
+  Copy,
 } from "lucide-react";
 import {
   SidebarProvider,
@@ -80,7 +81,9 @@ import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Badge } from "./ui/badge";
 import { cn } from "@/lib/utils";
-import { createBinder, createNotebook, createPage, deleteBinder, deleteNotebook, deletePage, renameBinder, renameNotebook, renamePage, shareBinder, shareNotebook, sharePage } from "@/lib/actions";
+import { createBinder, createNotebook, createPage, deleteBinder, deleteNotebook, deletePage, renameBinder, renameNotebook, renamePage, shareBinder, shareNotebook, sharePage, updatePagePublicAccess } from "@/lib/actions";
+import { Switch } from "./ui/switch";
+import { Separator } from "./ui/separator";
 
 const icons: { [key: string]: LucideIcon } = {
   FolderKanban,
@@ -128,8 +131,10 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
   const [shareState, setShareState] = React.useState({
       itemId: "",
       itemType: "page" as "page" | "notebook" | "binder",
+      itemTitle: "",
       email: "",
       permission: "view" as "view" | "edit",
+      isPublic: false,
   });
 
   React.useEffect(() => {
@@ -296,7 +301,7 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
       }
   };
 
-  const handleShare = async () => {
+  const handlePrivateShare = async () => {
     if (!shareState.itemId || !shareState.email) {
         toast({ title: "Error", description: "Email is required.", variant: "destructive" });
         return;
@@ -326,14 +331,37 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
     setIsShareDialogOpen(false);
   };
 
+  const handlePublicShareToggle = async (isPublic: boolean) => {
+    if (shareState.itemType !== 'page') return;
+
+    setShareState(prev => ({ ...prev, isPublic }));
+
+    const result = await updatePagePublicAccess({ pageId: shareState.itemId, isPublic });
+    if (result.success) {
+        toast({ title: "Success", description: result.message });
+        router.refresh();
+    } else {
+        toast({ title: "Error", description: result.message, variant: "destructive" });
+        // Revert the switch state on failure
+        setShareState(prev => ({ ...prev, isPublic: !isPublic }));
+    }
+  };
+
   const openRenameDialog = (id: string, title: string, type: 'binder' | 'notebook' | 'page') => {
     setRenameTarget({ id, title, type });
     setNewTitle(title);
     setIsRenameDialogOpen(true);
   };
 
-  const openShareDialog = (id: string, type: 'page' | 'notebook' | 'binder') => {
-    setShareState({ itemId: id, itemType: type, email: "", permission: "view" });
+  const openShareDialog = (id: string, title: string, type: 'page' | 'notebook' | 'binder', isPublic?: boolean) => {
+    setShareState({ 
+        itemId: id, 
+        itemType: type,
+        itemTitle: title, 
+        email: "", 
+        permission: "view",
+        isPublic: isPublic || false,
+    });
     setIsShareDialogOpen(true);
   };
 
@@ -360,7 +388,7 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
     }).filter(Boolean) as Binder[];
   }, [searchQuery, data]);
 
-  const ItemMenu = ({ id, title, type, isShared }: { id: string, title: string, type: 'binder' | 'notebook' | 'page', isShared?: boolean }) => (
+  const ItemMenu = ({ id, title, type, isShared, isPublic }: { id: string, title: string, type: 'binder' | 'notebook' | 'page', isShared?: boolean, isPublic?: boolean }) => (
     <DropdownMenu>
         <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100" onClick={e => e.stopPropagation()}>
@@ -373,7 +401,7 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
                     <DropdownMenuItem onClick={() => openRenameDialog(id, title, type)}>
                         <Edit className="mr-2 h-4 w-4" /> Rename
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => openShareDialog(id, type)}>
+                    <DropdownMenuItem onClick={() => openShareDialog(id, title, type, isPublic)}>
                         <Share2 className="mr-2 h-4 w-4" /> Share
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
@@ -542,7 +570,7 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
                                         </SidebarMenuButton>
                                       </Link>
                                       <div className="pr-2">
-                                        <ItemMenu id={page.id} title={page.title} type="page" isShared={page.isShared} />
+                                        <ItemMenu id={page.id} title={page.title} type="page" isShared={page.isShared} isPublic={page.is_public} />
                                       </div>
                                   </div>
                                 </SidebarMenuItem>
@@ -697,38 +725,71 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
 
         {/* Share Dialog */}
         <Dialog open={isShareDialogOpen} onOpenChange={setIsShareDialogOpen}>
-            <DialogContent>
+            <DialogContent className="max-w-md">
                 <DialogHeader>
-                    <DialogTitle>Share {shareState.itemType}</DialogTitle>
-                    <DialogDescription>
-                        Enter the email of the user you want to share with.
-                    </DialogDescription>
+                    <DialogTitle>Share {shareState.itemTitle}</DialogTitle>
                 </DialogHeader>
-                <div className="space-y-4">
-                    <div>
-                        <Label htmlFor="share-email">Email Address</Label>
-                        <Input id="share-email" type="email" placeholder="name@example.com" value={shareState.email} onChange={e => setShareState({...shareState, email: e.target.value})} />
-                    </div>
-                    <div>
-                        <Label>Permission</Label>
-                         <Select onValueChange={(value: 'view' | 'edit') => setShareState({...shareState, permission: value})} defaultValue={shareState.permission}>
-                            <SelectTrigger>
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="view">Can view</SelectItem>
-                                <SelectItem value="edit">Can edit</SelectItem>
-                            </SelectContent>
-                        </Select>
+                <div className="space-y-6">
+                    {shareState.itemType === 'page' && (
+                    <>
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                                <Label htmlFor="public-share-switch" className="flex flex-col gap-1">
+                                    <span>Public Share</span>
+                                    <span className="text-xs font-normal text-muted-foreground">Anyone with the link can view</span>
+                                </Label>
+                                <Switch
+                                    id="public-share-switch"
+                                    checked={shareState.isPublic}
+                                    onCheckedChange={handlePublicShareToggle}
+                                />
+                            </div>
+                            {shareState.isPublic && (
+                                <div className="flex space-x-2">
+                                    <Input
+                                        value={`${window.location.origin}/public/page/${shareState.itemId}`}
+                                        readOnly
+                                    />
+                                    <Button size="icon" variant="outline" onClick={() => {
+                                        navigator.clipboard.writeText(`${window.location.origin}/public/page/${shareState.itemId}`);
+                                        toast({ title: "Copied to clipboard!" });
+                                    }}>
+                                        <Copy className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            )}
+                        </div>
+                        <div className="relative">
+                            <Separator />
+                            <div className="absolute inset-0 flex items-center">
+                                <span className="mx-auto bg-background px-2 text-xs text-muted-foreground">OR</span>
+                            </div>
+                        </div>
+                    </>
+                    )}
+                    <div className="space-y-4">
+                        <p className="font-medium">Private Share</p>
+                        <div>
+                            <Label htmlFor="share-email">Email Address</Label>
+                            <Input id="share-email" type="email" placeholder="name@example.com" value={shareState.email} onChange={e => setShareState({...shareState, email: e.target.value})} />
+                        </div>
+                        <div>
+                            <Label>Permission</Label>
+                            <Select onValueChange={(value: 'view' | 'edit') => setShareState({...shareState, permission: value})} defaultValue={shareState.permission}>
+                                <SelectTrigger>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="view">Can view</SelectItem>
+                                    <SelectItem value="edit">Can edit</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <Button onClick={handlePrivateShare} className="w-full">Share with email</Button>
                     </div>
                 </div>
-                <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsShareDialogOpen(false)}>Cancel</Button>
-                    <Button onClick={handleShare}>Share</Button>
-                </DialogFooter>
             </DialogContent>
         </Dialog>
-
       </div>
     </SidebarProvider>
   );

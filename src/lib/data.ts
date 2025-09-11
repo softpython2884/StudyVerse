@@ -18,7 +18,7 @@ export async function getBinders(userId: number): Promise<Binder[]> {
         for (const notebook of notebooks) {
             const tags = await db.all<{tag: string}[]>('SELECT tag FROM notebook_tags WHERE notebook_id = ?', notebook.id);
             notebook.tags = tags.map(t => t.tag);
-            const pages = await db.all<Page[]>('SELECT id, title, icon, type, notebook_id FROM pages WHERE notebook_id = ? ORDER BY created_at DESC', notebook.id);
+            const pages = await db.all<Page[]>('SELECT id, title, icon, type, notebook_id, is_public FROM pages WHERE notebook_id = ? ORDER BY created_at DESC', notebook.id);
             notebook.pages = pages;
         }
     }
@@ -27,7 +27,7 @@ export async function getBinders(userId: number): Promise<Binder[]> {
     const sharedItems = await db.all<any[]>(`
         SELECT 
             s.item_id, s.item_type, s.permission,
-            p.title as page_title, p.icon as page_icon, p.type as page_type, p.notebook_id as page_notebook_id,
+            p.title as page_title, p.icon as page_icon, p.type as page_type, p.notebook_id as page_notebook_id, p.is_public as page_is_public,
             n.title as notebook_title, n.icon as notebook_icon, n.color as notebook_color, n.binder_id as notebook_binder_id,
             b.title as binder_title, b.icon as binder_icon,
             owner.name as owner_name, owner.id as owner_id
@@ -68,6 +68,7 @@ export async function getBinders(userId: number): Promise<Binder[]> {
                 icon: item.page_icon,
                 type: item.page_type,
                 notebook_id: item.page_notebook_id,
+                is_public: item.page_is_public,
                 isShared: true,
                 permission: item.permission,
             });
@@ -78,7 +79,7 @@ export async function getBinders(userId: number): Promise<Binder[]> {
                 icon: item.notebook_icon,
                 color: item.notebook_color,
                 tags: ['shared'], // Add shared tag
-                pages: await db.all<Page[]>('SELECT id, title, icon, type, notebook_id FROM pages WHERE notebook_id = ? ORDER BY created_at DESC', item.item_id),
+                pages: await db.all<Page[]>('SELECT id, title, icon, type, notebook_id, is_public FROM pages WHERE notebook_id = ? ORDER BY created_at DESC', item.item_id),
                 isShared: true,
                 permission: item.permission,
             };
@@ -99,7 +100,7 @@ export async function getBinders(userId: number): Promise<Binder[]> {
                  if (!notebook.tags.includes('shared')) {
                      notebook.tags.push('shared');
                  }
-                 notebook.pages = await db.all<Page[]>('SELECT id, title, icon, type, notebook_id FROM pages WHERE notebook_id = ? ORDER BY created_at DESC', notebook.id);
+                 notebook.pages = await db.all<Page[]>('SELECT id, title, icon, type, notebook_id, is_public FROM pages WHERE notebook_id = ? ORDER BY created_at DESC', notebook.id);
             }
             binders.push(sharedBinderToAdd);
         }
@@ -123,7 +124,7 @@ export async function getPage(pageId: string): Promise<Page | null> {
 export async function getPageAndOwner(pageId: string): Promise<{ page: Page, owner: User } | null> {
     const db = await getDb();
     const result = await db.get<{
-        id: string; title: string; icon: string; type: 'document' | 'diagram'; content: string | null;
+        id: string; title: string; icon: string; type: 'document' | 'diagram'; content: string | null; is_public: boolean;
         owner_id: number; owner_name: string; owner_email: string;
     }>(`
         SELECT p.*, u.id as owner_id, u.name as owner_name, u.email as owner_email
@@ -141,7 +142,8 @@ export async function getPageAndOwner(pageId: string): Promise<{ page: Page, own
         title: result.title,
         icon: result.icon,
         type: result.type,
-        content: result.content
+        content: result.content,
+        is_public: !!result.is_public,
     };
     
     const owner: User = {

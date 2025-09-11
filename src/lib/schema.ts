@@ -49,6 +49,7 @@ export const DDL_STATEMENTS = [
         content TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        is_public BOOLEAN DEFAULT FALSE,
         FOREIGN KEY (notebook_id) REFERENCES notebooks(id) ON DELETE CASCADE
     );
   `,
