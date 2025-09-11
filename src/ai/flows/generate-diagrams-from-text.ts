@@ -72,7 +72,10 @@ const generateDiagramFlow = ai.defineFlow(
       return output!;
     } catch (e: any) {
         console.error("Error in generateDiagramFlow", e);
-        throw new Error("Failed to generate diagram: " + e.message);
+        if (e.message && (e.message.includes('503') || e.message.toLowerCase().includes('model is overloaded'))) {
+            throw new Error("The AI service is currently overloaded. Please wait a moment and try again.");
+        }
+        throw new Error("An unexpected error occurred while generating the diagram.");
     }
   }
 );
