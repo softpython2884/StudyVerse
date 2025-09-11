@@ -21,7 +21,7 @@ export function DiagramRenderer({ type, initialNodes, initialEdges }: DiagramRen
                 // OrgChart may have a different data structure, adapt if necessary
                 return <OrgChart nodes={initialNodes} />;
             default:
-                return <div>Unknown diagram type: {type}</div>;
+                return <MindMap nodes={initialNodes} edges={initialEdges} />;
         }
     };
 

@@ -180,34 +180,38 @@ export const MindMap = ({ nodes, edges = [] }: { nodes: any[], edges?: any[] }) 
     <div className="relative w-full h-full">
       <svg className="absolute inset-0 w-full h-full pointer-events-none">
         <defs>
-          <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+          <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto-start-reverse">
             <path d="M0,0 L8,4 L0,8 z" fill="hsl(var(--border))" />
           </marker>
         </defs>
         {edges.map((e, i) => {
-          const a = nodesById.get(e.from);
-          const b = nodesById.get(e.to);
-          if (!a || !b) return null;
-          const x1 = (a.x / 100) * 2000;
-          const y1 = (a.y / 100) * 1400;
-          const x2 = (b.x / 100) * 2000;
-          const y2 = (b.y / 100) * 1400;
-
-          // simple curved path
+          const fromNode = nodesById.get(e.from);
+          const toNode = nodesById.get(e.to);
+          if (!fromNode || !toNode) return null;
+          
+          const x1 = (fromNode.x / 100) * 2000;
+          const y1 = (fromNode.y / 100) * 1400;
+          const x2 = (toNode.x / 100) * 2000;
+          const y2 = (toNode.y / 100) * 1400;
+          
+          // Calculate a gentle curve for the path
           const dx = x2 - x1;
           const dy = y2 - y1;
-          const qx = x1 + dx * 0.5;
-          const qy = y1 + dy * 0.5 - Math.min(120, Math.abs(dx) * 0.2);
-
+          // Control point for the curve. Adjust the multiplier for more/less curve
+          const cx1 = x1 + dx * 0.25; 
+          const cy1 = y1 + dy * 0.1;
+          const cx2 = x1 + dx * 0.75;
+          const cy2 = y1 + dy * 0.9;
+          
           return (
             <path
-              key={i}
-              d={`M ${x1} ${y1} Q ${qx} ${qy} ${x2} ${y2}`}
-              strokeWidth={2}
+              key={e.id || `edge-${i}`}
+              d={`M ${x1} ${y1} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${x2} ${y2}`}
+              strokeWidth={1.5}
               stroke="hsl(var(--border))"
               fill="none"
               markerEnd="url(#arrow)"
-              opacity={0.9}
+              opacity={0.8}
             />
           );
         })}
@@ -229,8 +233,7 @@ export const MindMap = ({ nodes, edges = [] }: { nodes: any[], edges?: any[] }) 
             >
               <div
                 className={cn(
-                  "p-4 rounded-lg shadow-md border border-border bg-card text-card-foreground",
-                  "min-w-[120px] max-w-xs"
+                  "p-3 rounded-lg shadow-md border border-border bg-card text-card-foreground min-w-[120px] max-w-xs",
                 )}
                 style={{ backgroundColor: node.color ? node.color : undefined }}
                 title={typeof node.label === "string" ? node.label : undefined}

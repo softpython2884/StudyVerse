@@ -199,7 +199,7 @@ export function Editor({ page }: EditorProps) {
 
     diagramPlaceholders.forEach(container => {
       // Prevent re-rendering if a root already exists
-      if ((container as any)._reactRootContainer) return;
+      if ((container as any)._reactRoot) return;
 
       const type = container.getAttribute('data-diagram-type');
       const encodedData = container.getAttribute('data-diagram-data');
@@ -211,10 +211,12 @@ export function Editor({ page }: EditorProps) {
         const { nodes, edges } = data;
         
         const diagramElement = (
-            <DiagramRenderer type={type} initialNodes={nodes} initialEdges={edges} />
+            <DiagramRenderer type={type} initialNodes={nodes} initialEdges={edges || []} />
         );
 
         const root = createRoot(container);
+        // Store the root on the element so we can unmount it later
+        (container as any)._reactRoot = root;
         root.render(diagramElement);
 
       } catch (e) {
@@ -613,10 +615,10 @@ const handleGenerateDiagram = async () => {
                 diagramState.editingTarget.setAttribute('data-diagram-data', encodedData);
                 diagramState.editingTarget.setAttribute('data-diagram-instruction', encodedInstruction);
                 // Unmount and re-render the React component inside the div
-                const root = (diagramState.editingTarget as any)._reactRootContainer;
+                const root = (diagramState.editingTarget as any)._reactRoot;
                 if (root) {
                     root.unmount();
-                    (diagramState.editingTarget as any)._reactRootContainer = null;
+                    (diagramState.editingTarget as any)._reactRoot = null;
                 }
                 setTimeout(() => renderDiagramsInEditor(), 0);
                  toast({ title: "Success", description: result.response });
@@ -1503,7 +1505,3 @@ const handleGenerateDiagram = async () => {
     </div>
   );
 }
-
-    
-
-    
