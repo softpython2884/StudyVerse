@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useRef, useEffect, useCallback } from 'react';
@@ -31,14 +32,14 @@ declare global {
 
 interface UseRecorderProps {
     onTranscript: (transcript: string) => void;
+    lang: string | null;
 }
 
 
-export const useRecorder = ({ onTranscript }: UseRecorderProps) => {
+export const useRecorder = ({ onTranscript, lang }: UseRecorderProps) => {
   const [isRecording, setIsRecording] = useState(false);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   
-  // Using useCallback to memoize the onTranscript function
   const handleTranscript = useCallback(onTranscript, [onTranscript]);
 
   useEffect(() => {
@@ -51,7 +52,7 @@ export const useRecorder = ({ onTranscript }: UseRecorderProps) => {
     const recognition = new SpeechRecognition();
     recognition.continuous = true;
     recognition.interimResults = true;
-    recognition.lang = 'en-US';
+    recognition.lang = lang || 'en-US';
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
       let final_transcript = '';
@@ -71,8 +72,10 @@ export const useRecorder = ({ onTranscript }: UseRecorderProps) => {
     };
 
     recognition.onend = () => {
-       if (isRecording) {
-           setIsRecording(false);
+       // Check the ref to see if we are in a recording state.
+       // The onend event can fire unexpectedly, so we check our own state.
+       if (recognitionRef.current && isRecording) {
+            setIsRecording(false);
        }
     };
     
@@ -83,8 +86,8 @@ export const useRecorder = ({ onTranscript }: UseRecorderProps) => {
         recognitionRef.current.stop();
       }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [handleTranscript]);
+  // We re-run this effect if the language changes
+  }, [handleTranscript, lang, isRecording]);
   
   const startRecording = () => {
     if (recognitionRef.current && !isRecording) {
