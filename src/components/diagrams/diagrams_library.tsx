@@ -175,30 +175,60 @@ export const DiagramShell = ({
 // -------------------------
 
 // Helper to get connection point
-const getEdgePath = (fromEl: HTMLDivElement, toEl: HTMLDivElement) => {
-    const container = fromEl.closest('[data-diagram-container]');
-    if (!container) return { path: "", start: {x:0, y:0}, end: {x:0, y:0} };
+const getEdgePath = (fromNode: any, toNode: any, fromEl: HTMLDivElement, toEl: HTMLDivElement) => {
+    if (!fromEl || !toEl) return { path: "", start: {x:0, y:0}, end: {x:0, y:0} };
 
-    const containerRect = container.getBoundingClientRect();
     const fromRect = fromEl.getBoundingClientRect();
     const toRect = toEl.getBoundingClientRect();
 
-    const fromCenter = { 
-      x: fromRect.left - containerRect.left + fromRect.width / 2, 
-      y: fromRect.top - containerRect.top + fromRect.height / 2 
-    };
-    const toCenter = { 
-      x: toRect.left - containerRect.left + toRect.width / 2, 
-      y: toRect.top - containerRect.top + toRect.height / 2 
-    };
-    
-    const dx = toCenter.x - fromCenter.x;
-    const dy = toCenter.y - fromCenter.y;
-    
-    // A simple bezier curve. Could be improved to be orthogonal or curved based on node positions.
-    const path = `M ${fromCenter.x} ${fromCenter.y} C ${fromCenter.x + dx * 0.4} ${fromCenter.y}, ${toCenter.x - dx * 0.4} ${toCenter.y}, ${toCenter.x} ${toCenter.y}`;
+    const fromCenter = { x: fromRect.left + fromRect.width / 2, y: fromRect.top + fromRect.height / 2 };
+    const toCenter = { x: toRect.left + toRect.width / 2, y: toRect.top + toRect.height / 2 };
 
-    return { path, start: fromCenter, end: toCenter };
+    const getIntersection = (rect: DOMRect, center1: Point, center2: Point): Point => {
+        const dx = center2.x - center1.x;
+        const dy = center2.y - center1.y;
+
+        if (dx === 0 && dy === 0) return { x: rect.left, y: rect.top };
+
+        const tan = dy / dx;
+
+        let x, y;
+        // Check intersections with vertical sides
+        if (dx > 0) x = rect.right; else x = rect.left;
+        y = center1.y + (x - center1.x) * tan;
+        if (y > rect.bottom) { y = rect.bottom; x = center1.x + (y-center1.y)/tan; }
+        if (y < rect.top) { y = rect.top; x = center1.x + (y-center1.y)/tan; }
+        
+        // Check intersections with horizontal sides
+        if (dy > 0) y = rect.bottom; else y = rect.top;
+        x = center1.x + (y - center1.y) / tan;
+        if (x > rect.right) { x = rect.right; y = center1.y + (x-center1.x)*tan; }
+        if (x < rect.left) { x = rect.left; y = center1.y + (x-center1.x)*tan; }
+
+        const xOnBox = x >= rect.left && x <= rect.right;
+        const yOnBox = y >= rect.top && y <= rect.bottom;
+
+        if (xOnBox && yOnBox) return {x, y};
+
+        // Fallback to center if something is wrong
+        return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    };
+
+    const startPoint = getIntersection(fromRect, fromCenter, toCenter);
+    const endPoint = getIntersection(toRect, toCenter, fromCenter);
+    
+    // Convert points to be relative to the SVG container
+    const svgRect = fromEl.closest('svg[data-edge-container]')?.getBoundingClientRect() || {left: 0, top: 0};
+
+    const relativeStart = { x: startPoint.x - svgRect.left, y: startPoint.y - svgRect.top };
+    const relativeEnd = { x: endPoint.x - svgRect.left, y: endPoint.y - svgRect.top };
+    
+    const dx = relativeEnd.x - relativeStart.x;
+    const dy = relativeEnd.y - relativeStart.y;
+    
+    const path = `M ${relativeStart.x} ${relativeStart.y} C ${relativeStart.x + dx * 0.4} ${relativeStart.y}, ${relativeEnd.x - dx * 0.4} ${relativeEnd.y}, ${relativeEnd.x} ${relativeEnd.y}`;
+
+    return { path, start: relativeStart, end: relativeEnd };
 };
 
 
@@ -211,12 +241,14 @@ export const MindMap = ({ nodes, edges = [] }: { nodes: any[], edges?: any[] }) 
     const calculatePaths = () => {
         const newPaths: any[] = [];
         edges.forEach((edge, index) => {
+            const fromNode = nodesById.get(edge.from);
+            const toNode = nodesById.get(edge.to);
             const fromEl = nodeRefs.current.get(edge.from);
             const toEl = nodeRefs.current.get(edge.to);
 
-            if (fromEl && toEl) {
-                const { path } = getEdgePath(fromEl, toEl);
-                newPaths.push({ id: edge.id || `edge-${index}`, path });
+            if (fromNode && toNode && fromEl && toEl) {
+                const { path, start, end } = getEdgePath(fromNode, toNode, fromEl, toEl);
+                newPaths.push({ id: edge.id || `edge-${index}`, path, start, end });
             }
         });
         setEdgePaths(newPaths);
@@ -229,8 +261,8 @@ export const MindMap = ({ nodes, edges = [] }: { nodes: any[], edges?: any[] }) 
   }, [nodes, edges, nodesById]);
 
   return (
-    <div className="relative w-full h-full" data-diagram-container>
-      <svg className="absolute inset-0 w-full h-full pointer-events-none">
+    <div className="relative w-full h-full">
+      <svg data-edge-container className="absolute inset-0 w-full h-full pointer-events-none">
         <defs>
           <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto-start-reverse">
             <path d="M0,0 L8,4 L0,8 z" fill="hsl(var(--border))" />
