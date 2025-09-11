@@ -105,25 +105,6 @@ body {
         text-decoration: underline;
     }
 
-    /* Diagram Embed Styles */
-    .diagram-embed {
-        @apply flex items-center gap-4 p-4 no-underline bg-secondary/50 rounded-lg border border-border hover:bg-secondary;
-        display: flex;
-    }
-    .diagram-embed-icon {
-        @apply flex-shrink-0 text-primary;
-    }
-    .diagram-embed-text {
-        @apply flex flex-col;
-    }
-    .diagram-embed-title {
-        @apply font-semibold text-foreground;
-    }
-    .diagram-embed-link {
-        @apply text-sm text-muted-foreground;
-    }
-
-
     b, strong {
       @apply font-bold;
     }
@@ -240,5 +221,3 @@ body {
 .react-flow__attribution {
   display: none !important;
 }
-
-    
