@@ -210,7 +210,7 @@ export function Editor({ page }: EditorProps) {
         const { nodes, edges } = data;
         
         const diagramElement = (
-            <DiagramRenderer type={type} initialNodes={nodes} edges={initialEdges} />
+            <DiagramRenderer type={type} initialNodes={nodes} initialEdges={edges} />
         );
 
         const root = createRoot(container);
@@ -1460,3 +1460,5 @@ const handleGenerateDiagram = async () => {
     </div>
   );
 }
+
+    
