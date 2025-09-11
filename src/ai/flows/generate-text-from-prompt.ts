@@ -22,6 +22,7 @@ const GenerateTextFromPromptOutputSchema = z.object({
   response: z
     .string()
     .describe('The generated or modified text, in HTML format.'),
+    error: z.string().optional().describe('An error message if the operation failed.'),
 });
 export type GenerateTextFromPromptOutput = z.infer<
   typeof GenerateTextFromPromptOutputSchema
@@ -67,13 +68,13 @@ const generateTextFromPromptFlow = ai.defineFlow(
   async input => {
      try {
       const {output} = await prompt(input);
-      return output!;
+      return output || { response: "" };
     } catch (e: any) {
         console.error("Error in generateTextFromPromptFlow", e);
         if (e.message && (e.message.includes('503') || e.message.toLowerCase().includes('model is overloaded'))) {
-            throw new Error("The AI service is currently overloaded. Please wait a moment and try again.");
+            return { response: "", error: "The AI service is currently overloaded. Please wait a moment and try again." };
         }
-        throw new Error("An unexpected error occurred while generating the text.");
+        return { response: "", error: "An unexpected error occurred while generating the text." };
     }
   }
 );

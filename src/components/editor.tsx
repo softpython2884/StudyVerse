@@ -619,7 +619,7 @@ const handleGenerateDiagram = async () => {
                     (diagramState.editingTarget as any)._reactRootContainer = null;
                 }
                 setTimeout(() => renderDiagramsInEditor(), 0);
-                 toast({ title: "Success", description: `Diagram updated.` });
+                 toast({ title: "Success", description: result.response });
             } else {
                 // Insert new diagram
                 const diagramHtml = `<div data-diagram-type="${diagramState.type}" data-diagram-data="${encodedData}" data-diagram-instruction="${encodedInstruction}" contenteditable="false" class="bg-card p-2 rounded-md my-4 min-h-[400px]"></div><p>&#8203;</p>`;
@@ -627,7 +627,7 @@ const handleGenerateDiagram = async () => {
                 editorRef.current?.focus();
                 document.execCommand('insertHTML', false, diagramHtml);
                 setTimeout(() => renderDiagramsInEditor(), 0);
-                toast({ title: "Success", description: `Diagram inserted into the document.` });
+                toast({ title: "Success", description: result.response });
             }
         } else {
             throw new Error("The AI did not return any diagram data.");
@@ -666,6 +666,10 @@ const handleGenerateDiagram = async () => {
         selection: selectedHtml || undefined,
       });
 
+      if (result.error) {
+        throw new Error(result.error);
+      }
+
       if (result.response) {
         editorRef.current?.focus();
         document.execCommand('insertHTML', false, result.response);
@@ -686,7 +690,7 @@ const handleGenerateDiagram = async () => {
   // KeyDown handles shortcuts + Enter special behavior + checklist/tab navigation + headings via Ctrl+Shift+N
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     
-     if (event.ctrlKey && event.key === ' ') {
+     if ((event.ctrlKey || event.metaKey) && event.key === ' ') {
       event.preventDefault();
       saveSelection();
       setIsAiPaletteOpen(true);
@@ -774,7 +778,7 @@ const handleGenerateDiagram = async () => {
       }
     }
     
-    if (event.ctrlKey && event.key === '-') {
+    if ((event.ctrlKey || event.metaKey) && event.key === '-') {
         event.preventDefault();
         document.execCommand('insertHTML', false, '<hr><p>&#8203;</p>');
         const newRange = document.createRange();
@@ -790,13 +794,13 @@ const handleGenerateDiagram = async () => {
         return;
     }
 
-    if (event.ctrlKey && event.key === 'k' && !event.shiftKey) {
+    if ((event.ctrlKey || event.metaKey) && event.key === 'k' && !event.shiftKey) {
       event.preventDefault();
       setIsCommandPaletteOpen(true);
       return;
     }
     
-    if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 'k') {
+    if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'k') {
       event.preventDefault();
       const sel = window.getSelection();
       if (sel && sel.rangeCount > 0) {
@@ -818,14 +822,14 @@ const handleGenerateDiagram = async () => {
       return;
     }
 
-    if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 'x') {
+    if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'x') {
         event.preventDefault();
         handleFormat('inlineCode');
         return;
     }
     
     // NOTE FOR AI: The shortcut for bold is Ctrl+G, do not change it.
-    if (event.ctrlKey && !event.altKey) {
+    if ((event.ctrlKey || event.metaKey) && !event.altKey) {
       const key = event.key.toLowerCase();
       if (key === 'g') { 
         event.preventDefault();
@@ -851,7 +855,7 @@ const handleGenerateDiagram = async () => {
     }
 
 
-    if (event.ctrlKey && event.shiftKey) {
+    if ((event.ctrlKey || event.metaKey) && event.shiftKey) {
       const keyNumber = parseInt(event.key, 10);
       if (keyNumber >= 0 && keyNumber <= 6) {
         event.preventDefault();
@@ -967,7 +971,7 @@ const handleGenerateDiagram = async () => {
     if (!target) return;
 
     // Handle Ctrl+Click on any link, including diagram embeds
-    if (e.ctrlKey && target.closest('a')) {
+    if ((e.ctrlKey || e.metaKey) && target.closest('a')) {
         e.preventDefault();
         const link = target.closest('a');
         const href = link?.getAttribute('href');
@@ -1155,7 +1159,7 @@ const handleGenerateDiagram = async () => {
       if (diagramContainer) {
           const type = diagramContainer.getAttribute('data-diagram-type') as any;
           const instruction = diagramContainer.getAttribute('data-diagram-instruction') || '';
-          const decodedInstruction = decodeURIComponent(escape(atob(instruction)));
+          const decodedInstruction = instruction ? decodeURIComponent(escape(atob(instruction))) : '';
           
           setDiagramState({
               isOpen: true,
