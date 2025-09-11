@@ -504,7 +504,7 @@ export function Editor({ page }: EditorProps) {
                   iframe.width = '100%';
                   iframe.height = '480';
                   // A more robust embed URL. widget=true&headers=false makes it cleaner
-                  iframe.src = `https://docs.google.com/spreadsheets/d/${sheetId}/edit?usp=sharing`;
+                  iframe.src = `https://docs.google.com/spreadsheets/d/${sheetId}/pubhtml?widget=true&amp;headers=false`;
                   iframe.style.borderRadius = '0.5rem';
                   iframe.style.border = '1px solid hsl(var(--border))';
                   newElement = iframe;
@@ -949,9 +949,9 @@ const handleGenerateDiagram = async () => {
       if (tableGridSize.rows > 0 && tableGridSize.cols > 0) {
         let tableHtml = '<table style="border-collapse: collapse; width: 100%;">';
         for (let i = 0; i < tableGridSize.rows; i++) {
-          tableHtml += '<tr style="border: 1px solid #ccc;">';
+          tableHtml += '<tr>';
           for (let j = 0; j < tableGridSize.cols; j++) {
-            tableHtml += '<td style="border: 1px solid #ccc; padding: 8px;"><p>&#8203;</p></td>';
+            tableHtml += '<td><p>&#8203;</p></td>';
           }
           tableHtml += '</tr>';
         }
@@ -1340,6 +1340,7 @@ const handleGenerateDiagram = async () => {
                   <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown}><Table className="h-4 w-4" /></Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-2" onOpenAutoFocus={(e) => e.preventDefault()}>
+                  <div className="text-center mb-1 text-xs">{tableGridSize.rows > 0 ? `${tableGridSize.rows} x ${tableGridSize.cols}` : 'Insert Table'}</div>
                   <div className="flex flex-col gap-1">
                     {Array.from({ length: 8 }).map((_, rowIndex) => (
                       <div key={rowIndex} className="flex gap-1">
@@ -1356,7 +1357,6 @@ const handleGenerateDiagram = async () => {
                       </div>
                     ))}
                   </div>
-                  <div className="text-center text-sm mt-2">{tableGridSize.rows} x {tableGridSize.cols}</div>
                 </PopoverContent>
               </Popover>
               <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => document.execCommand('insertHTML', false, '<hr><p>&#8203;</p>')}> <Minus className="h-4 w-4" /> </Button>
@@ -1573,5 +1573,7 @@ const handleGenerateDiagram = async () => {
     </div>
   );
 }
+
+    
 
     

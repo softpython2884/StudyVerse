@@ -187,6 +187,16 @@ body {
       @apply my-1;
     }
     
+    table {
+      @apply w-full my-4 border-collapse border border-border;
+    }
+    th, td {
+      @apply border border-border p-2 text-left;
+    }
+    th {
+      @apply bg-muted;
+    }
+    
     [contenteditable="true"] {
       caret-color: hsl(var(--accent));
       animation: none;
@@ -230,3 +240,5 @@ body {
 .react-flow__attribution {
   display: none !important;
 }
+
+    
