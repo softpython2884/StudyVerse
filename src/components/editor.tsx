@@ -628,11 +628,25 @@ const handleGenerateDiagram = async () => {
                 setTimeout(() => renderDiagramsInEditor(), 0);
                  toast({ title: "Success", description: result.response });
             } else {
-                // Insert new diagram
-                const diagramHtml = `<div data-diagram-type="${diagramState.type}" data-diagram-data="${encodedData}" data-diagram-instruction="${encodedInstruction}" contenteditable="false" class="bg-card p-2 rounded-md my-4 min-h-[400px]"></div><p>&#8203;</p>`;
+                // Insert new diagram as a styled link
+                const diagramTitle = `${diagramState.type}: ${diagramState.instruction.substring(0, 30)}...`;
+                const diagramId = `diagram-embed-${Date.now()}`;
+                
+                const diagramEmbedHtml = `
+                    <a href="#${diagramId}" class="diagram-embed" contenteditable="false">
+                        <span class="diagram-embed-icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-network"><rect x="16" y="16" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"/><path d="M12 12V8"/></svg></span>
+                        <span class="diagram-embed-text">
+                            <span class="diagram-embed-title">${diagramTitle}</span>
+                            <span class="diagram-embed-link">Click to view diagram</span>
+                        </span>
+                    </a>
+                    <div id="${diagramId}" data-diagram-type="${diagramState.type}" data-diagram-data="${encodedData}" data-diagram-instruction="${encodedInstruction}" contenteditable="false" class="bg-card p-2 rounded-md my-4 min-h-[400px]"></div>
+                    <p>&#8203;</p>
+                `;
+
                 restoreSelection();
                 editorRef.current?.focus();
-                document.execCommand('insertHTML', false, diagramHtml);
+                document.execCommand('insertHTML', false, diagramEmbedHtml);
                 setTimeout(() => renderDiagramsInEditor(), 0);
                 toast({ title: "Success", description: result.response });
             }
