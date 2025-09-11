@@ -3,7 +3,7 @@
 // components for building large, production-ready diagrams (mindmap, flowchart, orgchart, venn, timeline).
 // Dependencies allowed: react, framer-motion, clsx, tailwind-merge, lucide-react
 
-import React, { useEffect, useRef, useState, useMemo } from "react";
+import React, { useEffect, useRef, useState, useMemo, useLayoutEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -79,7 +79,7 @@ export const DiagramShell = ({
     const onDown = (e: MouseEvent) => {
       // ignore clicks on interactive controls (buttons etc.) by checking target
       const target = e.target as HTMLElement;
-      if (target?.closest("button")) return;
+      if (target?.closest("button, a, [contenteditable]")) return;
       dragging.current = true;
       lastPos.current = { x: e.clientX, y: e.clientY };
       el.style.cursor = "grabbing";
@@ -173,48 +173,116 @@ export const DiagramShell = ({
 // -------------------------
 // MindMap component
 // -------------------------
+
+// Helper to get connection point
+const getEdgePath = (fromNode: any, toNode: any, fromEl: HTMLDivElement, toEl: HTMLDivElement) => {
+    if (!fromEl || !toEl) return { path: "", start: {x:0, y:0}, end: {x:0, y:0} };
+
+    const fromRect = fromEl.getBoundingClientRect();
+    const toRect = toEl.getBoundingClientRect();
+
+    const fromCenter = { x: fromRect.left + fromRect.width / 2, y: fromRect.top + fromRect.height / 2 };
+    const toCenter = { x: toRect.left + toRect.width / 2, y: toRect.top + toRect.height / 2 };
+
+    const getIntersection = (rect: DOMRect, center1: Point, center2: Point): Point => {
+        const dx = center2.x - center1.x;
+        const dy = center2.y - center1.y;
+
+        if (dx === 0 && dy === 0) return { x: rect.left, y: rect.top };
+
+        const tan = dy / dx;
+
+        let x, y;
+        // Check intersections with vertical sides
+        if (dx > 0) x = rect.right; else x = rect.left;
+        y = center1.y + (x - center1.x) * tan;
+        if (y > rect.bottom) { y = rect.bottom; x = center1.x + (y-center1.y)/tan; }
+        if (y < rect.top) { y = rect.top; x = center1.x + (y-center1.y)/tan; }
+        
+        // Check intersections with horizontal sides
+        if (dy > 0) y = rect.bottom; else y = rect.top;
+        x = center1.x + (y - center1.y) / tan;
+        if (x > rect.right) { x = rect.right; y = center1.y + (x-center1.x)*tan; }
+        if (x < rect.left) { x = rect.left; y = center1.y + (x-center1.x)*tan; }
+
+        const xOnBox = x >= rect.left && x <= rect.right;
+        const yOnBox = y >= rect.top && y <= rect.bottom;
+
+        if (xOnBox && yOnBox) return {x, y};
+
+        // Fallback to center if something is wrong
+        return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    };
+
+    const startPoint = getIntersection(fromRect, fromCenter, toCenter);
+    const endPoint = getIntersection(toRect, toCenter, fromCenter);
+    
+    // Convert points to be relative to the SVG container
+    const svgRect = fromEl.closest('svg[data-edge-container]')?.getBoundingClientRect() || {left: 0, top: 0};
+
+    const relativeStart = { x: startPoint.x - svgRect.left, y: startPoint.y - svgRect.top };
+    const relativeEnd = { x: endPoint.x - svgRect.left, y: endPoint.y - svgRect.top };
+    
+    const dx = relativeEnd.x - relativeStart.x;
+    const dy = relativeEnd.y - relativeStart.y;
+    
+    const path = `M ${relativeStart.x} ${relativeStart.y} C ${relativeStart.x + dx * 0.4} ${relativeStart.y}, ${relativeEnd.x - dx * 0.4} ${relativeEnd.y}, ${relativeEnd.x} ${relativeEnd.y}`;
+
+    return { path, start: relativeStart, end: relativeEnd };
+};
+
+
 export const MindMap = ({ nodes, edges = [] }: { nodes: any[], edges?: any[] }) => {
   const nodesById = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
+  const nodeRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const [edgePaths, setEdgePaths] = useState<any[]>([]);
+
+  useLayoutEffect(() => {
+    const calculatePaths = () => {
+        const newPaths: any[] = [];
+        edges.forEach((edge, index) => {
+            const fromNode = nodesById.get(edge.from);
+            const toNode = nodesById.get(edge.to);
+            const fromEl = nodeRefs.current.get(edge.from);
+            const toEl = nodeRefs.current.get(edge.to);
+
+            if (fromNode && toNode && fromEl && toEl) {
+                const { path, start, end } = getEdgePath(fromNode, toNode, fromEl, toEl);
+                newPaths.push({ id: edge.id || `edge-${index}`, path, start, end });
+            }
+        });
+        setEdgePaths(newPaths);
+    }
+    
+    // We need a slight delay to let Framer Motion position the elements
+    const timer = setTimeout(calculatePaths, 50); 
+    return () => clearTimeout(timer);
+
+  }, [nodes, edges, nodesById]);
 
   return (
     <div className="relative w-full h-full">
-      <svg className="absolute inset-0 w-full h-full pointer-events-none">
+      <svg data-edge-container className="absolute inset-0 w-full h-full pointer-events-none">
         <defs>
           <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto-start-reverse">
             <path d="M0,0 L8,4 L0,8 z" fill="hsl(var(--border))" />
           </marker>
         </defs>
-        {edges.map((e, i) => {
-          const fromNode = nodesById.get(e.from);
-          const toNode = nodesById.get(e.to);
-          if (!fromNode || !toNode) return null;
-          
-          const x1 = (fromNode.x / 100) * 2000;
-          const y1 = (fromNode.y / 100) * 1400;
-          const x2 = (toNode.x / 100) * 2000;
-          const y2 = (toNode.y / 100) * 1400;
-          
-          // Calculate a gentle curve for the path
-          const dx = x2 - x1;
-          const dy = y2 - y1;
-          // Control point for the curve. Adjust the multiplier for more/less curve
-          const cx1 = x1 + dx * 0.25; 
-          const cy1 = y1 + dy * 0.1;
-          const cx2 = x1 + dx * 0.75;
-          const cy2 = y1 + dy * 0.9;
-          
-          return (
-            <path
-              key={e.id || `edge-${i}`}
-              d={`M ${x1} ${y1} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${x2} ${y2}`}
-              strokeWidth={1.5}
-              stroke="hsl(var(--border))"
-              fill="none"
-              markerEnd="url(#arrow)"
-              opacity={0.8}
-            />
-          );
-        })}
+        <AnimatePresence>
+            {edgePaths.map((edge) => (
+                <motion.path
+                key={edge.id}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 0.8 }}
+                exit={{ opacity: 0 }}
+                d={edge.path}
+                strokeWidth={1.5}
+                stroke="hsl(var(--border))"
+                fill="none"
+                markerEnd="url(#arrow)"
+                />
+            ))}
+        </AnimatePresence>
       </svg>
 
       <AnimatePresence>
@@ -224,6 +292,10 @@ export const MindMap = ({ nodes, edges = [] }: { nodes: any[], edges?: any[] }) 
           return (
             <motion.div
               key={node.id}
+              ref={(el) => {
+                  if (el) nodeRefs.current.set(node.id, el);
+                  else nodeRefs.current.delete(node.id);
+              }}
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0 }}

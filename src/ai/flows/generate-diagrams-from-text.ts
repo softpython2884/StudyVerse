@@ -53,8 +53,8 @@ CRITICAL INSTRUCTIONS:
     - \`response\`: A friendly, conversational string explaining what you did (e.g., "I've created a detailed mind map for you about Spanish Colonization.").
 
 5.  **Diagram Generation & Layout:**
-    - Create a deep, hierarchical structure. Go at least 3-4 levels deep if the instruction allows, and even deeper if the topic is complex. You are encouraged to create very detailed diagrams.
-    - For new diagrams, create a clear, spatially-aware layout. For mind maps, radiate from a central point. Avoid overlapping nodes.
+    - Create a deep, hierarchical structure. Go at least 3-4 levels deep, and feel free to go even deeper if the topic is complex and warrants it. You are encouraged to create very detailed diagrams.
+    - For new diagrams, create a clear, spatially-aware layout. For mind maps, radiate from a central point. **CRITICAL: Ensure nodes do not overlap. Assume each node is about 200px wide and 100px high and leave ample space between them.**
     - **Nodes:** Each node MUST have a unique \`id\`, a \`label\`, a detailed \`description\`, and a relative \`x\` and \`y\` position (from 0 to 100). You can also add a 'color' property (hex or tailwind color class) for thematic coloring.
     - **Edges:** Each edge MUST have a unique \`id\`, a \`from\`, and a \`to\` property, referencing node IDs.
 
