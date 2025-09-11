@@ -73,6 +73,7 @@ import { cn } from "@/lib/utils";
 import showdown from 'showdown';
 import { generateDiagram } from "@/ai/flows/generate-diagrams-from-text";
 import { DiagramRenderer } from "./diagram-renderer";
+import { CustomContextMenu } from "./custom-context-menu";
 
 interface EditorProps {
   page: Page;
@@ -109,6 +110,13 @@ export function Editor({ page }: EditorProps) {
   const [activeTocId, setActiveTocId] = React.useState<string | null>(null);
   const [isTocVisible, setIsTocVisible] = React.useState(true);
 
+  // --- CONTEXT MENU STATE ---
+  const [contextMenu, setContextMenu] = React.useState({
+      open: false,
+      x: 0,
+      y: 0,
+      selectedText: ''
+  });
 
   // --- SELECTION MARKER HELPERS ---
   const savedSelection = React.useRef<Range | null>(null);
@@ -479,14 +487,14 @@ export function Editor({ page }: EditorProps) {
                   newElement = img;
               } else if (/\.(mp4|webm)$/i.test(url)) {
                   const video = document.createElement('video');
-                  video.src = url;
+video.src = url;
                   video.controls = true;
                   video.style.maxWidth = '100%';
                   video.style.borderRadius = '0.5rem';
                   newElement = video;
               } else {
                   const a = document.createElement('a');
-                  a.href = url;
+a.href = url;
                   a.textContent = url;
                   newElement = a;
               }
@@ -1043,6 +1051,26 @@ const handleGenerateDiagram = async () => {
     }
   }, [toc]);
 
+  const handleReplaceText = (newText: string) => {
+    restoreSelection();
+    editorRef.current?.focus();
+    setTimeout(() => {
+        document.execCommand('insertHTML', false, newText);
+    }, 0);
+  };
+
+  const handleContextMenu = (e: React.MouseEvent) => {
+      e.preventDefault();
+      saveSelection();
+      const selection = window.getSelection();
+      setContextMenu({
+          open: true,
+          x: e.clientX,
+          y: e.clientY,
+          selectedText: selection?.toString().trim() || ''
+      });
+  };
+
   if (!page) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -1072,6 +1100,11 @@ const handleGenerateDiagram = async () => {
 
   return (
     <div className="flex h-full w-full bg-background p-1 sm:p-2 lg:p-4 gap-4">
+        <CustomContextMenu
+            {...contextMenu}
+            onOpenChange={(open) => setContextMenu({ ...contextMenu, open })}
+            onReplaceText={handleReplaceText}
+        />
       <div className="flex-1 flex flex-col min-w-0 relative">
         <div className="p-2 print-hidden sticky top-0 bg-background z-10 border-b mb-2 rounded-t-md">
           <div className="flex items-center justify-between flex-wrap">
@@ -1225,6 +1258,7 @@ const handleGenerateDiagram = async () => {
             onBlur={handleBlur}
             onClick={handleEditorClick}
             onPaste={handlePaste}
+            onContextMenu={handleContextMenu}
             className="prose dark:prose-invert max-w-none w-full h-full p-4 sm:p-6 md:p-8 lg:p-12 focus:outline-none"
             style={{ direction: 'ltr' }}
           />
