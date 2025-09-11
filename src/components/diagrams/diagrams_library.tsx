@@ -1,4 +1,3 @@
-
 // diagrams-library.tsx
 // Single-file collection of reusable React + TypeScript + Tailwind + Framer Motion
 // components for building large, production-ready diagrams (mindmap, flowchart, orgchart, venn, timeline).
@@ -233,7 +232,7 @@ export const MindMap = ({ nodes, edges = [] }: { nodes: any[], edges?: any[] }) 
                   "p-4 rounded-lg shadow-md border border-border bg-card text-card-foreground",
                   "min-w-[120px] max-w-xs"
                 )}
-                style={{ background: node.color ? node.color : undefined }}
+                style={{ backgroundColor: node.color ? node.color : undefined }}
                 title={typeof node.label === "string" ? node.label : undefined}
               >
                 <div className="font-bold text-sm mb-1">{node.label}</div>
