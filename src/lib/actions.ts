@@ -251,22 +251,45 @@ export async function updatePageContent(values: z.infer<typeof UpdatePageContent
     }
 }
 
-const SharePageSchema = z.object({
-  pageId: z.string(),
+// --- Generic Sharing Actions ---
+
+const ShareItemSchema = z.object({
+  itemId: z.string(),
+  itemType: z.enum(['page', 'notebook', 'binder']),
   email: z.string().email("Invalid email address."),
   permission: z.enum(['view', 'edit']),
 });
 
-export async function sharePage(values: z.infer<typeof SharePageSchema>) {
+async function shareItem(values: z.infer<typeof ShareItemSchema>) {
     const currentUser = await protectedRoute();
-    const { pageId, email, permission } = values;
+    const { itemId, itemType, email, permission } = values;
 
     const db = await getDb();
 
-    // 1. Verify current user owns the page
-    const pageData = await getPageAndOwner(pageId);
-    if (!pageData || pageData.owner.id !== currentUser.id) {
-        return { success: false, message: "You can only share pages you own." };
+    // 1. Verify current user owns the item
+    let owner;
+    if (itemType === 'page') {
+        const pageData = await getPageAndOwner(itemId);
+        owner = pageData?.owner;
+    } else if (itemType === 'notebook') {
+        const notebookOwner = await db.get(`
+            SELECT u.* FROM users u
+            JOIN binders b ON u.id = b.user_id
+            JOIN notebooks n ON b.id = n.binder_id
+            WHERE n.id = ?
+        `, itemId);
+        owner = notebookOwner;
+    } else if (itemType === 'binder') {
+        const binderOwner = await db.get(`
+            SELECT u.* FROM users u
+            JOIN binders b ON u.id = b.user_id
+            WHERE b.id = ?
+        `, itemId);
+        owner = binderOwner;
+    }
+
+    if (!owner || owner.id !== currentUser.id) {
+        return { success: false, message: `You can only share ${itemType}s you own.` };
     }
 
     // 2. Find the user to share with
@@ -282,15 +305,27 @@ export async function sharePage(values: z.infer<typeof SharePageSchema>) {
     try {
         await db.run(
             `INSERT INTO shares (item_id, item_type, owner_user_id, shared_with_user_id, permission) 
-             VALUES (?, 'page', ?, ?, ?)
+             VALUES (?, ?, ?, ?, ?)
              ON CONFLICT(item_id, shared_with_user_id) 
              DO UPDATE SET permission = excluded.permission`,
-            pageId, currentUser.id, sharedWithUser.id, permission
+            itemId, itemType, currentUser.id, sharedWithUser.id, permission
         );
         revalidatePath('/dashboard');
-        return { success: true, message: `Page successfully shared with ${email}.` };
+        return { success: true, message: `Successfully shared ${itemType} with ${email}.` };
     } catch (error) {
-        console.error("Failed to share page:", error);
-        return { success: false, message: 'Database error occurred during sharing.' };
+        console.error(`Failed to share ${itemType}:`, error);
+        return { success: false, message: `Database error occurred during ${itemType} sharing.` };
     }
+}
+
+export async function sharePage(values: Omit<z.infer<typeof ShareItemSchema>, 'itemType'> & { pageId: string }) {
+    return shareItem({ ...values, itemId: values.pageId, itemType: 'page' });
+}
+
+export async function shareNotebook(values: Omit<z.infer<typeof ShareItemSchema>, 'itemType'> & { notebookId: string }) {
+    return shareItem({ ...values, itemId: values.notebookId, itemType: 'notebook' });
+}
+
+export async function shareBinder(values: Omit<z.infer<typeof ShareItemSchema>, 'itemType'> & { binderId: string }) {
+    return shareItem({ ...values, itemId: values.binderId, itemType: 'binder' });
 }

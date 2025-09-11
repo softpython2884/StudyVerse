@@ -80,7 +80,7 @@ import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Badge } from "./ui/badge";
 import { cn } from "@/lib/utils";
-import { createBinder, createNotebook, createPage, deleteBinder, deleteNotebook, deletePage, renameBinder, renameNotebook, renamePage, sharePage } from "@/lib/actions";
+import { createBinder, createNotebook, createPage, deleteBinder, deleteNotebook, deletePage, renameBinder, renameNotebook, renamePage, shareBinder, shareNotebook, sharePage } from "@/lib/actions";
 
 const icons: { [key: string]: LucideIcon } = {
   FolderKanban,
@@ -303,20 +303,22 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
     }
 
     let result;
-    if (shareState.itemType === 'page') {
-        result = await sharePage({
-            pageId: shareState.itemId,
-            email: shareState.email,
-            permission: shareState.permission,
-        });
-    } else {
-        toast({ title: "Info", description: "Sharing for notebooks and binders is not yet implemented." });
-        setIsShareDialogOpen(false);
-        return;
+    const { itemId, email, permission } = shareState;
+    switch (shareState.itemType) {
+        case 'page':
+            result = await sharePage({ pageId: itemId, email, permission });
+            break;
+        case 'notebook':
+            result = await shareNotebook({ notebookId: itemId, email, permission });
+            break;
+        case 'binder':
+            result = await shareBinder({ binderId: itemId, email, permission });
+            break;
     }
     
     if (result.success) {
         toast({ title: "Success", description: result.message });
+        router.refresh();
     } else {
         toast({ title: "Error", description: result.message, variant: "destructive" });
     }
@@ -331,13 +333,6 @@ export function DashboardPage({ initialData, children, user }: { initialData: Bi
   };
 
   const openShareDialog = (id: string, type: 'page' | 'notebook' | 'binder') => {
-    if (type !== 'page') {
-        toast({
-            title: "Fonctionnalité en cours de développement",
-            description: "Le partage de classeurs et de carnets sera bientôt disponible.",
-        });
-        return;
-    }
     setShareState({ itemId: id, itemType: type, email: "", permission: "view" });
     setIsShareDialogOpen(true);
   };
