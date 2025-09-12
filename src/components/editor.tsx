@@ -45,6 +45,8 @@ import {
   Lock,
   PanelLeft,
   Image as ImageIcon,
+  Paperclip,
+  File as FileIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -179,6 +181,12 @@ export function Editor({ page }: EditorProps) {
       complexity: "Detailed" as (typeof diagramComplexities)[number],
       isOpen: false,
       editingTarget: null as HTMLElement | null,
+  });
+
+  const [attachmentState, setAttachmentState] = React.useState({
+    isOpen: false,
+    url: "",
+    name: "",
   });
 
 
@@ -988,6 +996,32 @@ const handleGenerateDiagram = async () => {
       setTableGridSize({ rows: 0, cols: 0 });
     }, 10);
   };
+  
+    const handleInsertAttachment = () => {
+    if (isReadOnly || !attachmentState.url) return;
+    
+    restoreSelection();
+    editorRef.current?.focus();
+
+    const fileName = attachmentState.name || attachmentState.url.split('/').pop() || "attachment.link";
+
+    setTimeout(() => {
+      const attachmentHtml = `
+        <div contenteditable="false" style="margin: 1rem 0; padding: 1rem; border-radius: 0.5rem; border: 1px solid hsl(var(--border)); background-color: hsl(var(--secondary));">
+          <a href="${attachmentState.url}" target="_blank" rel="noopener noreferrer" style="display: flex; align-items: center; gap: 0.75rem; text-decoration: none; color: hsl(var(--foreground));">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>
+            <span style="font-weight: 500;">${fileName}</span>
+          </a>
+        </div>
+        <p>&#8203;</p>
+      `;
+      document.execCommand("insertHTML", false, attachmentHtml);
+      
+      setAttachmentState({ isOpen: false, url: "", name: "" });
+      updateToolbarState();
+    }, 10);
+  };
+
 
   const handleSaveContent = async () => {
     if (isReadOnly || !editorRef.current) return;
@@ -1441,6 +1475,9 @@ const handleGenerateDiagram = async () => {
                <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => imageInputRef.current?.click()}>
                   <ImageIcon className="h-4 w-4" />
                </Button>
+               <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => setAttachmentState({ ...attachmentState, isOpen: true })}>
+                  <Paperclip className="h-4 w-4" />
+               </Button>
               <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => setDiagramState({...diagramState, isOpen: true, editingTarget: null, instruction: ''})}>
                 <Network className="h-4 w-4" />
               </Button>
@@ -1662,6 +1699,31 @@ const handleGenerateDiagram = async () => {
               </DialogFooter>
           </DialogContent>
       </Dialog>
+      
+      <Dialog open={attachmentState.isOpen} onOpenChange={(isOpen) => {if (!isOpen) setAttachmentState({ isOpen: false, url: "", name: "" }); else setAttachmentState({ ...attachmentState, isOpen });}}>
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Attach File</DialogTitle>
+                <DialogDescription>
+                    Provide a URL to a file (e.g., from Google Drive) to attach it to your document.
+                </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                    <Label htmlFor="attachment-url">File URL</Label>
+                    <Input id="attachment-url" value={attachmentState.url} onChange={(e) => setAttachmentState({ ...attachmentState, url: e.target.value })} placeholder="https://docs.google.com/document/d/..." />
+                </div>
+                <div className="grid gap-2">
+                    <Label htmlFor="attachment-name">Display Name (Optional)</Label>
+                    <Input id="attachment-name" value={attachmentState.name} onChange={(e) => setAttachmentState({ ...attachmentState, name: e.target.value })} placeholder="e.g., 'My Research Paper.pdf'" />
+                </div>
+            </div>
+            <DialogFooter>
+                <Button variant="outline" onClick={() => setAttachmentState({ isOpen: false, url: "", name: "" })}>Cancel</Button>
+                <Button onClick={handleInsertAttachment}>Attach</Button>
+            </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -1669,3 +1731,4 @@ const handleGenerateDiagram = async () => {
     
 
     
+
