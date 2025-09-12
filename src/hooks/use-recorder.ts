@@ -40,8 +40,6 @@ export const useRecorder = ({ onTranscript, lang }: UseRecorderProps) => {
   const [isRecording, setIsRecording] = useState(false);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   
-  const handleTranscript = useCallback(onTranscript, [onTranscript]);
-
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
@@ -50,10 +48,10 @@ export const useRecorder = ({ onTranscript, lang }: UseRecorderProps) => {
     }
 
     const recognition = new SpeechRecognition();
+    recognitionRef.current = recognition;
     recognition.continuous = true;
     recognition.interimResults = true;
-    recognition.lang = lang || 'en-US';
-
+    
     recognition.onresult = (event: SpeechRecognitionEvent) => {
       let final_transcript = '';
       for (let i = event.resultIndex; i < event.results.length; ++i) {
@@ -62,44 +60,52 @@ export const useRecorder = ({ onTranscript, lang }: UseRecorderProps) => {
         }
       }
       if (final_transcript) {
-          handleTranscript(final_transcript.trim() + ' ');
+          onTranscript(final_transcript.trim() + ' ');
       }
     };
 
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-      console.error(`Speech recognition error: ${event.error}`);
+      // "aborted" is a common error when programmatically stopping. We can safely ignore it.
+      if (event.error !== 'aborted') {
+          console.error(`Speech recognition error: ${event.error}`);
+      }
       setIsRecording(false);
     };
 
     recognition.onend = () => {
-       // Check the ref to see if we are in a recording state.
-       // The onend event can fire unexpectedly, so we check our own state.
-       if (recognitionRef.current && isRecording) {
-            setIsRecording(false);
-       }
+       setIsRecording(false);
     };
     
-    recognitionRef.current = recognition;
-
     return () => {
-      if(recognitionRef.current) {
-        recognitionRef.current.stop();
-      }
+      recognitionRef.current?.stop();
     };
-  // We re-run this effect if the language changes
-  }, [handleTranscript, lang, isRecording]);
+  }, [onTranscript]);
+
+  useEffect(() => {
+    if (recognitionRef.current && lang) {
+      recognitionRef.current.lang = lang;
+    }
+  }, [lang]);
   
   const startRecording = () => {
     if (recognitionRef.current && !isRecording) {
-      recognitionRef.current.start();
-      setIsRecording(true);
+      try {
+        recognitionRef.current.start();
+        setIsRecording(true);
+      } catch(e) {
+        console.error("Could not start recording: ", e);
+      }
     }
   };
 
   const stopRecording = () => {
     if (recognitionRef.current && isRecording) {
-      recognitionRef.current.stop();
-      setIsRecording(false);
+      try {
+        recognitionRef.current.stop();
+        setIsRecording(false);
+      } catch(e) {
+        console.error("Could not stop recording: ", e);
+      }
     }
   };
 

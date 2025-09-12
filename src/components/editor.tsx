@@ -44,6 +44,7 @@ import {
   Sparkles,
   Lock,
   PanelLeft,
+  Image as ImageIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -107,6 +108,7 @@ export function Editor({ page }: EditorProps) {
   const [isSaving, setIsSaving] = React.useState(false);
   const editorRef = React.useRef<HTMLDivElement>(null);
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
+  const imageInputRef = React.useRef<HTMLInputElement>(null);
   const [currentBlockStyle, setCurrentBlockStyle] = React.useState("p");
   const [toc, setToc] = React.useState<TocItem[]>([]);
   const debounceTimerRef = React.useRef<NodeJS.Timeout | null>(null);
@@ -1197,6 +1199,24 @@ const handleGenerateDiagram = async () => {
     }
   };
 
+  const handleImageFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const dataUrl = e.target?.result as string;
+        const imgHtml = `<img src="${dataUrl}" style="max-width: 100%; border-radius: 0.5rem;" /><p>&#8203;</p>`;
+        restoreSelection();
+        editorRef.current?.focus();
+        document.execCommand('insertHTML', false, imgHtml);
+      };
+      reader.readAsDataURL(file);
+    }
+    // Reset file input
+    event.target.value = '';
+  };
+
+
   // Set initial content and render diagrams
   React.useEffect(() => {
     if (editorRef.current) {
@@ -1315,6 +1335,13 @@ const handleGenerateDiagram = async () => {
 
   return (
     <div className="flex h-full w-full bg-background p-1 sm:p-2 lg:p-4 gap-4">
+        <input
+            type="file"
+            ref={imageInputRef}
+            onChange={handleImageFileChange}
+            accept="image/png, image/jpeg, image/jpg, image/gif, image/webp"
+            className="hidden"
+        />
         <CustomContextMenu
             {...contextMenu}
             onOpenChange={(open) => setContextMenu({ ...contextMenu, open })}
@@ -1411,6 +1438,9 @@ const handleGenerateDiagram = async () => {
                 </PopoverContent>
               </Popover>
               <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => document.execCommand('insertHTML', false, '<hr><p>&#8203;</p>')}> <Minus className="h-4 w-4" /> </Button>
+               <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => imageInputRef.current?.click()}>
+                  <ImageIcon className="h-4 w-4" />
+               </Button>
               <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown} onClick={() => setDiagramState({...diagramState, isOpen: true, editingTarget: null, instruction: ''})}>
                 <Network className="h-4 w-4" />
               </Button>
