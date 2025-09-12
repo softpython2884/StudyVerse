@@ -888,7 +888,6 @@ const handleGenerateDiagram = async () => {
         return;
     }
     
-    // NOTE FOR AI: The shortcut for bold is Ctrl+G, do not change it.
     if ((event.ctrlKey || event.metaKey) && !event.altKey) {
       const key = event.key.toLowerCase();
       if (key === 's') {
@@ -1126,8 +1125,31 @@ const handleGenerateDiagram = async () => {
         event.preventDefault();
         return;
     }
-    event.preventDefault();
+    
     const clipboardData = event.clipboardData;
+    const items = clipboardData.items;
+
+    // Check for image data
+    for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+            const blob = items[i].getAsFile();
+            if (blob) {
+                event.preventDefault();
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const dataUrl = e.target?.result as string;
+                    const img = `<img src="${dataUrl}" style="max-width: 100%; border-radius: 0.5rem;" />`;
+                    restoreSelection();
+                    editorRef.current?.focus();
+                    document.execCommand('insertHTML', false, img);
+                };
+                reader.readAsDataURL(blob);
+                return;
+            }
+        }
+    }
+
+    event.preventDefault();
     let paste = clipboardData.getData('text/html');
     
     if (paste) {
@@ -1441,7 +1463,7 @@ const handleGenerateDiagram = async () => {
                 <Save className="mr-2 h-4 w-4" />
                 {isSaving ? "Saving..." : "Save"}
               </Button>
-              <Button variant="ghost" size="sm" onClick={() => {}}>
+              <Button variant="ghost" size="sm">
                 <Share2 className="mr-2 h-4 w-4" />
                 Share
               </Button>
