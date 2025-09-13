@@ -237,7 +237,7 @@ export function Editor({ page }: EditorProps) {
         const { nodes, edges } = data;
         
         const diagramElement = (
-            <DiagramRenderer type={type} initialNodes={nodes} initialEdges={edges || []} />
+            <DiagramRenderer type={type} initialNodes={nodes} edges={edges || []} />
         );
 
         const root = createRoot(container);
@@ -1392,7 +1392,7 @@ const handleGenerateDiagram = async () => {
             onReplaceText={handleReplaceText}
             getSelectionRect={getSelectionRect}
         />
-      <div className="flex-1 flex flex-col min-w-0 bg-card rounded-md">
+      <div className="flex-1 flex flex-col min-w-0 bg-card rounded-md editor-container">
         {isToolbarVisible && (
         <div className="p-2 print-hidden sticky top-0 bg-background z-10 border-b mb-2 rounded-t-md">
           <div className="flex items-center justify-between flex-wrap">
@@ -1549,7 +1549,7 @@ const handleGenerateDiagram = async () => {
           </div>
         </div>
         )}
-        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto printable-area bg-card rounded-b-md">
+        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto bg-card rounded-b-md">
            {!isToolbarVisible && (
               <Button variant="ghost" size="icon" className="absolute top-2 left-2 z-10 print-hidden" onMouseDown={onToolbarMouseDown} onClick={() => setIsToolbarVisible(true)} title="Show Toolbar (Ctrl+Shift+T)">
                 <PanelLeft className="h-4 w-4" />
@@ -1742,5 +1742,6 @@ const handleGenerateDiagram = async () => {
     
 
     
+
 
 

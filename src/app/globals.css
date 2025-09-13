@@ -186,26 +186,20 @@ body {
 }
 
 @media print {
-    body, .printable-area {
+    @page {
+        margin: 1in;
+    }
+    body, .editor-container {
         background: white !important;
         color: black !important;
-    }
-    .printable-area {
-        display: block;
-        position: absolute;
-        left: 0;
-        top: 0;
-        width: 100%;
-        height: auto;
     }
     .print-hidden, .print-hidden * {
         display: none !important;
     }
-    .prose {
-        visibility: hidden;
-    }
-    .prose.printable-area, .prose.printable-area * {
-        visibility: visible;
+    .editor-container {
+      display: block;
+      width: 100%;
+      height: auto;
     }
     .react-flow__attribution {
         display: none !important;
