@@ -49,9 +49,22 @@ export const useRecorder = ({ onTranscript, lang }: UseRecorderProps) => {
 
     const recognition = new SpeechRecognition();
     recognitionRef.current = recognition;
+    
+    return () => {
+      recognitionRef.current?.stop();
+    };
+  }, []);
+
+  useEffect(() => {
+    const recognition = recognitionRef.current;
+    if (!recognition) return;
+
     recognition.continuous = true;
     recognition.interimResults = true;
-    
+    if (lang) {
+      recognition.lang = lang;
+    }
+
     recognition.onresult = (event: SpeechRecognitionEvent) => {
       let final_transcript = '';
       for (let i = event.resultIndex; i < event.results.length; ++i) {
@@ -66,7 +79,7 @@ export const useRecorder = ({ onTranscript, lang }: UseRecorderProps) => {
 
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
       // "aborted" is a common error when programmatically stopping. We can safely ignore it.
-      if (event.error !== 'aborted') {
+      if (event.error !== 'aborted' && event.error !== 'no-speech') {
           console.error(`Speech recognition error: ${event.error}`);
       }
       setIsRecording(false);
@@ -75,17 +88,9 @@ export const useRecorder = ({ onTranscript, lang }: UseRecorderProps) => {
     recognition.onend = () => {
        setIsRecording(false);
     };
-    
-    return () => {
-      recognitionRef.current?.stop();
-    };
-  }, [onTranscript]);
 
-  useEffect(() => {
-    if (recognitionRef.current && lang) {
-      recognitionRef.current.lang = lang;
-    }
-  }, [lang]);
+  }, [lang, onTranscript]);
+
   
   const startRecording = () => {
     if (recognitionRef.current && !isRecording) {
@@ -94,6 +99,7 @@ export const useRecorder = ({ onTranscript, lang }: UseRecorderProps) => {
         setIsRecording(true);
       } catch(e) {
         console.error("Could not start recording: ", e);
+        setIsRecording(false);
       }
     }
   };
@@ -102,7 +108,7 @@ export const useRecorder = ({ onTranscript, lang }: UseRecorderProps) => {
     if (recognitionRef.current && isRecording) {
       try {
         recognitionRef.current.stop();
-        setIsRecording(false);
+        // onend will set isRecording to false
       } catch(e) {
         console.error("Could not stop recording: ", e);
       }
@@ -113,3 +119,4 @@ export const useRecorder = ({ onTranscript, lang }: UseRecorderProps) => {
 };
 
     
+
