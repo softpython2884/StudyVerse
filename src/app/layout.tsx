@@ -21,7 +21,7 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Alegreya:wght@400;500;700&display=swap" rel="stylesheet" />
-        <meta name="theme-color" content="#8b9fb1" />
+        <meta name="theme-color" content="#708090" />
       </head>
       <body className={cn('font-body antialiased')}>
         <PwaLoader />

@@ -1,11 +1,7 @@
 {
   "name": "StudyVerse",
   "short_name": "StudyVerse",
-  "description": "AI-Powered Learning Environment",
-  "start_url": "/",
-  "display": "standalone",
-  "background_color": "#f9f9f9",
-  "theme_color": "#8b9fb1",
+  "description": "StudyVerse - AI-Powered Learning Environment",
   "icons": [
     {
       "src": "/icons/icon-192x192.png",
@@ -17,5 +13,10 @@
       "sizes": "512x512",
       "type": "image/png"
     }
-  ]
+  ],
+  "theme_color": "#8b9fb1",
+  "background_color": "#F5F5F5",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "orientation": "portrait"
 }
