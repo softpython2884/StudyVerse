@@ -152,6 +152,19 @@ export function DashboardPage({
     setData(initialData);
   }, [initialData]);
 
+  React.useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').then(registration => {
+          console.log('SW registered: ', registration);
+        }).catch(registrationError => {
+          console.log('SW registration failed: ', registrationError);
+        });
+      });
+    }
+  }, []);
+
+
   // --- Form State ---
   const [newItem, setNewItem] = React.useState({
       title: "",
@@ -823,3 +836,5 @@ export function DashboardPage({
     </SidebarProvider>
   );
 }
+
+    
