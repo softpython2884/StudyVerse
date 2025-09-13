@@ -74,13 +74,18 @@ export async function getBinders(userId: number): Promise<Binder[]> {
                 permission: item.permission,
             });
         } else if (item.item_type === 'notebook') {
+             const pagesInSharedNotebook = await db.all<Page[]>('SELECT id, title, icon, type, notebook_id, is_public FROM pages WHERE notebook_id = ? ORDER BY created_at DESC', item.item_id);
+             pagesInSharedNotebook.forEach(p => {
+                p.isShared = true;
+                p.permission = item.permission;
+             });
              const notebook: Notebook = {
                 id: item.item_id,
                 title: item.notebook_title,
                 icon: item.notebook_icon,
                 color: item.notebook_color,
                 tags: ['shared'], // Add shared tag
-                pages: await db.all<Page[]>('SELECT id, title, icon, type, notebook_id, is_public FROM pages WHERE notebook_id = ? ORDER BY created_at DESC', item.item_id),
+                pages: pagesInSharedNotebook,
                 isShared: true,
                 permission: item.permission,
             };

@@ -2,7 +2,6 @@ import type { Metadata } from 'next';
 import { Toaster } from '@/components/ui/toaster';
 import './globals.css';
 import { cn } from '@/lib/utils';
-import { PwaLoader } from '@/components/pwa-loader';
 
 export const metadata: Metadata = {
   title: 'StudyVerse - AI-Powered Learning Environment',
@@ -24,7 +23,6 @@ export default function RootLayout({
         <meta name="theme-color" content="#708090" />
       </head>
       <body className={cn('font-body antialiased')} suppressHydrationWarning={true}>
-        <PwaLoader />
         {children}
         <Toaster />
       </body>

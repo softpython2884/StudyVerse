@@ -1,16 +1,32 @@
 {
-  "name": "StudyVerse",
-  "short_name": "StudyVerse",
-  "description": "An AI-Powered Learning Environment",
-  "start_url": "/dashboard",
-  "display": "standalone",
-  "background_color": "#f1f5f9",
-  "theme_color": "#708090",
-  "icons": [
-    {
-      "src": "/icon.png",
-      "sizes": "192x192",
-      "type": "image/png"
-    }
-  ]
+    "theme_color": "#708090",
+    "background_color": "#F5F5F5",
+    "display": "standalone",
+    "scope": "/",
+    "start_url": "/",
+    "name": "StudyVerse",
+    "short_name": "StudyVerse",
+    "description": "AI-Powered Learning Environment to create, organize, and enhance your notes.",
+    "icons": [
+        {
+            "src": "/icon-192x192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "/icon-256x256.png",
+            "sizes": "256x256",
+            "type": "image/png"
+        },
+        {
+            "src": "/icon-384x384.png",
+            "sizes": "384x384",
+            "type": "image/png"
+        },
+        {
+            "src": "/icon-512x512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
 }
