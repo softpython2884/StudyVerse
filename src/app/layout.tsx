@@ -24,11 +24,10 @@ export default function RootLayout({
         <meta name="theme-color" content="#708090" />
       </head>
       <body className={cn('font-body antialiased')} suppressHydrationWarning={true}>
+        <PwaLoader />
         {children}
         <Toaster />
       </body>
     </html>
   );
 }
-
-    
