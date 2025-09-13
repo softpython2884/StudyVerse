@@ -148,6 +148,16 @@ export function Editor({ page }: EditorProps) {
           }
       }
   };
+  
+  const getSelectionRect = (): DOMRect | null => {
+    if (typeof window === 'undefined') return null;
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0);
+      return range.getBoundingClientRect();
+    }
+    return null;
+  }
 
   const restoreSelection = () => {
       if (typeof window === 'undefined') return;
@@ -1380,6 +1390,7 @@ const handleGenerateDiagram = async () => {
             {...contextMenu}
             onOpenChange={(open) => setContextMenu({ ...contextMenu, open })}
             onReplaceText={handleReplaceText}
+            getSelectionRect={getSelectionRect}
         />
       <div className="flex-1 flex flex-col min-w-0 bg-card rounded-md">
         {isToolbarVisible && (
@@ -1731,4 +1742,5 @@ const handleGenerateDiagram = async () => {
     
 
     
+
 

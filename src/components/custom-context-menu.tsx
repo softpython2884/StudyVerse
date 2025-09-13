@@ -12,13 +12,14 @@ import {
   DropdownMenuSubContent,
   DropdownMenuPortal
 } from '@/components/ui/dropdown-menu';
+import { Popover, PopoverContent, PopoverTrigger, PopoverAnchor } from '@/components/ui/popover';
 import { spellCheck } from '@/ai/flows/spell-check-flow';
 import { getBriefAnswer } from '@/ai/flows/get-brief-answer';
 import { refineAndStructureNotes } from '@/ai/flows/refine-and-structure-notes';
 import { translateText } from '@/ai/flows/translate-text';
 import { useToast } from '@/hooks/use-toast';
 import { useState } from 'react';
-import { Loader2, PenLine, Sparkles, Wand, Languages, Scissors, Copy, ClipboardPaste } from 'lucide-react';
+import { Loader2, PenLine, Sparkles, Wand, Languages, Scissors, Copy, ClipboardPaste, Check, X } from 'lucide-react';
 import { Button } from './ui/button';
 
 interface CustomContextMenuProps {
@@ -29,6 +30,7 @@ interface CustomContextMenuProps {
   selectedText: string;
   selectedHtml: string;
   onReplaceText: (newText: string, isHtml?: boolean) => void;
+  getSelectionRect: () => DOMRect | null;
 }
 
 const targetLanguages = ['English', 'Spanish', 'German', 'Japanese', 'Chinese'];
@@ -41,23 +43,28 @@ export function CustomContextMenu({
   selectedText,
   selectedHtml,
   onReplaceText,
+  getSelectionRect,
 }: CustomContextMenuProps) {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState<string | null>(null);
+  const [suggestionState, setSuggestionState] = useState<{
+    open: boolean;
+    title: string;
+    suggestion: string;
+    rect: DOMRect | null;
+  }>({ open: false, title: '', suggestion: '', rect: null });
 
   const handleStandardCommands = async (command: 'cut' | 'copy' | 'paste') => {
     if (command === 'paste') {
         try {
             const clipboardItems = await navigator.clipboard.read();
             for (const item of clipboardItems) {
-                // Prefer HTML content if available
                 if (item.types.includes("text/html")) {
                     const blob = await item.getType("text/html");
                     const html = await blob.text();
                     onReplaceText(html, true);
                     break;
                 }
-                // Fallback to plain text
                 if (item.types.includes("text/plain")) {
                     const blob = await item.getType("text/plain");
                     const text = await blob.text();
@@ -78,29 +85,24 @@ export function CustomContextMenu({
     onOpenChange(false);
   }
   
-  const showSuggestionToast = (title: string, suggestion: string) => {
-    toast({
+  const showSuggestion = (title: string, suggestion: string) => {
+    const selectionRect = getSelectionRect();
+    setSuggestionState({
+      open: true,
       title: title,
-      description: "Review the suggestion below.",
-      duration: 10000,
-      action: (
-        <div className="flex flex-col gap-2 items-start w-full">
-            <div className="p-2 border rounded-md bg-secondary text-secondary-foreground max-h-20 overflow-y-auto w-full">
-                <div dangerouslySetInnerHTML={{ __html: suggestion }}></div>
-            </div>
-            <Button
-                size="sm"
-                onClick={() => {
-                    onReplaceText(suggestion, true);
-                    toast().dismiss();
-                }}
-            >
-            Accept
-          </Button>
-        </div>
-      ),
+      suggestion: suggestion,
+      rect: selectionRect,
     });
   }
+
+  const handleAcceptSuggestion = () => {
+    onReplaceText(suggestionState.suggestion, true);
+    setSuggestionState({ open: false, title: '', suggestion: '', rect: null });
+  };
+
+  const handleDeclineSuggestion = () => {
+    setSuggestionState({ open: false, title: '', suggestion: '', rect: null });
+  };
 
 
   const handleAiAction = async (actionType: 'spellcheck' | 'answer' | 'refine' | 'translate', lang?: string) => {
@@ -114,23 +116,23 @@ export function CustomContextMenu({
             case 'spellcheck':
                 const spellResult = await spellCheck({ text: textToProcess });
                 if (spellResult.correctedText.trim() !== textToProcess.trim()) {
-                     showSuggestionToast("Correction Suggestion", spellResult.correctedText);
+                     showSuggestion("Correction Suggestion", spellResult.correctedText);
                 } else {
                     toast({ title: "No corrections found." });
                 }
                 break;
-            case 'answer': // This still uses plain text
+            case 'answer':
                 const answerResult = await getBriefAnswer({ question: textToProcess });
                 toast({ title: 'Brief Answer', description: answerResult.answer, duration: 10000 });
                 break;
             case 'refine':
                 const refineResult = await refineAndStructureNotes({ rawNotes: textToProcess });
-                 showSuggestionToast("Refinement Suggestion", refineResult.refinedNotes);
+                 showSuggestion("Refinement Suggestion", refineResult.refinedNotes);
                 break;
             case 'translate':
                  if (lang) {
                     const translateResult = await translateText({ text: textToProcess, targetLanguage: lang });
-                    showSuggestionToast(`Translation to ${lang}`, translateResult.translatedText);
+                    showSuggestion(`Translation to ${lang}`, translateResult.translatedText);
                 }
                 break;
         }
@@ -143,6 +145,7 @@ export function CustomContextMenu({
   };
   
   return (
+    <>
     <DropdownMenu open={open} onOpenChange={onOpenChange}>
         <DropdownMenuTrigger asChild>
             <div style={{ position: 'fixed', top: y, left: x, width: 1, height: 1 }} />
@@ -196,5 +199,30 @@ export function CustomContextMenu({
             </DropdownMenuItem>
         </DropdownMenuContent>
     </DropdownMenu>
+
+    <Popover open={suggestionState.open} onOpenChange={(isOpen) => !isOpen && handleDeclineSuggestion()}>
+        <PopoverAnchor style={{
+            position: 'fixed',
+            top: suggestionState.rect ? suggestionState.rect.bottom + 4 : 0,
+            left: suggestionState.rect ? suggestionState.rect.left + suggestionState.rect.width / 2 : 0,
+        }} />
+        <PopoverContent className="w-auto max-w-md p-2" align="center">
+            <div className="flex flex-col gap-2">
+                <div className="text-sm font-medium">{suggestionState.title}</div>
+                 <div className="p-2 border rounded-md bg-secondary text-secondary-foreground max-h-40 overflow-y-auto w-full prose prose-sm dark:prose-invert">
+                    <div dangerouslySetInnerHTML={{ __html: suggestionState.suggestion }}></div>
+                </div>
+                <div className="flex justify-end gap-2">
+                     <Button variant="ghost" size="icon" onClick={handleDeclineSuggestion} className="h-7 w-7">
+                        <X className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={handleAcceptSuggestion} className="h-7 w-7">
+                        <Check className="h-4 w-4" />
+                    </Button>
+                </div>
+            </div>
+        </PopoverContent>
+    </Popover>
+    </>
   );
 }
