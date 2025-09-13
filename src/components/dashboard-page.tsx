@@ -85,7 +85,6 @@ import { createBinder, createNotebook, createPage, deleteBinder, deleteNotebook,
 import { Switch } from "./ui/switch";
 import { Separator } from "./ui/separator";
 import { NotificationsCenter } from "./notifications-center";
-import { InstallPwaBanner } from "./install-pwa-banner";
 
 const icons: { [key: string]: LucideIcon } = {
   FolderKanban,
@@ -152,19 +151,6 @@ export function DashboardPage({
   React.useEffect(() => {
     setData(initialData);
   }, [initialData]);
-
-  React.useEffect(() => {
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js').then(registration => {
-          console.log('SW registered: ', registration);
-        }).catch(registrationError => {
-          console.log('SW registration failed: ', registrationError);
-        });
-      });
-    }
-  }, []);
-
 
   // --- Form State ---
   const [newItem, setNewItem] = React.useState({
@@ -681,7 +667,6 @@ export function DashboardPage({
             </header>
             
             <div className="flex-1 overflow-auto flex flex-col">
-              <InstallPwaBanner />
               <main className="flex-1">
                   {children}
               </main>
