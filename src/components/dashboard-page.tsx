@@ -85,6 +85,7 @@ import { createBinder, createNotebook, createPage, deleteBinder, deleteNotebook,
 import { Switch } from "./ui/switch";
 import { Separator } from "./ui/separator";
 import { NotificationsCenter } from "./notifications-center";
+import { InstallPwaBanner } from "./install-pwa-banner";
 
 const icons: { [key: string]: LucideIcon } = {
   FolderKanban,
@@ -678,10 +679,13 @@ export function DashboardPage({
                 </DropdownMenu>
                 </div>
             </header>
-          
-            <main className="flex-1 overflow-auto">
-                {children}
-            </main>
+            
+            <div className="flex-1 overflow-auto flex flex-col">
+              <InstallPwaBanner />
+              <main className="flex-1">
+                  {children}
+              </main>
+            </div>
         </SidebarInset>
         
         {/* Notebook Creation Dialog */}
@@ -836,5 +840,3 @@ export function DashboardPage({
     </SidebarProvider>
   );
 }
-
-    
