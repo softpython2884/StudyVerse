@@ -2,7 +2,6 @@ import type { Metadata } from 'next';
 import { Toaster } from '@/components/ui/toaster';
 import './globals.css';
 import { cn } from '@/lib/utils';
-import TitleBar from '@/components/title-bar';
 
 export const metadata: Metadata = {
   title: 'StudyVerse - AI-Powered Learning Environment',
@@ -23,8 +22,7 @@ export default function RootLayout({
         <meta name="theme-color" content="#708090" />
       </head>
       <body className={cn('font-body antialiased')} suppressHydrationWarning={true}>
-        <TitleBar />
-        <div className="content-container" style={{ height: 'calc(100vh - 32px)' }}>
+        <div className="content-container" style={{ height: '100vh' }}>
             {children}
         </div>
         <Toaster />

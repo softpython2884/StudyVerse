@@ -14,7 +14,7 @@ function createWindow() {
     height: 800,
     minWidth: 1000,
     minHeight: 700,
-    frame: false, // frameless window
+    frame: true, // Use native window frame
     transparent: false,
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#1e1e1e' : '#ffffff',
     webPreferences: {
@@ -42,10 +42,13 @@ app.whenReady().then(() => {
     createWindow();
   } else {
     console.log('🚀 Starting Next.js server for production...');
-    // In production, we'd package the server, but for now we'll run the start script
-    // Note: This isn't the final production strategy but works for building.
-    const serverPath = path.join(app.getAppPath(), '.next');
-    serverProcess = exec(`npm run start`);
+    // In production, we start the server from the packaged app
+    const serverPath = path.join(app.getAppPath(), '..', 'app', '.next', 'standalone');
+    const startScript = path.join(serverPath, 'server.js');
+    
+    serverProcess = exec(`node "${startScript}"`, {
+        env: { ...process.env, PORT: '9002' }
+    });
 
     serverProcess.stdout.on('data', (data: any) => {
         console.log(`server: ${data}`);
@@ -57,7 +60,7 @@ app.whenReady().then(() => {
 
     // A more robust way to wait for the server
     const waitOn = require('wait-on');
-    waitOn({ resources: ['http://localhost:9002'] })
+    waitOn({ resources: ['http://localhost:9002'], timeout: 30000 }) // 30s timeout
         .then(() => {
             console.log('Next.js Server is ready. Creating window.');
             createWindow();
