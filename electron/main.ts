@@ -16,7 +16,8 @@ function createWindow() {
     minHeight: 700,
     frame: true, // Use native window frame
     transparent: false,
-    backgroundColor: nativeTheme.shouldUseDarkColors ? '#1e1e1e' : '#ffffff',
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#1c1c1c' : '#ffffff',
+    icon: path.join(__dirname, '..', '..', 'public', 'ico.png'),
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,

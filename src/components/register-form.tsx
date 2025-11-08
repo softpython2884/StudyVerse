@@ -45,7 +45,7 @@ export function RegisterForm() {
       name: "",
       email: "",
       password: "",
-      sessionDuration: "30",
+      sessionDuration: "-1",
     },
   })
 
