@@ -108,6 +108,22 @@ const Icon = ({ name }: { name: string }) => {
     return <LucideIcon className="h-4 w-4" />
 }
 
+type DashboardContextType = {
+    openNewBinderDialog: () => void;
+    openNewNotebookDialog: () => void;
+    openNewPageDialog: () => void;
+};
+
+const DashboardContext = React.createContext<DashboardContextType | null>(null);
+
+export const useDashboard = () => {
+    const context = React.useContext(DashboardContext);
+    if (!context) {
+        throw new Error("useDashboard must be used within a DashboardPage component");
+    }
+    return context;
+};
+
 export function DashboardPage({ 
     initialData, 
     children, 
@@ -472,356 +488,379 @@ export function DashboardPage({
     return `/dashboard`;
   }
 
+  const contextValue = {
+    openNewBinderDialog: () => setIsBinderDialogOpen(true),
+    openNewNotebookDialog: () => {
+        if (data.length > 0 && data[0].id) {
+            setActiveBinderId(data[0].id);
+            setIsNotebookDialogOpen(true);
+        } else {
+            toast({ title: "Action impossible", description: "Veuillez d'abord créer un classeur.", variant: "destructive" });
+        }
+    },
+    openNewPageDialog: () => {
+        const firstNotebook = data.flatMap(b => b.notebooks)[0];
+        if (firstNotebook && firstNotebook.id) {
+            setActiveNotebookId(firstNotebook.id);
+            setIsPageDialogOpen(true);
+        } else {
+            toast({ title: "Action impossible", description: "Veuillez d'abord créer un carnet.", variant: "destructive" });
+        }
+    },
+  };
+
   return (
-    <SidebarProvider>
-      <div className="flex min-h-screen bg-secondary/10">
-        <Sidebar>
-          <SidebarHeader>
-            <div className="flex items-center justify-between w-full">
-                <div className="flex items-center gap-2">
-                    <Button variant="ghost" size="icon" className="h-9 w-9" asChild>
-                        <Link href="/">
-                            <BookOpenCheck className="h-6 w-6 text-primary" />
-                        </Link>
-                    </Button>
-                    <h2 className="text-lg font-semibold font-headline tracking-tight">StudyVerse</h2>
-                </div>
-                <Dialog open={isBinderDialogOpen} onOpenChange={setIsBinderDialogOpen}>
-                    <DialogTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <PlusCircle className="h-4 w-4" />
+    <DashboardContext.Provider value={contextValue}>
+        <SidebarProvider>
+        <div className="flex min-h-screen bg-secondary/10">
+            <Sidebar>
+            <SidebarHeader>
+                <div className="flex items-center justify-between w-full">
+                    <div className="flex items-center gap-2">
+                        <Button variant="ghost" size="icon" className="h-9 w-9" asChild>
+                            <Link href="/">
+                                <BookOpenCheck className="h-6 w-6 text-primary" />
+                            </Link>
                         </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                        <DialogHeader>
-                            <DialogTitle>Create New Binder</DialogTitle>
-                            <DialogDescription>
-                                Binders help you organize your notebooks by semester or subject.
-                            </DialogDescription>
-                        </DialogHeader>
-                        <div className="space-y-4">
-                            <div>
-                                <Label htmlFor="binder-title">Title</Label>
-                                <Input id="binder-title" value={newItem.title} onChange={e => setNewItem({...newItem, title: e.target.value})} placeholder="e.g., Fall Semester 2024" />
+                        <h2 className="text-lg font-semibold font-headline tracking-tight">StudyVerse</h2>
+                    </div>
+                    <Dialog open={isBinderDialogOpen} onOpenChange={setIsBinderDialogOpen}>
+                        <DialogTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <PlusCircle className="h-4 w-4" />
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                            <DialogHeader>
+                                <DialogTitle>Create New Binder</DialogTitle>
+                                <DialogDescription>
+                                    Binders help you organize your notebooks by semester or subject.
+                                </DialogDescription>
+                            </DialogHeader>
+                            <div className="space-y-4">
+                                <div>
+                                    <Label htmlFor="binder-title">Title</Label>
+                                    <Input id="binder-title" value={newItem.title} onChange={e => setNewItem({...newItem, title: e.target.value})} placeholder="e.g., Fall Semester 2024" />
+                                </div>
                             </div>
+                            <DialogFooter>
+                                <Button variant="outline" onClick={() => setIsBinderDialogOpen(false)}>Cancel</Button>
+                                <Button onClick={handleCreateBinder}>Create Binder</Button>
+                            </DialogFooter>
+                        </DialogContent>
+                    </Dialog>
+                </div>
+            </SidebarHeader>
+
+            <SidebarContent className="p-2">
+                <div className="relative mb-2">
+                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input placeholder="Search..." className="pl-8" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+                </div>
+
+                <SidebarMenu>
+                {filteredData.map((binder: Binder) => (
+                    <Collapsible key={binder.id} className="w-full" defaultOpen={binder.id === params.binderId || binder.isShared}>
+                    <div className={cn("flex items-center justify-between group", binder.isShared && "opacity-75")}>
+                        <SidebarMenuItem className="flex-1">
+                            <CollapsibleTrigger asChild>
+                                <SidebarMenuButton className="font-semibold w-full pr-0" isActive={false}>
+                                    <Icon name={binder.icon} />
+                                    <span className="flex-1 truncate">{binder.title}</span>
+                                    <ChevronDown className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                                </SidebarMenuButton>
+                            </CollapsibleTrigger>
+                        </SidebarMenuItem>
+                        <div className="flex items-center pr-2">
+                            <Dialog open={isNotebookDialogOpen} onOpenChange={setIsNotebookDialogOpen}>
+                                <DialogTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100" onClick={(e) => { e.stopPropagation(); setActiveBinderId(binder.id); }}>
+                                        <PlusCircle className="h-4 w-4" />
+                                    </Button>
+                                </DialogTrigger>
+                            </Dialog>
+                            <ItemMenu id={binder.id} title={binder.title} type="binder" isShared={binder.isShared} />
                         </div>
-                        <DialogFooter>
-                            <Button variant="outline" onClick={() => setIsBinderDialogOpen(false)}>Cancel</Button>
-                            <Button onClick={handleCreateBinder}>Create Binder</Button>
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
-            </div>
-          </SidebarHeader>
-
-          <SidebarContent className="p-2">
-            <div className="relative mb-2">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search..." className="pl-8" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
-            </div>
-
-            <SidebarMenu>
-              {filteredData.map((binder: Binder) => (
-                <Collapsible key={binder.id} className="w-full" defaultOpen={binder.id === params.binderId || binder.isShared}>
-                  <div className={cn("flex items-center justify-between group", binder.isShared && "opacity-75")}>
-                      <SidebarMenuItem className="flex-1">
-                          <CollapsibleTrigger asChild>
-                              <SidebarMenuButton className="font-semibold w-full pr-0" isActive={false}>
-                                  <Icon name={binder.icon} />
-                                  <span className="flex-1 truncate">{binder.title}</span>
-                                  <ChevronDown className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]:rotate-180" />
-                              </SidebarMenuButton>
-                          </CollapsibleTrigger>
-                      </SidebarMenuItem>
-                       <div className="flex items-center pr-2">
-                           <Dialog open={isNotebookDialogOpen} onOpenChange={setIsNotebookDialogOpen}>
-                              <DialogTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100" onClick={(e) => { e.stopPropagation(); setActiveBinderId(binder.id); }}>
-                                      <PlusCircle className="h-4 w-4" />
-                                  </Button>
-                              </DialogTrigger>
-                          </Dialog>
-                          <ItemMenu id={binder.id} title={binder.title} type="binder" isShared={binder.isShared} />
-                       </div>
-                  </div>
-                  <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
-                    <div className="pl-4">
-                      {binder.notebooks.map((notebook: Notebook) => (
-                        <Collapsible key={notebook.id} className="w-full" defaultOpen={notebook.id === params.notebookId || notebook.id === `shared-notebook-from-${user?.id}`}>
-                            <div className={cn("flex items-center justify-between group", notebook.isShared && "opacity-75")}>
-                                <SidebarMenuItem className="flex-1">
-                                    <CollapsibleTrigger asChild>
-                                        <SidebarMenuButton isActive={false} className="w-full pr-0">
-                                            <div className="flex items-center gap-2 w-full">
-                                                {!notebook.isShared && <span className={cn("h-3 w-3 mt-1 rounded-full flex-shrink-0", notebook.color)}></span>}
-                                                {notebook.isShared && <Icon name={notebook.icon} />}
-                                                <div className="flex-1 flex items-center justify-between overflow-hidden">
-                                                    <span className="truncate">{notebook.title}</span>
-                                                    <div className="flex items-center gap-1 ml-2 flex-shrink-0">
-                                                        {notebook.tags.map(tag => <Badge key={tag} variant="secondary" className={cn("h-4 text-[10px]", tag === 'shared' && 'bg-green-100 text-green-800')}>{tag}</Badge>)}
+                    </div>
+                    <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
+                        <div className="pl-4">
+                        {binder.notebooks.map((notebook: Notebook) => (
+                            <Collapsible key={notebook.id} className="w-full" defaultOpen={notebook.id === params.notebookId || notebook.id === `shared-notebook-from-${user?.id}`}>
+                                <div className={cn("flex items-center justify-between group", notebook.isShared && "opacity-75")}>
+                                    <SidebarMenuItem className="flex-1">
+                                        <CollapsibleTrigger asChild>
+                                            <SidebarMenuButton isActive={false} className="w-full pr-0">
+                                                <div className="flex items-center gap-2 w-full">
+                                                    {!notebook.isShared && <span className={cn("h-3 w-3 mt-1 rounded-full flex-shrink-0", notebook.color)}></span>}
+                                                    {notebook.isShared && <Icon name={notebook.icon} />}
+                                                    <div className="flex-1 flex items-center justify-between overflow-hidden">
+                                                        <span className="truncate">{notebook.title}</span>
+                                                        <div className="flex items-center gap-1 ml-2 flex-shrink-0">
+                                                            {notebook.tags.map(tag => <Badge key={tag} variant="secondary" className={cn("h-4 text-[10px]", tag === 'shared' && 'bg-green-100 text-green-800')}>{tag}</Badge>)}
+                                                        </div>
                                                     </div>
                                                 </div>
-                                            </div>
-                                            <ChevronDown className="h-4 w-4 transition-transform duration-200 group-data-[state=open]:rotate-180 flex-shrink-0 ml-2" />
-                                        </SidebarMenuButton>
-                                    </CollapsibleTrigger>
-                                </SidebarMenuItem>
-                                <div className="flex items-center pr-2">
-                                     <Dialog open={isPageDialogOpen} onOpenChange={setIsPageDialogOpen}>
-                                        <DialogTrigger asChild>
-                                             <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100" onClick={(e) => { e.stopPropagation(); setActiveBinderId(binder.id); setActiveNotebookId(notebook.id); }}>
-                                                <PlusCircle className="h-4 w-4" />
-                                            </Button>
-                                        </DialogTrigger>
-                                    </Dialog>
-                                    <ItemMenu id={notebook.id} title={notebook.title} type="notebook" isShared={notebook.isShared} />
+                                                <ChevronDown className="h-4 w-4 transition-transform duration-200 group-data-[state=open]:rotate-180 flex-shrink-0 ml-2" />
+                                            </SidebarMenuButton>
+                                        </CollapsibleTrigger>
+                                    </SidebarMenuItem>
+                                    <div className="flex items-center pr-2">
+                                        <Dialog open={isPageDialogOpen} onOpenChange={setIsPageDialogOpen}>
+                                            <DialogTrigger asChild>
+                                                <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100" onClick={(e) => { e.stopPropagation(); setActiveBinderId(binder.id); setActiveNotebookId(notebook.id); }}>
+                                                    <PlusCircle className="h-4 w-4" />
+                                                </Button>
+                                            </DialogTrigger>
+                                        </Dialog>
+                                        <ItemMenu id={notebook.id} title={notebook.title} type="notebook" isShared={notebook.isShared} />
+                                    </div>
                                 </div>
-                            </div>
-                          <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
-                            <div className="pl-6">
-                              {notebook.pages.map((page: Page) => (
-                                <SidebarMenuItem key={page.id}>
-                                   <div className={cn("flex items-center group w-full", page.isShared && "opacity-75")}>
-                                      <Link href={getLinkForPage(page)} className="flex-1 overflow-hidden">
-                                        <SidebarMenuButton
-                                          isActive={params.pageId === page.id}
-                                        >
-                                          <Icon name={page.icon} />
-                                          <span className="truncate">{page.title}</span>
-                                          {page.isShared && <Share2 className="ml-auto h-3 w-3 text-muted-foreground" />}
-                                        </SidebarMenuButton>
-                                      </Link>
-                                      <div className="pr-2">
-                                        <ItemMenu id={page.id} title={page.title} type="page" isShared={page.isShared} isPublic={page.is_public} />
-                                      </div>
-                                  </div>
-                                </SidebarMenuItem>
-                                )
-                              )}
-                            </div>
-                          </CollapsibleContent>
-                        </Collapsible>
-                      ))}
-                    </div>
-                  </CollapsibleContent>
-                </Collapsible>
-              ))}
-            </SidebarMenu>
-          </SidebarContent>
-
-          <SidebarFooter>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton>
-                    <Settings className="h-4 w-4" />
-                    Settings
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarFooter>
-        </Sidebar>
-
-        <SidebarInset className="p-0 flex flex-col">
-            <header className="flex items-center justify-between p-4 md:p-6 lg:p-8 border-b bg-background">
-                <div className="flex items-center gap-4">
-                    <SidebarTrigger>
-                        <PanelLeft />
-                    </SidebarTrigger>
-                    <div>
-                        <h1 className="text-2xl font-bold font-headline">{currentPage?.title || "Welcome"}</h1>
-                        <p className="text-sm text-muted-foreground">{!currentPage ? 'What will you learn today?' : (currentPage.isShared ? `Shared page • ${currentPage.permission === 'edit' ? 'Can edit' : 'View only'}` : 'Select a page to start editing.')}</p>
-                    </div>
-                </div>
-                <div className="flex items-center gap-2">
-                 <NotificationsCenter initialNotifications={initialNotifications} />
-                 <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" className="flex items-center gap-2 rounded-full h-9">
-                          <Avatar className="h-8 w-8">
-                            <AvatarImage src={user?.avatarUrl || ''} alt={user?.name || 'User'}/>
-                            <AvatarFallback>{user ? user.name.charAt(0).toUpperCase() : 'G'}</AvatarFallback>
-                          </Avatar>
-                          <span>{user?.name || 'Guest User'}</span>
-                          <ChevronDown className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-56">
-                    <DropdownMenuLabel>{user?.name || "Guest"}</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem>
-                        <User className="mr-2 h-4 w-4" />
-                        <span>Profile</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem>
-                        <Settings className="mr-2 h-4 w-4" />
-                        <span>Settings</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={handleLogout}>
-                        <LogOut className="mr-2 h-4 w-4" />
-                        <span>Logout</span>
-                    </DropdownMenuItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
-                </div>
-            </header>
-            
-            <div className="flex-1 overflow-auto flex flex-col">
-              <main className="flex-1">
-                  {children}
-              </main>
-            </div>
-        </SidebarInset>
-        
-        {/* Notebook Creation Dialog */}
-        <Dialog open={isNotebookDialogOpen} onOpenChange={(isOpen) => { if(!isOpen) resetNewItem(); setIsNotebookDialogOpen(isOpen);}}>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>Create New Notebook</DialogTitle>
-                    <DialogDescription>
-                        Notebooks live inside binders and contain your pages.
-                    </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4">
-                    <div>
-                        <Label htmlFor="notebook-title">Title</Label>
-                        <Input id="notebook-title" value={newItem.title} onChange={e => setNewItem({...newItem, title: e.target.value})} placeholder="e.g., Advanced AI" />
-                    </div>
-                     <div>
-                        <Label>Color</Label>
-                        <div className="flex gap-2 pt-2">
-                        {predefinedColors.map(color => (
-                            <button key={color} onClick={() => setNewItem({...newItem, color})} className={cn("h-6 w-6 rounded-full border-2", newItem.color === color ? 'border-primary' : 'border-transparent')}>
-                                <div className={cn("h-full w-full rounded-full", color)}></div>
-                            </button>
+                            <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
+                                <div className="pl-6">
+                                {notebook.pages.map((page: Page) => (
+                                    <SidebarMenuItem key={page.id}>
+                                    <div className={cn("flex items-center group w-full", page.isShared && "opacity-75")}>
+                                        <Link href={getLinkForPage(page)} className="flex-1 overflow-hidden">
+                                            <SidebarMenuButton
+                                            isActive={params.pageId === page.id}
+                                            >
+                                            <Icon name={page.icon} />
+                                            <span className="truncate">{page.title}</span>
+                                            {page.isShared && <Share2 className="ml-auto h-3 w-3 text-muted-foreground" />}
+                                            </SidebarMenuButton>
+                                        </Link>
+                                        <div className="pr-2">
+                                            <ItemMenu id={page.id} title={page.title} type="page" isShared={page.isShared} isPublic={page.is_public} />
+                                        </div>
+                                    </div>
+                                    </SidebarMenuItem>
+                                    )
+                                )}
+                                </div>
+                            </CollapsibleContent>
+                            </Collapsible>
                         ))}
                         </div>
-                    </div>
-                    <div>
-                        <Label htmlFor="notebook-tags">Tags</Label>
-                        <Input id="notebook-tags" value={newItem.tags} onChange={e => setNewItem({...newItem, tags: e.target.value})} placeholder="e.g., CS, AI, Hard (comma-separated)" />
-                    </div>
-                </div>
-                <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsNotebookDialogOpen(false)}>Cancel</Button>
-                    <Button onClick={handleCreateNotebook}>Create Notebook</Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+                    </CollapsibleContent>
+                    </Collapsible>
+                ))}
+                </SidebarMenu>
+            </SidebarContent>
 
-        {/* Page Creation Dialog */}
-         <Dialog open={isPageDialogOpen} onOpenChange={(isOpen) => { if(!isOpen) resetNewItem(); setIsPageDialogOpen(isOpen);}}>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>Create New Page</DialogTitle>
-                    <DialogDescription>
-                        Pages are where your content lives.
-                    </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4">
-                    <div>
-                        <Label htmlFor="page-title">Title</Label>
-                        <Input id="page-title" value={newItem.title} onChange={e => setNewItem({...newItem, title: e.target.value})} placeholder="e.g., Lecture 1: Intro" />
-                    </div>
-                </div>
-                <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsPageDialogOpen(false)}>Cancel</Button>
-                    <Button onClick={handleCreatePage}>Create Page</Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
-        
-        {/* Rename Dialog */}
-        <Dialog open={isRenameDialogOpen} onOpenChange={setIsRenameDialogOpen}>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>Rename {renameTarget?.type}</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                    <div>
-                        <Label htmlFor="new-title">New Title</Label>
-                        <Input id="new-title" value={newTitle} onChange={e => setNewTitle(e.target.value)} />
-                    </div>
-                </div>
-                <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsRenameDialogOpen(false)}>Cancel</Button>
-                    <Button onClick={handleRename}>Rename</Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+            <SidebarFooter>
+                <SidebarMenu>
+                <SidebarMenuItem>
+                    <SidebarMenuButton>
+                        <Settings className="h-4 w-4" />
+                        Settings
+                    </SidebarMenuButton>
+                </SidebarMenuItem>
+                </SidebarMenu>
+            </SidebarFooter>
+            </Sidebar>
 
-        {/* Share Dialog */}
-        <Dialog open={isShareDialogOpen} onOpenChange={setIsShareDialogOpen}>
-            <DialogContent className="max-w-md">
-                <DialogHeader>
-                    <DialogTitle>Share {shareState.itemTitle}</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-6">
-                    {shareState.itemType === 'page' && (
-                    <>
-                        <div className="space-y-4">
-                            <div className="flex items-center justify-between">
-                                <Label htmlFor="public-share-switch" className="flex flex-col gap-1">
-                                    <span>Public Share</span>
-                                    <span className="text-xs font-normal text-muted-foreground">Anyone with the link can view</span>
-                                </Label>
-                                <Switch
-                                    id="public-share-switch"
-                                    checked={shareState.isPublic}
-                                    onCheckedChange={handlePublicShareToggle}
-                                />
-                            </div>
-                            {shareState.isPublic && (
-                                <div className="flex space-x-2">
-                                    <Input
-                                        value={`${window.location.origin}/public/page/${shareState.itemId}`}
-                                        readOnly
-                                    />
-                                    <Button size="icon" variant="outline" onClick={() => {
-                                        navigator.clipboard.writeText(`${window.location.origin}/public/page/${shareState.itemId}`);
-                                        toast({ title: "Copied to clipboard!" });
-                                    }}>
-                                        <Copy className="h-4 w-4" />
-                                    </Button>
-                                </div>
-                            )}
+            <SidebarInset className="p-0 flex flex-col">
+                <header className="flex items-center justify-between p-4 md:p-6 lg:p-8 border-b bg-background">
+                    <div className="flex items-center gap-4">
+                        <SidebarTrigger>
+                            <PanelLeft />
+                        </SidebarTrigger>
+                        <div>
+                            <h1 className="text-2xl font-bold font-headline">{currentPage?.title || "Welcome"}</h1>
+                            <p className="text-sm text-muted-foreground">{!currentPage ? 'What will you learn today?' : (currentPage.isShared ? `Shared page • ${currentPage.permission === 'edit' ? 'Can edit' : 'View only'}` : 'Select a page to start editing.')}</p>
                         </div>
-                        <div className="relative">
-                            <div className="absolute inset-0 flex items-center">
-                                <span className="w-full border-t" />
-                            </div>
-                            <div className="relative flex justify-center text-xs uppercase">
-                                <span className="bg-background px-2 text-muted-foreground">
-                                OR
-                                </span>
-                            </div>
-                        </div>
-                    </>
-                    )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                    <NotificationsCenter initialNotifications={initialNotifications} />
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" className="flex items-center gap-2 rounded-full h-9">
+                            <Avatar className="h-8 w-8">
+                                <AvatarImage src={user?.avatarUrl || ''} alt={user?.name || 'User'}/>
+                                <AvatarFallback>{user ? user.name.charAt(0).toUpperCase() : 'G'}</AvatarFallback>
+                            </Avatar>
+                            <span>{user?.name || 'Guest User'}</span>
+                            <ChevronDown className="h-4 w-4" />
+                        </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-56">
+                        <DropdownMenuLabel>{user?.name || "Guest"}</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem>
+                            <User className="mr-2 h-4 w-4" />
+                            <span>Profile</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem>
+                            <Settings className="mr-2 h-4 w-4" />
+                            <span>Settings</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={handleLogout}>
+                            <LogOut className="mr-2 h-4 w-4" />
+                            <span>Logout</span>
+                        </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                    </div>
+                </header>
+                
+                <div className="flex-1 overflow-auto flex flex-col">
+                <main className="flex-1">
+                    {children}
+                </main>
+                </div>
+            </SidebarInset>
+            
+            {/* Notebook Creation Dialog */}
+            <Dialog open={isNotebookDialogOpen} onOpenChange={(isOpen) => { if(!isOpen) resetNewItem(); setIsNotebookDialogOpen(isOpen);}}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Create New Notebook</DialogTitle>
+                        <DialogDescription>
+                            Notebooks live inside binders and contain your pages.
+                        </DialogDescription>
+                    </DialogHeader>
                     <div className="space-y-4">
-                        <p className="font-medium">Private Share</p>
                         <div>
-                            <Label htmlFor="share-email">Email Address</Label>
-                            <Input id="share-email" type="email" placeholder="name@example.com" value={shareState.email} onChange={e => setShareState({...shareState, email: e.target.value})} />
+                            <Label htmlFor="notebook-title">Title</Label>
+                            <Input id="notebook-title" value={newItem.title} onChange={e => setNewItem({...newItem, title: e.target.value})} placeholder="e.g., Advanced AI" />
                         </div>
                         <div>
-                            <Label>Permission</Label>
-                            <Select onValueChange={(value: 'view' | 'edit') => setShareState({...shareState, permission: value})} defaultValue={shareState.permission}>
-                                <SelectTrigger>
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="view">Can view</SelectItem>
-                                    <SelectItem value="edit">Can edit</SelectItem>
-                                </SelectContent>
-                            </Select>
+                            <Label>Color</Label>
+                            <div className="flex gap-2 pt-2">
+                            {predefinedColors.map(color => (
+                                <button key={color} onClick={() => setNewItem({...newItem, color})} className={cn("h-6 w-6 rounded-full border-2", newItem.color === color ? 'border-primary' : 'border-transparent')}>
+                                    <div className={cn("h-full w-full rounded-full", color)}></div>
+                                </button>
+                            ))}
+                            </div>
                         </div>
-                        <Button onClick={handlePrivateShare} className="w-full">Share with email</Button>
+                        <div>
+                            <Label htmlFor="notebook-tags">Tags</Label>
+                            <Input id="notebook-tags" value={newItem.tags} onChange={e => setNewItem({...newItem, tags: e.target.value})} placeholder="e.g., CS, AI, Hard (comma-separated)" />
+                        </div>
                     </div>
-                </div>
-            </DialogContent>
-        </Dialog>
-      </div>
-    </SidebarProvider>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsNotebookDialogOpen(false)}>Cancel</Button>
+                        <Button onClick={handleCreateNotebook}>Create Notebook</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Page Creation Dialog */}
+            <Dialog open={isPageDialogOpen} onOpenChange={(isOpen) => { if(!isOpen) resetNewItem(); setIsPageDialogOpen(isOpen);}}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Create New Page</DialogTitle>
+                        <DialogDescription>
+                            Pages are where your content lives.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                        <div>
+                            <Label htmlFor="page-title">Title</Label>
+                            <Input id="page-title" value={newItem.title} onChange={e => setNewItem({...newItem, title: e.target.value})} placeholder="e.g., Lecture 1: Intro" />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsPageDialogOpen(false)}>Cancel</Button>
+                        <Button onClick={handleCreatePage}>Create Page</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+            
+            {/* Rename Dialog */}
+            <Dialog open={isRenameDialogOpen} onOpenChange={setIsRenameDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Rename {renameTarget?.type}</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                        <div>
+                            <Label htmlFor="new-title">New Title</Label>
+                            <Input id="new-title" value={newTitle} onChange={e => setNewTitle(e.target.value)} />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsRenameDialogOpen(false)}>Cancel</Button>
+                        <Button onClick={handleRename}>Rename</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Share Dialog */}
+            <Dialog open={isShareDialogOpen} onOpenChange={setIsShareDialogOpen}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Share {shareState.itemTitle}</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-6">
+                        {shareState.itemType === 'page' && (
+                        <>
+                            <div className="space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <Label htmlFor="public-share-switch" className="flex flex-col gap-1">
+                                        <span>Public Share</span>
+                                        <span className="text-xs font-normal text-muted-foreground">Anyone with the link can view</span>
+                                    </Label>
+                                    <Switch
+                                        id="public-share-switch"
+                                        checked={shareState.isPublic}
+                                        onCheckedChange={handlePublicShareToggle}
+                                    />
+                                </div>
+                                {shareState.isPublic && (
+                                    <div className="flex space-x-2">
+                                        <Input
+                                            value={`${window.location.origin}/public/page/${shareState.itemId}`}
+                                            readOnly
+                                        />
+                                        <Button size="icon" variant="outline" onClick={() => {
+                                            navigator.clipboard.writeText(`${window.location.origin}/public/page/${shareState.itemId}`);
+                                            toast({ title: "Copied to clipboard!" });
+                                        }}>
+                                            <Copy className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                )}
+                            </div>
+                            <div className="relative">
+                                <div className="absolute inset-0 flex items-center">
+                                    <span className="w-full border-t" />
+                                </div>
+                                <div className="relative flex justify-center text-xs uppercase">
+                                    <span className="bg-background px-2 text-muted-foreground">
+                                    OR
+                                    </span>
+                                </div>
+                            </div>
+                        </>
+                        )}
+                        <div className="space-y-4">
+                            <p className="font-medium">Private Share</p>
+                            <div>
+                                <Label htmlFor="share-email">Email Address</Label>
+                                <Input id="share-email" type="email" placeholder="name@example.com" value={shareState.email} onChange={e => setShareState({...shareState, email: e.target.value})} />
+                            </div>
+                            <div>
+                                <Label>Permission</Label>
+                                <Select onValueChange={(value: 'view' | 'edit') => setShareState({...shareState, permission: value})} defaultValue={shareState.permission}>
+                                    <SelectTrigger>
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="view">Can view</SelectItem>
+                                        <SelectItem value="edit">Can edit</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <Button onClick={handlePrivateShare} className="w-full">Share with email</Button>
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
+        </div>
+        </SidebarProvider>
+    </DashboardContext.Provider>
   );
 }
