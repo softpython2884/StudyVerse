@@ -23,7 +23,10 @@ function createWindow() {
     },
   });
 
-  const startUrl = 'http://localhost:9002';
+  // Remove the default Electron menu (File, Edit, etc.)
+  mainWindow.setMenu(null);
+
+  const startUrl = 'http://localhost:3000';
   mainWindow.loadURL(startUrl);
 
   if (isDev) {
@@ -47,7 +50,7 @@ app.whenReady().then(() => {
     const startScript = path.join(serverPath, 'server.js');
     
     serverProcess = exec(`node "${startScript}"`, {
-        env: { ...process.env, PORT: '9002' }
+        env: { ...process.env, PORT: '3000' }
     });
 
     serverProcess.stdout.on('data', (data: any) => {
@@ -60,7 +63,7 @@ app.whenReady().then(() => {
 
     // A more robust way to wait for the server
     const waitOn = require('wait-on');
-    waitOn({ resources: ['http://localhost:9002'], timeout: 30000 }) // 30s timeout
+    waitOn({ resources: ['http://localhost:3000'], timeout: 30000 }) // 30s timeout
         .then(() => {
             console.log('Next.js Server is ready. Creating window.');
             createWindow();

@@ -4,16 +4,16 @@
   "private": true,
   "main": "dist-electron/main.js",
   "scripts": {
-    "dev": "next dev --turbopack -p 9002",
+    "dev": "next dev --turbopack -p 3000",
     "genkit:dev": "genkit start -- tsx src/ai/dev.ts",
     "genkit:watch": "genkit start -- tsx --watch src/ai/dev.ts",
     "build": "npm run build:electron && next build",
     "build:electron": "tsc -p tsconfig.electron.json",
-    "start": "next start -p 9002",
+    "start": "next start -p 3000",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "postinstall": "patch-package",
-    "electron:dev": "concurrently \"npm run start\" \"wait-on http://localhost:9002 && tsc -p tsconfig.electron.json && electron .\"",
+    "electron:dev": "concurrently \"npm run start\" \"wait-on http://localhost:3000 && tsc -p tsconfig.electron.json && electron .\"",
     "electron:build": "npm run build && electron-builder"
   },
   "dependencies": {
