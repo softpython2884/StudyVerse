@@ -8,7 +8,7 @@ import { getDb } from './db';
 import type { User } from './types';
 
 
-const secretKey = process.env.SESSION_SECRET;
+const secretKey = process.env.SESSION_SECRET || 'fallback-secret-key-for-development-and-build';
 if (!secretKey) {
   throw new Error('SESSION_SECRET is not defined in the environment variables.');
 }

@@ -44,13 +44,16 @@ npm install
 
 ### 2. Configuration de l'environnement
 
-Ce projet utilise Genkit pour ses fonctionnalités d'IA, qui nécessite une clé API pour les modèles Google.
-
-- Créez un fichier `.env` à la racine du projet.
-- Ajoutez-y votre clé API comme ceci :
+- Créez un fichier `.env` à la racine du projet en copiant le contenu du fichier `.env.example` (si existant) ou en partant de zéro.
+- Ce projet utilise des variables d'environnement pour la configuration, notamment pour l'IA et la sécurité des sessions.
 
 ```env
-GEMINI_API_KEY=VOTRE_CLE_API_ICI
+# Clé secrète pour la session utilisateur. Générez une chaîne longue et aléatoire.
+# Vous pouvez utiliser `openssl rand -hex 32` dans votre terminal pour en créer une.
+SESSION_SECRET="your-super-secret-key-that-is-long-and-random"
+
+# Clé API pour les services d'IA de Google (Genkit)
+GEMINI_API_KEY="VOTRE_CLE_API_ICI"
 ```
 
 ### 3. Démarrage du serveur de développement
