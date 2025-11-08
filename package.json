@@ -86,7 +86,7 @@
   "build": {
     "appId": "com.studyverse.desktop",
     "productName": "StudyVerse",
-    "icon": "public/ico.png",
+    "icon": "ico.png",
     "directories": {
       "output": "dist"
     },
@@ -95,6 +95,7 @@
       "node_modules/**/*",
       "public/**/*",
       "package.json",
+      "ico.png",
       ".next/standalone/**/*"
     ],
     "extraMetadata": {

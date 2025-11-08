@@ -18,7 +18,7 @@ function createWindow() {
     frame: true, // Use native window frame
     transparent: false,
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#1c1c1c' : '#ffffff',
-    icon: path.join(__dirname, '..', '..', 'public', 'ico.png'),
+    icon: path.join(__dirname, '..', '..', 'ico.png'),
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
