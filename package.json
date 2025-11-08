@@ -2,15 +2,19 @@
   "name": "nextn",
   "version": "0.1.0",
   "private": true,
+  "main": "dist-electron/main.js",
   "scripts": {
     "dev": "next dev --turbopack -p 9002",
     "genkit:dev": "genkit start -- tsx src/ai/dev.ts",
     "genkit:watch": "genkit start -- tsx --watch src/ai/dev.ts",
-    "build": "next build",
-    "start": "next start",
+    "build": "npm run build:electron && next build",
+    "build:electron": "tsc -p tsconfig.electron.json",
+    "start": "next start -p 9002",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "postinstall": "patch-package"
+    "postinstall": "patch-package",
+    "electron:dev": "concurrently \"npm start\" \"wait-on http://localhost:9002 && tsc -p tsconfig.electron.json && electron .\"",
+    "electron:build": "npm run build && electron-builder"
   },
   "dependencies": {
     "@genkit-ai/googleai": "^1.14.1",
@@ -70,9 +74,29 @@
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "@types/showdown": "^2.0.6",
+    "concurrently": "^8.2.2",
+    "electron": "^31.2.1",
+    "electron-builder": "^24.13.3",
     "genkit-cli": "^1.14.1",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
-    "typescript": "^5"
+    "typescript": "^5",
+    "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "com.studyverse.desktop",
+    "productName": "StudyVerse",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "dist-electron/**/*",
+      ".next/**/*",
+      "public/**/*",
+      "package.json"
+    ],
+    "extraMetadata": {
+      "main": "dist-electron/main.js"
+    }
   }
 }
