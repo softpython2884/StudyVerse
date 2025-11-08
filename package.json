@@ -13,7 +13,7 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "postinstall": "patch-package",
-    "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:3000 && tsc -p tsconfig.electron.json && electron .\"",
+    "electron:dev": "concurrently \"npm run start\" \"wait-on http://localhost:3000 && tsc -p tsconfig.electron.json && electron .\"",
     "electron:build": "npm run build && electron-builder"
   },
   "dependencies": {
