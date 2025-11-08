@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 export const metadata: Metadata = {
   title: 'StudyVerse - AI-Powered Learning Environment',
   description: 'Create, organize, and enhance your notes with the power of AI. StudyVerse offers real-time speech-to-text, note refinement, diagram generation, and more.',
+  manifest: '/manifest.json'
 };
 
 export default function RootLayout({
