@@ -1,4 +1,5 @@
-import { app, BrowserWindow, nativeTheme } from 'electron';
+
+import { app, BrowserWindow, nativeTheme, session } from 'electron';
 import * as path from 'path';
 import { exec } from 'child_process';
 import * as url from 'url';
@@ -83,4 +84,15 @@ app.on('window-all-closed', () => {
 
 app.on('activate', () => {
   if (mainWindow === null) createWindow();
+});
+
+// Ensure session data (cookies) is persisted to disk before quitting.
+app.on('before-quit', (e) => {
+    if (session.defaultSession) {
+        e.preventDefault();
+        session.defaultSession.flushStorageData();
+        setTimeout(() => {
+            app.quit();
+        }, 1000); // Give it a second to flush
+    }
 });
