@@ -47,6 +47,7 @@ import {
   Image as ImageIcon,
   Paperclip,
   File as FileIcon,
+  Palette,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -105,6 +106,15 @@ type TocItem = {
 
 const diagramTypes = ['MindMap', 'Flowchart', 'OrgChart'];
 const diagramComplexities = ['Simple', 'Detailed', 'Exhaustive'];
+
+const textColors = [
+    { name: 'Default', color: '#000000' },
+    { name: 'Red', color: '#E00000' },
+    { name: 'Blue', color: '#0000E0' },
+    { name: 'Green', color: '#008000' },
+    { name: 'Purple', color: '#800080' },
+    { name: 'Orange', color: '#FFA500' },
+];
 
 export function Editor({ page }: EditorProps) {
   const [isSaving, setIsSaving] = React.useState(false);
@@ -201,6 +211,7 @@ export function Editor({ page }: EditorProps) {
 
 
   const [isLinkPopoverOpen, setIsLinkPopoverOpen] = React.useState(false);
+  const [isColorPopoverOpen, setIsColorPopoverOpen] = React.useState(false);
   const [linkUrl, setLinkUrl] = React.useState("");
   const [isTablePopoverOpen, setIsTablePopoverOpen] = React.useState(false);
   const [tableGridSize, setTableGridSize] = React.useState({ rows: 0, cols: 0 });
@@ -984,6 +995,19 @@ const handleGenerateDiagram = async () => {
       updateToolbarState();
     }, 10);
   };
+  
+    const handleColorChange = (color: string) => {
+    if (isReadOnly) return;
+    restoreSelection();
+    editorRef.current?.focus();
+    setTimeout(() => {
+        document.execCommand("styleWithCSS", false, "true");
+        document.execCommand("foreColor", false, color);
+        document.execCommand("styleWithCSS", false, "false");
+        setIsColorPopoverOpen(false);
+        updateToolbarState();
+    }, 10);
+  };
 
   const handleInsertTable = () => {
     if (isReadOnly) return;
@@ -1424,6 +1448,26 @@ const handleGenerateDiagram = async () => {
               <Button variant={activeStyles.italic ? "secondary" : "ghost"} size="icon" onMouseDown={onToolbarMouseDown} onClick={() => handleFormat("italic")}> <Italic className="h-4 w-4" /> </Button>
               <Button variant={activeStyles.underline ? "secondary" : "ghost"} size="icon" onMouseDown={onToolbarMouseDown} onClick={() => handleFormat("underline")}> <Underline className="h-4 w-4" /> </Button>
               <Button variant={activeStyles.strikethrough ? "secondary" : "ghost"} size="icon" onMouseDown={onToolbarMouseDown} onClick={() => handleFormat("strikeThrough")}> <Strikethrough className="h-4 w-4" /> </Button>
+              <Popover open={isColorPopoverOpen} onOpenChange={setIsColorPopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="ghost" size="icon" onMouseDown={onToolbarMouseDown}>
+                    <Palette className="h-4 w-4" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-2" onOpenAutoFocus={(e) => e.preventDefault()}>
+                    <div className="flex gap-2">
+                        {textColors.map(item => (
+                            <button
+                                key={item.name}
+                                title={item.name}
+                                onClick={() => handleColorChange(item.color)}
+                                className="h-6 w-6 rounded-full border border-muted-foreground/50"
+                                style={{ backgroundColor: item.color }}
+                            />
+                        ))}
+                    </div>
+                </PopoverContent>
+              </Popover>
               <Button variant={activeStyles.superscript ? "secondary" : "ghost"} size="icon" onMouseDown={onToolbarMouseDown} onClick={() => handleFormat("superscript")}> <Superscript className="h-4 w-4" /> </Button>
               <Button variant={activeStyles.subscript ? "secondary" : "ghost"} size="icon" onMouseDown={onToolbarMouseDown} onClick={() => handleFormat("subscript")}> <Subscript className="h-4 w-4" /> </Button>
               <Popover open={isLinkPopoverOpen} onOpenChange={setIsLinkPopoverOpen}>
@@ -1742,6 +1786,7 @@ const handleGenerateDiagram = async () => {
     
 
     
+
 
 
 
