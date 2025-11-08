@@ -64,4 +64,4 @@ Pour lancer l'application en mode développement, utilisez la commande suivante 
 npm run dev
 ```
 
-L'application sera accessible à l'adresse [http://localhost:9002](http://localhost:9002).
+L'application sera accessible à l'adresse [http://localhost:3000](http://localhost:3000).
